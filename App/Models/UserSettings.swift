@@ -18,7 +18,10 @@ final class UserSettings {
     }
 
     var customSoundEnabled: Bool {
-        didSet { UserDefaults.standard.set(customSoundEnabled, forKey: Keys.customSound) }
+        didSet {
+            UserDefaults.standard.set(customSoundEnabled, forKey: Keys.customSound)
+            SharedSettings.customSoundEnabled = customSoundEnabled
+        }
     }
 
     var cooldownSeconds: Int {
@@ -33,6 +36,7 @@ final class UserSettings {
         self.cooldownSeconds = d.object(forKey: Keys.cooldown) as? Int ?? 30
         // Sync to App Group on init in case the NSE runs before the toggle is touched.
         SharedSettings.acceptCriticalAlerts = self.acceptCriticalAlerts
+        SharedSettings.customSoundEnabled = self.customSoundEnabled
     }
 
     private enum Keys {

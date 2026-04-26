@@ -33,7 +33,7 @@ extension WatchBridge: WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String : Any], replyHandler: @escaping ([String : Any]) -> Void) {
-        guard message[Constants.WatchMessage.kindKey] as? String == Constants.WatchMessage.pressKind else {
+        guard isPressMessage(message) else {
             replyHandler(["ok": false])
             return
         }
@@ -41,5 +41,18 @@ extension WatchBridge: WCSessionDelegate {
             await self.pressHandler?()
             replyHandler(["ok": true])
         }
+    }
+
+    /// `transferUserInfo` from the watch lands here when the iPhone wasn't reachable at
+    /// press time. Without this, queued presses would silently drop on the floor.
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
+        guard isPressMessage(userInfo) else { return }
+        Task { @MainActor in
+            await self.pressHandler?()
+        }
+    }
+
+    private nonisolated func isPressMessage(_ payload: [String: Any]) -> Bool {
+        (payload[Constants.WatchMessage.kindKey] as? String) == Constants.WatchMessage.pressKind
     }
 }

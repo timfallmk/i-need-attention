@@ -8,6 +8,7 @@ enum SharedSettings {
 
     private enum Keys {
         static let acceptCriticalAlerts = "shared.acceptCriticalAlerts"
+        static let customSoundEnabled = "shared.customSoundEnabled"
         static let partnerName = "shared.partnerName"
     }
 
@@ -16,6 +17,14 @@ enum SharedSettings {
     static var acceptCriticalAlerts: Bool {
         get { suite.bool(forKey: Keys.acceptCriticalAlerts) }
         set { suite.set(newValue, forKey: Keys.acceptCriticalAlerts) }
+    }
+
+    /// When true the NSE plays the bundled `needs-attention.caf`; when false it uses the
+    /// system default sound. Defaults to true on first read so the bundled sound (if
+    /// present) plays before the user has touched Settings.
+    static var customSoundEnabled: Bool {
+        get { suite.object(forKey: Keys.customSoundEnabled) as? Bool ?? true }
+        set { suite.set(newValue, forKey: Keys.customSoundEnabled) }
     }
 
     /// Cached partner display name so the NSE can label the toggle/notification without

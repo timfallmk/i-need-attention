@@ -85,10 +85,12 @@ final class AppState {
 
         Haptics.press()
         do {
+            // Read the live displayName so renaming yourself in Settings takes effect on
+            // the next outgoing alert without needing to re-pair.
             let record = try await CloudKitService.shared.sendAlert(
                 pairKey: pair.pairKey,
                 senderDeviceID: pair.myDeviceID,
-                senderName: pair.myName,
+                senderName: settings.displayName,
                 message: "needs attention",
                 critical: critical
             )

@@ -34,7 +34,7 @@ final class NotificationService: UNNotificationServiceExtension {
         applyContent(from: queryNotification, to: mutable)
 
         // Slow path: fetch full record to validate critical flag etc., then deliver.
-        let container = CKContainer(identifier: "iCloud.com.example.attention")
+        let container = CKContainer(identifier: Constants.cloudKitContainerID)
         container.publicCloudDatabase.fetch(withRecordID: recordID) { [weak self] record, _ in
             guard let self else { return }
             if let record {
@@ -82,6 +82,11 @@ final class NotificationService: UNNotificationServiceExtension {
     /// Three-way decision: sender's per-send flag AND receiver's master toggle (read from
     /// the App Group) AND Apple's entitlement (enforced by the system, silently downgrades
     /// .critical to active if missing). We keep .timeSensitive as the floor for everything.
+    ///
+    /// Sound resolution: if the bundled custom sound is enabled in SharedSettings and the
+    /// .caf is present, use it; otherwise fall back to the system default. UNNotificationSound
+    /// is non-optional — a missing file silently plays nothing, so we gate explicitly via
+    /// the user's setting rather than relying on a nil fallback.
     private func applyPriority(senderRequestedCritical: Bool, to content: UNMutableNotificationContent) {
         let receiverAccepts = SharedSettings.acceptCriticalAlerts
         if senderRequestedCritical && receiverAccepts {
@@ -89,8 +94,9 @@ final class NotificationService: UNNotificationServiceExtension {
             content.sound = UNNotificationSound.defaultCriticalSound(withAudioVolume: 1.0)
         } else {
             content.interruptionLevel = .timeSensitive
-            content.sound = UNNotificationSound(named: UNNotificationSoundName("needs-attention.caf"))
-                ?? UNNotificationSound.default
+            content.sound = SharedSettings.customSoundEnabled
+                ? UNNotificationSound(named: UNNotificationSoundName("needs-attention.caf"))
+                : UNNotificationSound.default
         }
     }
 }
