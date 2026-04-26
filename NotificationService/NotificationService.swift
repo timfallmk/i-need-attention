@@ -20,6 +20,8 @@ final class NotificationService: UNNotificationServiceExtension {
 
         // Default to time-sensitive — pierces Focus, doesn't need Apple approval.
         mutable.interruptionLevel = .timeSensitive
+        // Wire the inline ack actions (❤️ 👍 🤗 🚨 ✅) into the banner pull-down.
+        mutable.categoryIdentifier = Constants.NotificationAction.category
 
         let userInfo = request.content.userInfo
         guard let ckNotification = CKNotification(fromRemoteNotificationDictionary: userInfo),
