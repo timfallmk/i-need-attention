@@ -26,9 +26,13 @@ struct MainView: View {
                     isCoolingDown: appState.isOnCooldown,
                     cooldownRemaining: cooldownRemaining,
                     isSending: appState.pendingOutgoing?.state == .sent
-                ) {
-                    await appState.sendAttention()
+                ) { critical in
+                    await appState.sendAttention(critical: critical)
                 }
+
+                Text("Long-press for urgent")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
 
                 Spacer(minLength: 0)
 

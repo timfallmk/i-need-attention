@@ -54,16 +54,13 @@ final class NotificationService: UNNotificationServiceExtension {
 
     private func applyContent(from notification: CKQueryNotification, to content: UNMutableNotificationContent) {
         let fields = notification.recordFields ?? [:]
-        let senderName = (fields["senderName"] as? String) ?? "Someone"
+        let senderName = (fields["senderName"] as? String) ?? SharedSettings.partnerName ?? "Someone"
         let message = (fields["message"] as? String) ?? "needs attention"
-        let critical = (fields["critical"] as? Int ?? 0) == 1
+        let senderRequestedCritical = (fields["critical"] as? Int ?? 0) == 1
 
         content.title = senderName
         content.body = message
-        if critical {
-            content.interruptionLevel = .critical
-            content.sound = UNNotificationSound.defaultCriticalSound(withAudioVolume: 1.0)
-        }
+        applyPriority(senderRequestedCritical: senderRequestedCritical, to: content)
 
         if let recordID = notification.recordID {
             var ui = content.userInfo
@@ -75,16 +72,25 @@ final class NotificationService: UNNotificationServiceExtension {
     private func apply(record: CKRecord, to content: UNMutableNotificationContent) {
         if let senderName = record["senderName"] as? String { content.title = senderName }
         if let message = record["message"] as? String { content.body = message }
-        let critical = (record["critical"] as? Int ?? 0) == 1
-        if critical {
-            content.interruptionLevel = .critical
-            content.sound = UNNotificationSound.defaultCriticalSound(withAudioVolume: 1.0)
-        } else {
-            content.sound = UNNotificationSound(named: UNNotificationSoundName("needs-attention.caf"))
-                ?? UNNotificationSound.default
-        }
+        let senderRequestedCritical = (record["critical"] as? Int ?? 0) == 1
+        applyPriority(senderRequestedCritical: senderRequestedCritical, to: content)
         var ui = content.userInfo
         ui["recordName"] = record.recordID.recordName
         content.userInfo = ui
+    }
+
+    /// Three-way decision: sender's per-send flag AND receiver's master toggle (read from
+    /// the App Group) AND Apple's entitlement (enforced by the system, silently downgrades
+    /// .critical to active if missing). We keep .timeSensitive as the floor for everything.
+    private func applyPriority(senderRequestedCritical: Bool, to content: UNMutableNotificationContent) {
+        let receiverAccepts = SharedSettings.acceptCriticalAlerts
+        if senderRequestedCritical && receiverAccepts {
+            content.interruptionLevel = .critical
+            content.sound = UNNotificationSound.defaultCriticalSound(withAudioVolume: 1.0)
+        } else {
+            content.interruptionLevel = .timeSensitive
+            content.sound = UNNotificationSound(named: UNNotificationSoundName("needs-attention.caf"))
+                ?? UNNotificationSound.default
+        }
     }
 }

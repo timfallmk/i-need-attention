@@ -34,9 +34,10 @@ open Attention.xcodeproj
 Then in Xcode:
 
 1. **Pick your team.** Select the `Attention` target → Signing & Capabilities → Team. Repeat for `AttentionWatch` and `AttentionNotificationService`.
-2. **Set bundle IDs.** Replace `com.example.attention` everywhere it appears (the three `*.entitlements` files, `project.yml`, and `Constants.cloudKitContainerID`) with your own reverse-DNS prefix. Re-run `xcodegen generate`.
+2. **Set bundle IDs.** Replace `com.example.attention` everywhere it appears (the three `*.entitlements` files, `project.yml`, and `Constants.swift` for both `cloudKitContainerID` and `AppGroup.identifier`) with your own reverse-DNS prefix. Re-run `xcodegen generate`.
 3. **Create the iCloud container.** In Signing & Capabilities → iCloud → click **+ Container** and create `iCloud.<your.bundle.id>`. Update `Constants.cloudKitContainerID` to match.
-4. **First run.** Build + install on both phones (each signed in to its own Apple ID). The first launch asks for notification permission and shows the pairing screen.
+4. **Create the App Group.** In Signing & Capabilities → **+ Capability → App Groups** → **+** → name it `group.<your.bundle.id>`. Add it to **both** the `Attention` target and the `AttentionNotificationService` target. Update `Constants.AppGroup.identifier` to match.
+5. **First run.** Build + install on both phones (each signed in to its own Apple ID). The first launch asks for notification permission and shows the pairing screen.
 
 ## CloudKit Dashboard setup (first run only)
 
@@ -64,9 +65,19 @@ To repair: open Settings → Unpair, then start over. (Both phones unpair separa
 
 ## Critical Alerts
 
-The toggle in Settings flags your outgoing pings as critical, and the Notification Service Extension on the receiver upgrades them to `.critical` interruption level. Critical Alerts require a one-time entitlement from Apple — request it in your developer account under **Certificates, Identifiers & Profiles → Identifiers → your App ID → Capabilities → Critical Alerts**. Until granted, the system silently downgrades to `.timeSensitive`, which still pierces Focus.
+The split is two-sided so each user controls their own phone:
 
-`com.apple.developer.usernotifications.time-sensitive` is auto-granted; just add the capability in Xcode.
+- **Sender** (per-press): tap the big button for a normal ping, or **long-press → Send as Critical** to flag this specific ping as urgent.
+- **Receiver** (master toggle in Settings): "Accept Critical Alerts from \<partner\>" — defaults off. If unchecked, criticals from your partner are downgraded to `.timeSensitive` on your device.
+
+A ping is presented as `.critical` (pierces silent + Focus + DND) only when **all three** are true:
+1. The sender long-pressed and chose Send as Critical
+2. The receiver has Accept Critical Alerts on
+3. Apple has granted the Critical Alerts entitlement to your app ID
+
+Critical Alerts require a one-time entitlement from Apple — request it under **Certificates, Identifiers & Profiles → Identifiers → your App ID → Capabilities → Critical Alerts**. Until granted, criticals fall back to `.timeSensitive`, which still pierces Focus.
+
+`com.apple.developer.usernotifications.time-sensitive` is auto-granted; just add the capability in Xcode. The receiver toggle is read by the Notification Service Extension via the App Group container, which is why both targets need the App Group capability.
 
 ## Custom sound
 
@@ -86,6 +97,7 @@ Reuses the iPhone's CloudKit credentials via WatchConnectivity — the watch nev
 | All CloudKit reads/writes | `App/Services/CloudKitService.swift` |
 | Push permissions + delegate | `App/Services/PushNotifications.swift` |
 | Priority upgrade for incoming | `NotificationService/NotificationService.swift` |
+| Receiver toggle shared with NSE | `Shared/SharedSettings.swift` (App Group) |
 | Watch → iPhone bridge | `App/Services/WatchBridge.swift` and `Watch/Watch/WatchSession.swift` |
 
 ## Known limitations

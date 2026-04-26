@@ -5,7 +5,8 @@ struct AttentionButton: View {
     let isCoolingDown: Bool
     let cooldownRemaining: TimeInterval
     let isSending: Bool
-    let onPress: () async -> Void
+    /// Tap = standard ping, long-press menu offers a critical send.
+    let onPress: (_ critical: Bool) async -> Void
 
     @State private var pressed = false
     @State private var pulse = false
@@ -33,7 +34,7 @@ struct AttentionButton: View {
 
             // The button itself
             Button {
-                Task { await onPress() }
+                Task { await onPress(false) }
             } label: {
                 ZStack {
                     Circle()
@@ -73,6 +74,18 @@ struct AttentionButton: View {
             .disabled(isCoolingDown || isSending)
             .scaleEffect(pressed ? 0.96 : 1.0)
             .animation(.spring(response: 0.28, dampingFraction: 0.55), value: pressed)
+            .contextMenu {
+                Button {
+                    Task { await onPress(false) }
+                } label: {
+                    Label("Send", systemImage: "hand.raised.fill")
+                }
+                Button(role: .destructive) {
+                    Task { await onPress(true) }
+                } label: {
+                    Label("Send as Critical", systemImage: "exclamationmark.triangle.fill")
+                }
+            }
         }
         .frame(width: 280, height: 280)
         .onChange(of: isSending) { _, sending in
