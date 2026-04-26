@@ -5,6 +5,9 @@
 ## User settings
 xcuserdata/
 
+## XcodeGen-generated project file (regenerate with `xcodegen`)
+*.xcodeproj/
+
 ## Obj-C/Swift specific
 *.hmap
 
