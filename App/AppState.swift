@@ -19,6 +19,7 @@ final class AppState {
     var lastIncoming: AlertRecord?
     var iCloudStatus: CKAccountStatus = .couldNotDetermine
     var notificationsAuthorized: Bool = false
+    var notificationsDenied: Bool = false
 
     // UI feedback
     var bannerMessage: String?
@@ -34,11 +35,7 @@ final class AppState {
     // MARK: - Boot
 
     func bootstrap() async {
-        do {
-            iCloudStatus = try await CloudKitService.shared.accountStatus()
-        } catch {
-            log.error("account status: \(error.localizedDescription)")
-        }
+        await refreshICloudStatus()
         if let pair {
             SharedSettings.partnerName = pair.partnerName
             // Re-register subscriptions in case they were dropped
@@ -55,8 +52,21 @@ final class AppState {
                 }
             }
         }
+        await refreshNotificationStatus()
+    }
+
+    func refreshNotificationStatus() async {
         let auth = await PushNotifications.shared.currentSettings()
         notificationsAuthorized = auth.authorizationStatus == .authorized || auth.authorizationStatus == .provisional
+        notificationsDenied = auth.authorizationStatus == .denied
+    }
+
+    func refreshICloudStatus() async {
+        do {
+            iCloudStatus = try await CloudKitService.shared.accountStatus()
+        } catch {
+            log.error("account status: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Sending

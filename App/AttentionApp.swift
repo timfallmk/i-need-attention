@@ -6,6 +6,7 @@ import UIKit
 struct AttentionApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var appState = AppState()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -16,17 +17,30 @@ struct AttentionApp: App {
                     Haptics.prepare()
                     PushNotifications.shared.configure()
                     await appState.bootstrap()
-                    if !appState.notificationsAuthorized {
+                    if !appState.notificationsAuthorized && !appState.notificationsDenied {
+                        // First launch — ask for permission. Critical-alert option
+                        // only takes effect if Apple has granted the entitlement.
                         let granted = await PushNotifications.shared.requestAuthorization(
-                            requestCritical: appState.settings.requestCriticalAlerts
+                            requestCritical: appState.settings.acceptCriticalAlerts
                         )
                         appState.notificationsAuthorized = granted
+                        await appState.refreshNotificationStatus()
                     }
                     WatchBridge.shared.activate { @MainActor in
                         await appState.sendAttention()
                     }
                 }
                 .preferredColorScheme(nil)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // Re-check iCloud and notification permission when the user returns from
+            // Settings — both can change while we're backgrounded.
+            if newPhase == .active {
+                Task {
+                    await appState.refreshICloudStatus()
+                    await appState.refreshNotificationStatus()
+                }
+            }
         }
     }
 }

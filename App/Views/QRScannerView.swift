@@ -6,6 +6,8 @@ import UIKit
 /// the parent dismisses or transitions to a new state immediately so no debouncing needed.
 struct QRScannerView: UIViewControllerRepresentable {
     var onCode: (String) -> Void
+    /// Bumping this from the parent re-arms the scanner so it'll fire `onCode` again.
+    var resetToken: Int = 0
 
     func makeUIViewController(context: Context) -> ScannerViewController {
         let vc = ScannerViewController()
@@ -13,14 +15,25 @@ struct QRScannerView: UIViewControllerRepresentable {
         return vc
     }
 
-    func updateUIViewController(_ uiViewController: ScannerViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: ScannerViewController, context: Context) {
+        uiViewController.onCode = onCode
+        if uiViewController.resetToken != resetToken {
+            uiViewController.resetToken = resetToken
+            uiViewController.rearm()
+        }
+    }
 }
 
 final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
     var onCode: ((String) -> Void)?
+    var resetToken: Int = 0
     private let session = AVCaptureSession()
     private var preview: AVCaptureVideoPreviewLayer?
     private var didFire = false
+
+    func rearm() {
+        didFire = false
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()

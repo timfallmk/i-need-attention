@@ -32,6 +32,7 @@ Go to <https://developer.apple.com/account/resources>.
 - [ ] `com.yourname.attention` — enable: Push Notifications, iCloud (with CloudKit), App Groups, Communication Notifications, Time Sensitive Notifications
 - [ ] `com.yourname.attention.notification-service` — enable: iCloud (with CloudKit), App Groups
 - [ ] `com.yourname.attention.watchkitapp` — no extra capabilities
+- [ ] `com.yourname.attention.watchkitapp.widget` — no extra capabilities (this is the watch face complication extension)
 
 **iCloud Container** → Identifiers → iCloud Containers → **+**:
 - [ ] Create `iCloud.com.yourname.attention`
@@ -43,7 +44,7 @@ Go to <https://developer.apple.com/account/resources>.
 
 ## 3. Configure signing in Xcode
 
-For **each** of the three targets (`Attention`, `AttentionNotificationService`, `AttentionWatch`):
+For **each** of the four targets (`Attention`, `AttentionNotificationService`, `AttentionWatch`, `AttentionWatchWidget`):
 - [ ] Open the target → **Signing & Capabilities**
 - [ ] Check **Automatically manage signing**
 - [ ] Select your **Team**
@@ -88,6 +89,11 @@ If you hit "couldn't find provisioning profile" — go back to Signing & Capabil
 - [ ] On phone B: tap **Scan Code**, point camera at phone A
 - [ ] Both phones flip to the main button screen with "paired with \<name\>" at the bottom
 - [ ] Smoke test: tap the button on A — B should buzz and show the alert; tap acknowledge on B; A's status pill should flip to ✅
+
+## 6a. (Optional) Add the watch complication
+
+- [ ] On the watch: long-press the watch face → **Edit** → swipe to **Complications** (or pick a different face that supports them)
+- [ ] Tap a slot → scroll to **Attention** → done. Tapping the complication launches the watch app and immediately fires a press.
 
 ## 7. Publish privately via TestFlight
 

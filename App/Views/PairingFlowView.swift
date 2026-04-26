@@ -77,11 +77,17 @@ private struct ShowCodeView: View {
     @Environment(AppState.self) private var appState
     var onCancel: () -> Void
 
+    enum Phase: Equatable {
+        case starting
+        case waiting
+        case failed(String)
+    }
+
     @State private var displayName: String = DeviceIdentity.name
     @State private var invite: PairingInvite?
     @State private var pollingTask: Task<Void, Never>?
-    @State private var status: String = "Get the other phone's app open."
     @State private var qrImage: UIImage?
+    @State private var phase: Phase = .starting
 
     var body: some View {
         VStack(spacing: 18) {
@@ -89,25 +95,13 @@ private struct ShowCodeView: View {
                 .textFieldStyle(.roundedBorder)
                 .padding(.horizontal, 24)
 
-            if let qrImage {
-                Image(uiImage: qrImage)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-                    .padding(20)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 24))
-                    .padding(.horizontal, 32)
-                    .shadow(color: .black.opacity(0.1), radius: 18, x: 0, y: 8)
-            } else {
-                ProgressView()
-                    .frame(height: 240)
+            switch phase {
+            case .starting, .waiting:
+                qrPanel
+                statusFooter
+            case .failed(let message):
+                failurePanel(message: message)
             }
-
-            Text(status)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 28)
 
             Spacer()
 
@@ -125,14 +119,86 @@ private struct ShowCodeView: View {
         }
     }
 
+    @ViewBuilder
+    private var qrPanel: some View {
+        if let qrImage {
+            Image(uiImage: qrImage)
+                .interpolation(.none)
+                .resizable()
+                .scaledToFit()
+                .padding(20)
+                .background(.white, in: RoundedRectangle(cornerRadius: 24))
+                .padding(.horizontal, 32)
+                .shadow(color: .black.opacity(0.1), radius: 18, x: 0, y: 8)
+                .accessibilityLabel("Pairing QR code")
+        } else {
+            VStack(spacing: 10) {
+                ProgressView()
+                Text("Reaching iCloud…")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(height: 240)
+        }
+    }
+
+    @ViewBuilder
+    private var statusFooter: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                if phase == .waiting {
+                    ProgressView().controlSize(.small)
+                }
+                Text(phase == .waiting ? "Waiting for the other phone…" : "Setting up…")
+                    .font(.footnote.weight(.medium))
+            }
+            .foregroundStyle(.secondary)
+            Text("Open the app on the other phone and tap Scan Code.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+        }
+    }
+
+    private func failurePanel(message: String) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: "exclamationmark.icloud")
+                .font(.system(size: 56, weight: .light))
+                .foregroundStyle(.orange)
+            Text("Couldn't start pairing")
+                .font(.headline)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+
+            Button {
+                Task { await start() }
+            } label: {
+                Label("Try again", systemImage: "arrow.clockwise")
+                    .font(.headline)
+                    .frame(maxWidth: 220)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .padding(.top, 6)
+        }
+        .padding(.top, 30)
+    }
+
     @MainActor
     private func start() async {
+        pollingTask?.cancel()
+        phase = .starting
         DeviceIdentity.name = displayName
         do {
             let result = try await PairingService.shared.startInviting(myName: displayName)
             self.invite = result.invite
             self.qrImage = QRCode.image(from: result.invite.qrPayload)
-            self.status = "Have the other phone scan this code."
+            self.phase = .waiting
             pollingTask = Task {
                 do {
                     let state = try await PairingService.shared.waitForJoiner(record: result.record)
@@ -140,15 +206,15 @@ private struct ShowCodeView: View {
                         appState.applyPair(state)
                     }
                 } catch is CancellationError {
-                    // expected
+                    // expected on view dismissal
                 } catch {
                     await MainActor.run {
-                        status = error.localizedDescription
+                        phase = .failed(error.localizedDescription)
                     }
                 }
             }
         } catch {
-            status = error.localizedDescription
+            phase = .failed(error.localizedDescription)
         }
     }
 }
@@ -162,6 +228,7 @@ private struct ScanCodeView: View {
     @State private var displayName: String = DeviceIdentity.name
     @State private var error: String?
     @State private var working = false
+    @State private var rearmToken = 0
 
     var body: some View {
         VStack(spacing: 16) {
@@ -169,9 +236,9 @@ private struct ScanCodeView: View {
                 .textFieldStyle(.roundedBorder)
                 .padding(.horizontal, 24)
 
-            QRScannerView { code in
+            QRScannerView(onCode: { code in
                 Task { await complete(payload: code) }
-            }
+            }, resetToken: rearmToken)
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .overlay(
                 RoundedRectangle(cornerRadius: 24)
@@ -181,11 +248,27 @@ private struct ScanCodeView: View {
             .frame(height: 320)
 
             if let error {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                VStack(spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(.primary)
+                    }
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+                    Button {
+                        self.error = nil
+                        rearmToken &+= 1
+                    } label: {
+                        Label("Scan again", systemImage: "arrow.clockwise")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 24)
             } else {
                 Text("Point the camera at the other phone's code.")
                     .font(.footnote)
@@ -220,6 +303,8 @@ private struct ScanCodeView: View {
             appState.applyPair(state)
         } catch {
             self.error = error.localizedDescription
+            // Don't re-arm immediately — let the user tap "Scan again" so the camera
+            // doesn't keep firing the same bad payload over and over.
         }
     }
 }
