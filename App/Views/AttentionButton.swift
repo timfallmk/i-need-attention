@@ -4,12 +4,18 @@ import SwiftUI
 struct AttentionButton: View {
     let isCoolingDown: Bool
     let cooldownRemaining: TimeInterval
+    let cooldownTotal: TimeInterval
     let isSending: Bool
     /// Tap = standard ping, long-press menu offers a critical send.
     let onPress: (_ critical: Bool) async -> Void
 
     @State private var pressed = false
     @State private var pulse = false
+
+    private var cooldownProgress: Double {
+        guard cooldownTotal > 0, isCoolingDown else { return 0 }
+        return max(0, min(1, cooldownRemaining / cooldownTotal))
+    }
 
     var body: some View {
         ZStack {
@@ -31,6 +37,31 @@ struct AttentionButton: View {
                     : .default,
                     value: pulse
                 )
+
+            // Cooldown ring — drains from full to empty as the cooldown elapses.
+            // Sits just outside the button (frame 280 → ring 296).
+            if isCoolingDown {
+                Circle()
+                    .stroke(.gray.opacity(0.18), lineWidth: 8)
+                    .frame(width: 296, height: 296)
+                Circle()
+                    .trim(from: 0, to: cooldownProgress)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 1.00, green: 0.36, blue: 0.36),
+                                Color(red: 0.78, green: 0.10, blue: 0.14)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 296, height: 296)
+                    .animation(.linear(duration: 1), value: cooldownProgress)
+                    .transition(.opacity)
+            }
 
             // The button itself
             Button {
