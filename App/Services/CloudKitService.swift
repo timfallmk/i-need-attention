@@ -3,10 +3,10 @@ import Foundation
 import os.log
 
 /// Owns all CloudKit interaction. The container ID is wired via `Constants.cloudKitContainerID`.
-/// This class is intentionally not an actor — CKDatabase APIs are already thread-safe and we
-/// hop to MainActor for any UI-affecting state via the AppState.
-@MainActor
-final class CloudKitService {
+/// Not actor-isolated — CKDatabase APIs are already thread-safe and the methods here only
+/// read/return values, no shared mutable state. Callers (AppState, PairingService, etc.)
+/// hop to @MainActor on their own side for UI updates.
+final class CloudKitService: @unchecked Sendable {
     static let shared = CloudKitService()
 
     private let log = Logger(subsystem: "com.example.attention", category: "CloudKit")

@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 /// What the local device knows about its pairing once the handshake is complete.
 /// Persisted to UserDefaults — this is the only thing required to start sending alerts.
@@ -52,21 +53,32 @@ struct PairingInvite: Codable {
               let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else {
             return nil
         }
-        let map = Dictionary(uniqueKeysWithValues: items.compactMap { item -> (String, String)? in
-            guard let value = item.value else { return nil }
-            return (item.name, value)
-        })
+        // QR payload is untrusted — duplicate query item names must not trap.
+        // Take the first value for each name.
+        var map: [String: String] = [:]
+        for item in items {
+            guard let value = item.value, map[item.name] == nil else { continue }
+            map[item.name] = value
+        }
         guard let key = map["k"], let id = map["id"] else { return nil }
         return PairingInvite(pairKey: key, inviterDeviceID: id, inviterName: map["n"] ?? "Friend")
     }
 
     static func generate(myDeviceID: String, myName: String) -> PairingInvite {
         var bytes = [UInt8](repeating: 0, count: 16)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        let key = Data(bytes).base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        let key: String
+        if status == errSecSuccess {
+            key = Data(bytes).base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: "=", with: "")
+        } else {
+            // SecRandom failed — fall back to two UUIDs (~122 bits of entropy each)
+            // concatenated. Weaker than the CSPRNG path but never the predictable
+            // all-zero key the previous implementation could produce.
+            key = (UUID().uuidString + UUID().uuidString).replacingOccurrences(of: "-", with: "")
+        }
         return PairingInvite(pairKey: key, inviterDeviceID: myDeviceID, inviterName: myName)
     }
 }
