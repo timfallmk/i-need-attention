@@ -25,6 +25,7 @@ struct MainView: View {
                 AttentionButton(
                     isCoolingDown: appState.isOnCooldown,
                     cooldownRemaining: cooldownRemaining,
+                    cooldownTotal: TimeInterval(appState.settings.cooldownSeconds),
                     isSending: appState.pendingOutgoing?.state == .sent
                 ) { critical in
                     await appState.sendAttention(critical: critical)
