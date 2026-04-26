@@ -1,0 +1,5 @@
+/* Notification title shown by CloudKit's localized push. %@ = sender name. */
+"ATTENTION_NOTIFICATION_TITLE" = "%@";
+
+/* Notification body. %1$@ = sender name, %2$@ = message. */
+"ATTENTION_NOTIFICATION_BODY" = "%1$@ %2$@";
