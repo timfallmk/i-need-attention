@@ -21,8 +21,8 @@ struct SettingsView: View {
                 Section("Alert behavior") {
                     Toggle("Custom sound", isOn: $settings.customSoundEnabled)
 
-                    Toggle("Critical Alerts", isOn: $settings.requestCriticalAlerts)
-                    Text("Critical Alerts pierce silent mode and Focus. Requires an entitlement granted by Apple — until then this toggle has no effect and notifications fall back to Time-Sensitive.")
+                    Toggle(criticalToggleLabel, isOn: $settings.acceptCriticalAlerts)
+                    Text("When you allow this, alerts your partner sends with **Send as Critical** (long-press the button) will pierce silent mode and Focus. Requires Apple to grant the Critical Alerts entitlement; until then, criticals fall back to Time-Sensitive.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
@@ -68,6 +68,13 @@ struct SettingsView: View {
                 Text("Both phones need to unpair separately for the pairing to be fully reset.")
             }
         }
+    }
+
+    private var criticalToggleLabel: String {
+        if let name = appState.pair?.partnerName, !name.isEmpty {
+            return "Accept Critical Alerts from \(name)"
+        }
+        return "Accept Critical Alerts"
     }
 
     private var iCloudStatusLabel: String {

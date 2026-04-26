@@ -52,10 +52,10 @@ struct StatusIndicatorView: View {
     private var emoji: String {
         switch snapshot {
         case .idle: return "💗"
-        case .outgoingSent: return "📡"
+        case .outgoingSent: return outgoing?.critical == true ? "🚨" : "📡"
         case .outgoingSeen: return "👀"
         case .outgoingAcked(let e): return e ?? "✅"
-        case .incomingPending: return "🔔"
+        case .incomingPending(let a): return a.critical ? "🚨" : "🔔"
         }
     }
 

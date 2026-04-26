@@ -40,6 +40,7 @@ final class AppState {
             log.error("account status: \(error.localizedDescription)")
         }
         if let pair {
+            SharedSettings.partnerName = pair.partnerName
             // Re-register subscriptions in case they were dropped
             try? await CloudKitService.shared.registerSubscriptions(
                 pairKey: pair.pairKey,
@@ -65,7 +66,7 @@ final class AppState {
         return Date() < end
     }
 
-    func sendAttention() async {
+    func sendAttention(critical: Bool = false) async {
         guard let pair else {
             bannerMessage = AttentionError.noPair.errorDescription
             return
@@ -79,7 +80,7 @@ final class AppState {
                 senderDeviceID: pair.myDeviceID,
                 senderName: pair.myName,
                 message: "needs attention",
-                critical: settings.requestCriticalAlerts
+                critical: critical
             )
             pendingOutgoing = record
             cooldownEnds = Date().addingTimeInterval(TimeInterval(settings.cooldownSeconds))
@@ -132,6 +133,7 @@ final class AppState {
 
     func applyPair(_ state: PairState) {
         self.pair = state
+        SharedSettings.partnerName = state.partnerName
     }
 
     func unpair() async {
@@ -139,5 +141,6 @@ final class AppState {
         pair = nil
         pendingOutgoing = nil
         lastIncoming = nil
+        SharedSettings.partnerName = nil
     }
 }

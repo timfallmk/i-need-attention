@@ -68,6 +68,7 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: NotificationService
+      - path: Shared
     info:
       path: NotificationService/Info.plist
       properties:
