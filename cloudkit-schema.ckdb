@@ -14,8 +14,7 @@ DEFINE SCHEMA
         nameB            STRING,
 
         GRANT READ TO "_world",
-        GRANT WRITE TO "_world",
-        GRANT CREATE TO "_world"
+        GRANT CREATE TO "_icloud"
     );
 
     RECORD TYPE Alert (
@@ -37,6 +36,5 @@ DEFINE SCHEMA
         critical         INT64,
 
         GRANT READ TO "_world",
-        GRANT WRITE TO "_world",
-        GRANT CREATE TO "_world"
+        GRANT CREATE TO "_icloud"
     );
