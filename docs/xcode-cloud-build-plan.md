@@ -1,6 +1,6 @@
 # Xcode Cloud Build Plan
 
-Future reference for when manual Archive → Upload becomes tedious. Not currently configured.
+The repo-side prerequisites are in place (`ci_scripts/ci_post_clone.sh`). The remaining work is creating the workflow in App Store Connect — see "What to configure" below.
 
 ## Why bother
 
@@ -10,6 +10,18 @@ The manual flow (Archive → Organizer → Distribute → Upload → wait for em
 
 - Xcode Cloud is accessed via App Store Connect → Xcode Cloud. No extra cost beyond the Developer Program membership (limited free compute hours included; more available via paid tiers).
 - The GitHub repo must be connected: App Store Connect → Xcode Cloud → Grant Access → authorize the GitHub app on `timfallmk/i-need-attention`.
+
+## Repo-side: post-clone hook
+
+`*.xcodeproj/` is gitignored, so Xcode Cloud has nothing to build immediately after clone. `ci_scripts/ci_post_clone.sh` runs automatically before the build action and regenerates the project:
+
+```sh
+brew install xcodegen
+cd "$CI_PRIMARY_REPOSITORY_PATH"
+xcodegen generate
+```
+
+Apple's runner picks the script up by convention — no workflow setting required. Keep the file at `ci_scripts/ci_post_clone.sh` and executable (`chmod +x`).
 
 ## Proposed workflow: `release` branch → TestFlight
 
@@ -53,6 +65,6 @@ Xcode Cloud builds the watch app automatically when it is a dependency of the `A
 - **Provisioning** — Xcode Cloud manages its own signing; the `DEVELOPMENT_TEAM` in `project.yml` must match, but profiles are created automatically
 - **Simulator tests** — there are no tests in this project yet; if added, they can run as a separate Test action before Archive
 
-## When to set this up
+## When to flip the switch
 
-When the app is stable and releases happen more than once a month. Until then, manual Archive → Upload is faster to manage than configuring and maintaining the workflow.
+When the app is stable and releases happen more than once a month. The post-clone script is harmless until then — it only runs when Xcode Cloud actually builds.
