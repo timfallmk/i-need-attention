@@ -22,6 +22,25 @@ settings:
     ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
     SWIFT_EMIT_LOC_STRINGS: YES
 
+schemes:
+  Attention:
+    build:
+      targets:
+        Attention: all
+        AttentionNotificationService: all
+        AttentionWatch: all
+        AttentionWatchWidget: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
 targets:
   Attention:
     type: application
