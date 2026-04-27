@@ -52,7 +52,7 @@ After your first sign-in to the container at <https://icloud.developer.apple.com
    - `senderName`, `message`, `state`, `ackEmoji` — String
    - `seenAt`, `acknowledgedAt` — Date/Time
    - `critical` — Int (Int64), default `0`
-3. Set **Default Security Roles** for both record types: World = Read + Write (this is a public DB, gated by knowledge of the pairKey).
+3. Set **Default Security Roles** for both record types: `_world` = Read, `_icloud` = Create + Read + Write. CloudKit does not permit World Write; authenticated iCloud users are the effective write gate (both phones are always signed in). The pairKey is the access secret.
 4. Promote schema to **Production** when ready (`Deploy to Production…`).
 
 > Apple auto-creates record types the first time the app saves one in development, but the queryable indexes have to be added manually here. Without them, subscriptions silently fail.

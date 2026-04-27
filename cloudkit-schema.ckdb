@@ -14,6 +14,8 @@ DEFINE SCHEMA
         nameB            STRING,
 
         GRANT READ TO "_world",
+        GRANT READ TO "_icloud",
+        GRANT WRITE TO "_icloud",
         GRANT CREATE TO "_icloud"
     );
 
@@ -36,5 +38,7 @@ DEFINE SCHEMA
         critical         INT64,
 
         GRANT READ TO "_world",
+        GRANT READ TO "_icloud",
+        GRANT WRITE TO "_icloud",
         GRANT CREATE TO "_icloud"
     );
