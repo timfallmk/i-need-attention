@@ -15,12 +15,17 @@ Exact step-by-step from zero to two paired phones running the app via TestFlight
 
 - [ ] `git clone <this repo>` and `cd i-need-attention`
 - [ ] Decide on a bundle prefix you control. Example: `com.yourname.attention`
-- [ ] Find/replace `com.example.attention` → your prefix in every file:
-  - `project.yml`
-  - `App/Attention.entitlements`
-  - `NotificationService/NotificationService.entitlements`
-  - `Shared/Constants.swift` (both `cloudKitContainerID` and `AppGroup.identifier`)
-  - `NotificationService/NotificationService.swift` (the hardcoded `CKContainer(identifier:)` string)
+- [ ] Find/replace `com.example.attention` → your prefix in every file. The fastest way is a single global replace across the repo (it's safe — the string only appears in meaningful places):
+  ```sh
+  grep -rl "com.example.attention" . | xargs sed -i '' 's/com\.example\.attention/com.yourname.attention/g'
+  ```
+  Files it will touch:
+  - `project.yml` (bundle ID prefix + all 4 `PRODUCT_BUNDLE_IDENTIFIER` entries)
+  - `App/Attention.entitlements` (iCloud container + App Group)
+  - `NotificationService/NotificationService.entitlements` (iCloud container + App Group)
+  - `Shared/Constants.swift` (`cloudKitContainerID` + `AppGroup.identifier`)
+  - `App/AppState.swift`, `App/Services/PushNotifications.swift`, `App/Services/CloudKitService.swift`, `App/Services/PairingService.swift`, `App/Services/WatchBridge.swift` (Logger subsystem strings — don't break anything if left as-is, but update for cleanliness)
+  - `Watch/Watch/Info.plist` (`WKCompanionAppBundleIdentifier`)
 - [ ] `xcodegen generate`
 - [ ] `open Attention.xcodeproj`
 
