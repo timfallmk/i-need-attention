@@ -125,13 +125,13 @@ If you hit "couldn't find provisioning profile" — go back to Signing & Capabil
 
 ## 11. Optional: automate releases with Xcode Cloud
 
-Once releases happen more than monthly, replace the manual Archive → Upload with a `git push` to a `release` branch. The repo already ships the post-clone hook (`ci_scripts/ci_post_clone.sh`) that runs `xcodegen generate` on the build runner — without it Xcode Cloud has no project to open, since `*.xcodeproj/` is gitignored.
+Once releases happen more than monthly, replace the manual Archive → Upload with a tag push. The repo already ships the post-clone hook (`ci_scripts/ci_post_clone.sh`) that runs `xcodegen generate` on the build runner — without it Xcode Cloud has no project to open, since `*.xcodeproj/` is gitignored.
 
 To enable:
 
 - [ ] App Store Connect → **Xcode Cloud** → **Grant Access** → authorize on `timfallmk/i-need-attention`
-- [ ] Create workflow **Release to TestFlight**: start condition Branch Changes → `release`; Build action scheme `Attention`, platform iOS; Archive action with TestFlight & App Store export; Post-action: notify on failure
-- [ ] Push to `release` to ship
+- [ ] Create workflow **Release to TestFlight**: start condition Tag Changes → `v*`; Build action scheme `Attention`, platform iOS; Archive action with TestFlight & App Store export; Post-action: notify on failure
+- [ ] Ship by tagging: bump `CURRENT_PROJECT_VERSION` in `project.yml`, `xcodegen generate`, commit, then `git tag v1.0.3 && git push origin v1.0.3` (or draft a GitHub Release with that tag — same effect)
 
 See `docs/xcode-cloud-build-plan.md` for the full rationale and trade-offs.
 

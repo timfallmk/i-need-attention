@@ -23,13 +23,26 @@ xcodegen generate
 
 Apple's runner picks the script up by convention — no workflow setting required. Keep the file at `ci_scripts/ci_post_clone.sh` and executable (`chmod +x`).
 
-## Proposed workflow: `release` branch → TestFlight
+## Proposed workflow: `v*` tag → TestFlight
 
-Trigger: push to `release` branch (keep `main` for development; only promote to `release` when ready to ship).
+Trigger: push a tag matching `v*` (or publish a GitHub Release, which creates the same tag). `main` stays the working branch; tags mark the immutable points that actually ship.
+
+Why tags over a `release` branch:
+
+- Each TestFlight build maps to a single tag (`v1.0.3`) — easy to point at "the build on your phone"
+- No `release` branch to keep in sync with `main`
+- Force-pushing or rewriting history can't silently change what shipped — a tag is pinned to one commit
+- Creating the tag is the explicit "ship this" gesture
+
+### Release ritual
+
+1. Bump `CURRENT_PROJECT_VERSION` (and `MARKETING_VERSION` if it's a user-visible release) in `project.yml`, run `xcodegen generate`, commit
+2. `git tag v1.0.3 && git push origin v1.0.3` — or draft a GitHub Release with the same tag, which does both in the UI
+3. Xcode Cloud picks up the tag, runs the workflow, posts to TestFlight
 
 ### Workflow steps
 
-1. **Build** — scheme `Attention`, configuration `Release`, platform `iOS + watchOS` (Xcode Cloud builds both automatically when the scheme includes watch targets)
+1. **Build** — scheme `Attention`, configuration `Release`, platform iOS (Xcode Cloud builds the watch targets automatically since they're scheme dependencies)
 2. **Archive** — Xcode Cloud archives automatically after a successful build when `Archive` is enabled in the workflow
 3. **TestFlight (Internal)** — distribute to internal group immediately after archive, no review required
 4. **Notify** — Xcode Cloud can send an email/Slack webhook on success/failure
@@ -40,7 +53,7 @@ Trigger: push to `release` branch (keep `main` for development; only promote to 
 Xcode Cloud → Create Workflow:
   Name:        Release to TestFlight
   Start Condition:
-    Branch Changes → Branch: release
+    Tag Changes → Tag: v*
     Clean: Yes
   Environment:
     Xcode: latest release
