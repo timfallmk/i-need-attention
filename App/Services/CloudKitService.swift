@@ -48,6 +48,21 @@ final class CloudKitService: @unchecked Sendable {
         return nil
     }
 
+    /// Updates the name field corresponding to `myDeviceID` on the Pair record. Used
+    /// when the user renames themselves in Settings so the partner sees the new name.
+    func updatePairName(pairKey: String, myDeviceID: String, newName: String) async throws {
+        guard let record = try await fetchPair(pairKey: pairKey) else {
+            throw AttentionError.pairNotFound
+        }
+        let deviceA = (record[Constants.PairField.deviceA] as? String) ?? ""
+        if deviceA == myDeviceID {
+            record[Constants.PairField.nameA] = newName as CKRecordValue
+        } else {
+            record[Constants.PairField.nameB] = newName as CKRecordValue
+        }
+        _ = try await publicDB.save(record)
+    }
+
     /// Fills in the joiner's slot on an existing Pair record. Fails if `deviceB` is already set.
     func joinPair(record: CKRecord, joinerDeviceID: String, joinerName: String) async throws -> CKRecord {
         let existingB = (record[Constants.PairField.deviceB] as? String) ?? ""
@@ -137,9 +152,10 @@ final class CloudKitService: @unchecked Sendable {
 
     // MARK: - Subscriptions
 
-    /// Registers (idempotently) the two query subscriptions this app needs:
+    /// Registers (idempotently) the three query subscriptions this app needs:
     ///  - Incoming alerts: visible alert push when partner sends.
     ///  - Outgoing status: silent push when partner updates seen/ack on our alerts.
+    ///  - Pair updates: silent push when the partner renames themselves.
     func registerSubscriptions(pairKey: String, myDeviceID: String) async throws {
         let existing = try await publicDB.allSubscriptions()
         let existingIDs = Set(existing.map(\.subscriptionID))
@@ -151,6 +167,9 @@ final class CloudKitService: @unchecked Sendable {
         }
         if !existingIDs.contains(Constants.SubscriptionID.outgoingStatus) {
             toSave.append(makeOutgoingStatusSubscription(pairKey: pairKey, myDeviceID: myDeviceID))
+        }
+        if !existingIDs.contains(Constants.SubscriptionID.pairUpdates) {
+            toSave.append(makePairUpdateSubscription(pairKey: pairKey))
         }
         guard !toSave.isEmpty else { return }
 
@@ -212,6 +231,26 @@ final class CloudKitService: @unchecked Sendable {
             Constants.AlertField.message,
             Constants.AlertField.critical,
             Constants.AlertField.state
+        ]
+        sub.notificationInfo = info
+        return sub
+    }
+
+    private func makePairUpdateSubscription(pairKey: String) -> CKQuerySubscription {
+        let predicate = NSPredicate(format: "%K == %@", Constants.PairField.pairKey, pairKey)
+        let sub = CKQuerySubscription(
+            recordType: Constants.RecordType.pair,
+            predicate: predicate,
+            subscriptionID: Constants.SubscriptionID.pairUpdates,
+            options: [.firesOnRecordUpdate]
+        )
+        let info = CKSubscription.NotificationInfo()
+        info.shouldSendContentAvailable = true   // silent push
+        info.desiredKeys = [
+            Constants.PairField.deviceA,
+            Constants.PairField.deviceB,
+            Constants.PairField.nameA,
+            Constants.PairField.nameB
         ]
         sub.notificationInfo = info
         return sub

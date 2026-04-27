@@ -37,6 +37,7 @@ enum Constants {
     enum SubscriptionID {
         static let incomingAlerts = "incoming-alerts-v1"
         static let outgoingStatus = "outgoing-status-v1"
+        static let pairUpdates = "pair-updates-v1"
     }
 
     enum WatchMessage {

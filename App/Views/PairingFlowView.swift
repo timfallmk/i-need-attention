@@ -4,6 +4,7 @@ import SwiftUI
 struct PairingFlowView: View {
     @Environment(AppState.self) private var appState
     @State private var mode: Mode = .chooser
+    @State private var displayName: String = DeviceIdentity.name
 
     enum Mode: Equatable {
         case chooser
@@ -11,13 +12,20 @@ struct PairingFlowView: View {
         case scanCode
     }
 
+    private var trimmedName: String {
+        displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var body: some View {
         NavigationStack {
             Group {
                 switch mode {
-                case .chooser: chooser
-                case .showCode: ShowCodeView { mode = .chooser }
-                case .scanCode: ScanCodeView { mode = .chooser }
+                case .chooser:
+                    chooser
+                case .showCode:
+                    ShowCodeView(displayName: trimmedName) { mode = .chooser }
+                case .scanCode:
+                    ScanCodeView(displayName: trimmedName) { mode = .chooser }
                 }
             }
             .navigationTitle("Pair your phones")
@@ -26,10 +34,10 @@ struct PairingFlowView: View {
     }
 
     private var chooser: some View {
-        VStack(spacing: 32) {
-            Spacer(minLength: 20)
+        VStack(spacing: 28) {
+            Spacer(minLength: 8)
             Image(systemName: "antenna.radiowaves.left.and.right")
-                .font(.system(size: 64, weight: .light))
+                .font(.system(size: 56, weight: .light))
                 .foregroundStyle(.red)
 
             VStack(spacing: 8) {
@@ -41,8 +49,12 @@ struct PairingFlowView: View {
                     .padding(.horizontal, 32)
             }
 
+            NameField(displayName: $displayName)
+                .padding(.horizontal, 24)
+
             VStack(spacing: 14) {
                 Button {
+                    DeviceIdentity.name = trimmedName
                     mode = .showCode
                 } label: {
                     Label("Show Code", systemImage: "qrcode")
@@ -52,8 +64,10 @@ struct PairingFlowView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
+                .disabled(trimmedName.isEmpty)
 
                 Button {
+                    DeviceIdentity.name = trimmedName
                     mode = .scanCode
                 } label: {
                     Label("Scan Code", systemImage: "qrcode.viewfinder")
@@ -63,6 +77,7 @@ struct PairingFlowView: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(.red)
+                .disabled(trimmedName.isEmpty)
             }
             .padding(.horizontal, 28)
 
@@ -71,10 +86,40 @@ struct PairingFlowView: View {
     }
 }
 
+// MARK: - Name field component
+
+struct NameField: View {
+    @Binding var displayName: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Your name", systemImage: "person.crop.circle")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            TextField("How your partner sees you", text: $displayName)
+                .font(.title3)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(.secondarySystemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color(.separator), lineWidth: 0.5)
+                )
+        }
+    }
+}
+
 // MARK: - Show Code
 
 private struct ShowCodeView: View {
     @Environment(AppState.self) private var appState
+    let displayName: String
     var onCancel: () -> Void
 
     enum Phase: Equatable {
@@ -83,7 +128,6 @@ private struct ShowCodeView: View {
         case failed(String)
     }
 
-    @State private var displayName: String = DeviceIdentity.name
     @State private var invite: PairingInvite?
     @State private var pollingTask: Task<Void, Never>?
     @State private var qrImage: UIImage?
@@ -91,10 +135,6 @@ private struct ShowCodeView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            TextField("Your name", text: $displayName)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal, 24)
-
             switch phase {
             case .starting, .waiting:
                 qrPanel
@@ -223,19 +263,15 @@ private struct ShowCodeView: View {
 
 private struct ScanCodeView: View {
     @Environment(AppState.self) private var appState
+    let displayName: String
     var onCancel: () -> Void
 
-    @State private var displayName: String = DeviceIdentity.name
     @State private var error: String?
     @State private var working = false
     @State private var rearmToken = 0
 
     var body: some View {
         VStack(spacing: 16) {
-            TextField("Your name", text: $displayName)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal, 24)
-
             QRScannerView(onCode: { code in
                 Task { await complete(payload: code) }
             }, resetToken: rearmToken)
