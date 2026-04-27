@@ -25,7 +25,7 @@ final class AppState {
     var bannerMessage: String?
     var cooldownEnds: Date?
 
-    private let log = Logger(subsystem: "com.example.attention", category: "AppState")
+    private let log = Logger(subsystem: "com.timfallmk.attention", category: "AppState")
 
     init() {
         self.settings = UserSettings()

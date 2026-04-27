@@ -8,7 +8,7 @@ import os.log
 @MainActor
 final class WatchBridge: NSObject {
     static let shared = WatchBridge()
-    private let log = Logger(subsystem: "com.example.attention", category: "Watch")
+    private let log = Logger(subsystem: "com.timfallmk.attention", category: "Watch")
     private var pressHandler: (@MainActor () async -> Void)?
 
     func activate(onPress: @escaping @MainActor () async -> Void) {
