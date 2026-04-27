@@ -130,8 +130,8 @@ Once releases happen more than monthly, replace the manual Archive → Upload wi
 To enable:
 
 - [ ] App Store Connect → **Xcode Cloud** → **Grant Access** → authorize on `timfallmk/i-need-attention`
-- [ ] Create workflow **Release to TestFlight**: start condition Tag Changes → `v*`; Build action scheme `Attention`, platform iOS; Archive action with TestFlight & App Store export; Post-action: notify on failure
-- [ ] Ship by tagging: bump `CURRENT_PROJECT_VERSION` in `project.yml`, `xcodegen generate`, commit, then `git tag v1.0.3 && git push origin v1.0.3` (or draft a GitHub Release with that tag — same effect)
+- [ ] Create workflow **Release to TestFlight**: start condition Tag Changes → `*.*.*`; Build action scheme `Attention`, platform iOS; Archive action with TestFlight & App Store export; Post-action: notify on failure
+- [ ] Ship by tagging: bump `CURRENT_PROJECT_VERSION` in `project.yml`, `xcodegen generate`, commit, then `git tag 1.0.3 && git push origin 1.0.3` (or draft a GitHub Release with that tag — same effect)
 
 See `docs/xcode-cloud-build-plan.md` for the full rationale and trade-offs.
 

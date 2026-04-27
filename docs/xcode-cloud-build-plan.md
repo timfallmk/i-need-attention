@@ -23,13 +23,13 @@ xcodegen generate
 
 Apple's runner picks the script up by convention — no workflow setting required. Keep the file at `ci_scripts/ci_post_clone.sh` and executable (`chmod +x`).
 
-## Proposed workflow: `v*` tag → TestFlight
+## Proposed workflow: semver tag → TestFlight
 
-Trigger: push a tag matching `v*` (or publish a GitHub Release, which creates the same tag). `main` stays the working branch; tags mark the immutable points that actually ship.
+Trigger: push a semver tag like `1.0.3` (or publish a GitHub Release with that tag). `main` stays the working branch; tags mark the immutable points that actually ship.
 
 Why tags over a `release` branch:
 
-- Each TestFlight build maps to a single tag (`v1.0.3`) — easy to point at "the build on your phone"
+- Each TestFlight build maps to a single tag (`1.0.3`) — easy to point at "the build on your phone"
 - No `release` branch to keep in sync with `main`
 - Force-pushing or rewriting history can't silently change what shipped — a tag is pinned to one commit
 - Creating the tag is the explicit "ship this" gesture
@@ -37,7 +37,7 @@ Why tags over a `release` branch:
 ### Release ritual
 
 1. Bump `CURRENT_PROJECT_VERSION` (and `MARKETING_VERSION` if it's a user-visible release) in `project.yml`, run `xcodegen generate`, commit
-2. `git tag v1.0.3 && git push origin v1.0.3` — or draft a GitHub Release with the same tag, which does both in the UI
+2. `git tag 1.0.3 && git push origin 1.0.3` — or draft a GitHub Release with the same tag, which does both in the UI
 3. Xcode Cloud picks up the tag, runs the workflow, posts to TestFlight
 
 ### Workflow steps
@@ -53,7 +53,7 @@ Why tags over a `release` branch:
 Xcode Cloud → Create Workflow:
   Name:        Release to TestFlight
   Start Condition:
-    Tag Changes → Tag: v*
+    Tag Changes → Tag: *.*.*
     Clean: Yes
   Environment:
     Xcode: latest release
