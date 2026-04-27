@@ -175,6 +175,7 @@ final class AppState {
             pair.myName = newName
             pair.save()
             self.pair = pair
+            Haptics.light()
         } catch {
             log.error("updatePairName: \(error.localizedDescription)")
         }
