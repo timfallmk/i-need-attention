@@ -58,23 +58,13 @@ For **each** of the four targets (`Attention`, `AttentionNotificationService`, `
 
 ## 4. Set up the CloudKit schema
 
-Go to <https://icloud.developer.apple.com/dashboard> → select your container → **Schema** → **Record Types**.
+The schema is defined in `cloudkit-schema.ckdb` at the repo root. Import it instead of creating record types by hand.
 
-- [ ] Create record type **`Pair`** with fields (all String unless noted):
-  - `pairKey` — **Indexes: Queryable**
-  - `deviceA`, `deviceB`, `nameA`, `nameB`
-- [ ] Create record type **`Alert`** with fields:
-  - `pairKey` (String) — **Indexes: Queryable, Sortable**
-  - `senderDeviceID` (String) — **Indexes: Queryable**
-  - `senderName` (String)
-  - `message` (String)
-  - `state` (String)
-  - `seenAt` (Date/Time)
-  - `acknowledgedAt` (Date/Time)
-  - `ackEmoji` (String)
-  - `critical` (Int(64))
-- [ ] On **`Alert`**, also ensure the system field `___createTime` (creationDate) has **Sortable** index. CloudKit usually adds this by default; double-check.
-- [ ] Schema → **Default Security Roles**: for both `Pair` and `Alert`, set **World** = Read + Write (this is a public DB; the pairKey is the secret).
+Go to <https://icloud.developer.apple.com/dashboard> → select your container → **Import Schema…** (left sidebar, bottom section).
+
+- [ ] Click **Import Schema…** and upload or paste the contents of `cloudkit-schema.ckdb`
+- [ ] If the import fails due to an existing schema conflict (e.g. you already created `Pair` manually), click **Reset Environment…** first (development only — no data loss since you haven't used the app yet), then import again
+- [ ] After import, click **Security Roles** in the left sidebar and verify both `Pair` and `Alert` have **World** = Read + Write. Set manually if the import didn't apply it (this is a public DB; the pairKey is the secret).
 - [ ] Click **Deploy Schema Changes…** and promote to **Production** when you're ready to ship to TestFlight (development environment is what Xcode debug builds use; TestFlight/release builds use production).
 
 ## 5. First build directly to a phone (sanity check before publishing)
