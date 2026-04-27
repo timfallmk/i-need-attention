@@ -75,7 +75,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.timfallmk.attention
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: App/Attention.entitlements
