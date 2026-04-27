@@ -59,7 +59,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Attention
+        CFBundleDisplayName: Please Give Me Attention
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
