@@ -57,6 +57,7 @@ struct SettingsView: View {
                 if appState.pair != nil {
                     Section {
                         Button(role: .destructive) {
+                            Haptics.warning()
                             confirmingUnpair = true
                         } label: {
                             Label("Unpair this phone", systemImage: "link.badge.minus")
@@ -76,6 +77,7 @@ struct SettingsView: View {
             .alert("Unpair?", isPresented: $confirmingUnpair) {
                 Button("Cancel", role: .cancel) {}
                 Button("Unpair", role: .destructive) {
+                    Haptics.error()
                     Task { await appState.unpair() }
                     dismiss()
                 }

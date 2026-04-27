@@ -54,6 +54,7 @@ struct PairingFlowView: View {
 
             VStack(spacing: 14) {
                 Button {
+                    Haptics.select()
                     DeviceIdentity.name = trimmedName
                     mode = .showCode
                 } label: {
@@ -67,6 +68,7 @@ struct PairingFlowView: View {
                 .disabled(trimmedName.isEmpty)
 
                 Button {
+                    Haptics.select()
                     DeviceIdentity.name = trimmedName
                     mode = .scanCode
                 } label: {
@@ -146,6 +148,7 @@ private struct ShowCodeView: View {
             Spacer()
 
             Button("Cancel", role: .cancel) {
+                Haptics.select()
                 pollingTask?.cancel()
                 onCancel()
             }
@@ -243,17 +246,20 @@ private struct ShowCodeView: View {
                 do {
                     let state = try await PairingService.shared.waitForJoiner(record: result.record)
                     await MainActor.run {
+                        Haptics.success()
                         appState.applyPair(state)
                     }
                 } catch is CancellationError {
                     // expected on view dismissal
                 } catch {
                     await MainActor.run {
+                        Haptics.warning()
                         phase = .failed(error.localizedDescription)
                     }
                 }
             }
         } catch {
+            Haptics.warning()
             phase = .failed(error.localizedDescription)
         }
     }
@@ -273,6 +279,7 @@ private struct ScanCodeView: View {
     var body: some View {
         VStack(spacing: 16) {
             QRScannerView(onCode: { code in
+                Haptics.tick()
                 Task { await complete(payload: code) }
             }, resetToken: rearmToken)
             .clipShape(RoundedRectangle(cornerRadius: 24))
@@ -314,6 +321,7 @@ private struct ScanCodeView: View {
             Spacer()
 
             Button("Cancel", role: .cancel) {
+                Haptics.select()
                 onCancel()
             }
             .padding(.bottom, 16)
@@ -336,8 +344,10 @@ private struct ScanCodeView: View {
         DeviceIdentity.name = displayName
         do {
             let state = try await PairingService.shared.completePairing(payload: payload, myName: displayName)
+            Haptics.success()
             appState.applyPair(state)
         } catch {
+            Haptics.warning()
             self.error = error.localizedDescription
             // Don't re-arm immediately — let the user tap "Scan again" so the camera
             // doesn't keep firing the same bad payload over and over.
