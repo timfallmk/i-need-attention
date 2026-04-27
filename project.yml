@@ -1,6 +1,6 @@
 name: Attention
 options:
-  bundleIdPrefix: com.example.attention
+  bundleIdPrefix: com.timfallmk.attention
   deploymentTarget:
     iOS: "17.0"
     watchOS: "10.0"
@@ -52,7 +52,7 @@ targets:
         NSUserActivityTypes: []
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.attention
+        PRODUCT_BUNDLE_IDENTIFIER: com.timfallmk.attention
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
         CODE_SIGN_STYLE: Automatic
@@ -80,7 +80,7 @@ targets:
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.attention.notification-service
+        PRODUCT_BUNDLE_IDENTIFIER: com.timfallmk.attention.notification-service
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: NotificationService/NotificationService.entitlements
         SKIP_INSTALL: YES
@@ -102,10 +102,10 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         WKApplication: true
         WKWatchOnly: false
-        WKCompanionAppBundleIdentifier: com.example.attention
+        WKCompanionAppBundleIdentifier: com.timfallmk.attention
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.attention.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: com.timfallmk.attention.watchkitapp
         TARGETED_DEVICE_FAMILY: "4"
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: Watch/Watch/Watch.entitlements
@@ -131,7 +131,7 @@ targets:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.attention.watchkitapp.widget
+        PRODUCT_BUNDLE_IDENTIFIER: com.timfallmk.attention.watchkitapp.widget
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
         WATCHOS_DEPLOYMENT_TARGET: "10.0"

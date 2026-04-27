@@ -1,7 +1,7 @@
 import Foundation
 
 enum Constants {
-    static let cloudKitContainerID = "iCloud.com.example.attention"
+    static let cloudKitContainerID = "iCloud.com.timfallmk.attention"
 
     enum RecordType {
         static let pair = "Pair"
@@ -46,7 +46,7 @@ enum Constants {
     }
 
     enum AppGroup {
-        static let identifier = "group.com.example.attention"
+        static let identifier = "group.com.timfallmk.attention"
     }
 
     /// Identifiers for the inline notification actions ("pull down on banner" → ack with emoji).

@@ -9,7 +9,7 @@ import os.log
 final class CloudKitService: @unchecked Sendable {
     static let shared = CloudKitService()
 
-    private let log = Logger(subsystem: "com.example.attention", category: "CloudKit")
+    private let log = Logger(subsystem: "com.timfallmk.attention", category: "CloudKit")
     private let container: CKContainer
     private let publicDB: CKDatabase
 

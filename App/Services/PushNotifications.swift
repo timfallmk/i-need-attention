@@ -9,7 +9,7 @@ import os.log
 @MainActor
 final class PushNotifications: NSObject {
     static let shared = PushNotifications()
-    private let log = Logger(subsystem: "com.example.attention", category: "Push")
+    private let log = Logger(subsystem: "com.timfallmk.attention", category: "Push")
 
     private override init() { super.init() }
 
