@@ -7,7 +7,7 @@ import os.log
 @MainActor
 final class PairingService {
     static let shared = PairingService()
-    private let log = Logger(subsystem: "com.example.attention", category: "Pairing")
+    private let log = Logger(subsystem: "com.timfallmk.attention", category: "Pairing")
     private let cloud = CloudKitService.shared
     private init() {}
 
