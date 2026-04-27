@@ -15,20 +15,12 @@ enum DeviceIdentity {
         return new
     }
 
+    /// User-chosen name. Defaults to empty so the UI can prompt for a real one rather
+    /// than falling back to `UIDevice.current.name`, which on iOS 16+ returns a
+    /// generic "iPhone" unless you have the `com.apple.developer.device-information.user-assigned-device-name`
+    /// entitlement — which Apple grants only in narrow cases.
     static var name: String {
-        get { UserDefaults.standard.string(forKey: nameKey) ?? defaultName }
+        get { UserDefaults.standard.string(forKey: nameKey) ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: nameKey) }
     }
-
-    private static var defaultName: String {
-        #if os(iOS)
-        return UIDevice.current.name
-        #else
-        return "Watch"
-        #endif
-    }
 }
-
-#if os(iOS)
-import UIKit
-#endif

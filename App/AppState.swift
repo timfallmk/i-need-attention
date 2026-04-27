@@ -43,6 +43,8 @@ final class AppState {
                 pairKey: pair.pairKey,
                 myDeviceID: pair.myDeviceID
             )
+            // Pick up any partner-name change that happened while we were killed
+            await refreshPairFromCloud()
             // Pull latest alert so the status indicator is accurate on cold start
             if let recent = try? await CloudKitService.shared.fetchMostRecentAlert(pairKey: pair.pairKey) {
                 if recent.senderDeviceID == pair.myDeviceID {
@@ -154,5 +156,55 @@ final class AppState {
         pendingOutgoing = nil
         lastIncoming = nil
         SharedSettings.partnerName = nil
+    }
+
+    // MARK: - Display name sync
+
+    /// Pushes the current `settings.displayName` to the Pair record so the partner sees
+    /// the updated name. Also updates the local copy in `pair.myName`.
+    func syncMyDisplayName() async {
+        guard var pair else { return }
+        let newName = settings.displayName
+        guard !newName.isEmpty, newName != pair.myName else { return }
+        do {
+            try await CloudKitService.shared.updatePairName(
+                pairKey: pair.pairKey,
+                myDeviceID: pair.myDeviceID,
+                newName: newName
+            )
+            pair.myName = newName
+            pair.save()
+            self.pair = pair
+        } catch {
+            log.error("updatePairName: \(error.localizedDescription)")
+        }
+    }
+
+    /// Refetches the Pair record from CloudKit and updates the local partnerName if the
+    /// partner has renamed themselves. Triggered by the Pair update silent push.
+    func refreshPairFromCloud() async {
+        guard var pair else { return }
+        do {
+            guard let record = try await CloudKitService.shared.fetchPair(pairKey: pair.pairKey) else { return }
+            let deviceA = (record[Constants.PairField.deviceA] as? String) ?? ""
+            let deviceB = (record[Constants.PairField.deviceB] as? String) ?? ""
+            let nameA = (record[Constants.PairField.nameA] as? String) ?? ""
+            let nameB = (record[Constants.PairField.nameB] as? String) ?? ""
+            let partnerName: String
+            if deviceA == pair.myDeviceID {
+                partnerName = nameB
+            } else if deviceB == pair.myDeviceID {
+                partnerName = nameA
+            } else {
+                return
+            }
+            guard !partnerName.isEmpty, partnerName != pair.partnerName else { return }
+            pair.partnerName = partnerName
+            pair.save()
+            self.pair = pair
+            SharedSettings.partnerName = partnerName
+        } catch {
+            log.error("refreshPair: \(error.localizedDescription)")
+        }
     }
 }

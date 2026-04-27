@@ -79,8 +79,8 @@ final class PushNotifications: NSObject {
     // MARK: - Remote notification routing
 
     /// Called from AppDelegate's didReceiveRemoteNotification. Returns the appropriate
-    /// background fetch result for the system. Pulls the changed alert and forwards it
-    /// to AppState.
+    /// background fetch result for the system. Routes Alert subscription pushes to the
+    /// alert handler and Pair subscription pushes to the pair refresher.
     func handleRemoteNotification(
         _ userInfo: [AnyHashable: Any],
         appState: AppState
@@ -92,6 +92,11 @@ final class PushNotifications: NSObject {
         guard let queryNotification = ckNotification as? CKQueryNotification,
               let recordID = queryNotification.recordID else {
             return .noData
+        }
+
+        if queryNotification.subscriptionID == Constants.SubscriptionID.pairUpdates {
+            await appState.refreshPairFromCloud()
+            return .newData
         }
 
         do {

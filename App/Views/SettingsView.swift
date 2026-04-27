@@ -5,16 +5,31 @@ struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @State private var confirmingUnpair = false
+    @State private var nameSyncTask: Task<Void, Never>?
 
     var body: some View {
         @Bindable var settings = appState.settings
 
         NavigationStack {
             Form {
-                Section("You") {
-                    TextField("Display name", text: $settings.displayName)
+                Section {
+                    TextField("Your name", text: $settings.displayName)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .onChange(of: settings.displayName) {
+                            scheduleNameSync()
+                        }
                     if let pair = appState.pair {
                         LabeledContent("Paired with", value: pair.partnerName)
+                    }
+                } header: {
+                    Text("You")
+                } footer: {
+                    if appState.pair != nil {
+                        Text("Your partner sees this name on every alert and in their settings. Changes sync automatically.")
+                    } else {
+                        Text("Your partner will see this name on every alert.")
                     }
                 }
 
@@ -67,6 +82,18 @@ struct SettingsView: View {
             } message: {
                 Text("Both phones need to unpair separately for the pairing to be fully reset.")
             }
+        }
+    }
+
+    /// Debounce CloudKit writes so we don't fire one per keystroke. The didSet on
+    /// settings.displayName already persists locally; this just pushes the final value
+    /// to the Pair record after the user pauses typing.
+    private func scheduleNameSync() {
+        nameSyncTask?.cancel()
+        nameSyncTask = Task { [appState] in
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            guard !Task.isCancelled else { return }
+            await appState.syncMyDisplayName()
         }
     }
 
