@@ -141,6 +141,7 @@ final class AppState {
             lastIncoming = updated
             Haptics.success()
             try? await UNUserNotificationCenter.current().setBadgeCount(0)
+            UNUserNotificationCenter.current().removeAllDeliveredNotifications()
         } catch {
             log.error("ack: \(error.localizedDescription)")
         }
