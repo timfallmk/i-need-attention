@@ -47,27 +47,33 @@ final class AppState {
             )
             // Pick up any partner-name change that happened while we were killed
             await refreshPairFromCloud()
-            await reconcileLatestAlert()
+            // reconcileLatestAlert is called via scenePhase .active, which fires on
+            // launch too — no separate call here avoids a duplicate CloudKit fetch.
         }
         await refreshNotificationStatus()
     }
 
-    /// Refetches the most recent alert and reconciles local state. Silent pushes for
-    /// outgoing-status updates are best-effort and routinely coalesced by APNs / iOS
-    /// background throttling — without this, the sender's "Sent waiting" indicator can
-    /// stay stale after the partner has acked. Also sweeps any stuck NSE-set badge
+    /// Refetches the most recent alert in each direction and reconciles local state.
+    /// Querying both directions independently means a recent incoming alert can't mask
+    /// a stale pendingOutgoing (and vice-versa). Also sweeps any stuck NSE-set badge
     /// when nothing is pending an ack.
+    ///
+    /// Silent pushes for outgoing-status updates are best-effort and routinely coalesced
+    /// by APNs / iOS background throttling — calling this on foreground is what keeps
+    /// the "Sent waiting" indicator from staying stale after the partner has acked.
     func reconcileLatestAlert() async {
         guard let pair else { return }
         do {
-            if let recent = try await CloudKitService.shared.fetchMostRecentAlert(pairKey: pair.pairKey) {
-                if recent.senderDeviceID == pair.myDeviceID {
-                    pendingOutgoing = recent
-                } else if recent.senderDeviceID == pair.partnerDeviceID {
-                    lastIncoming = recent
-                }
-            }
-            if lastIncoming == nil || lastIncoming?.state == .acknowledged {
+            async let outgoingFetch = CloudKitService.shared.fetchMostRecentAlert(
+                pairKey: pair.pairKey, senderDeviceID: pair.myDeviceID
+            )
+            async let incomingFetch = CloudKitService.shared.fetchMostRecentAlert(
+                pairKey: pair.pairKey, senderDeviceID: pair.partnerDeviceID
+            )
+            let (outgoing, incoming) = try await (outgoingFetch, incomingFetch)
+            pendingOutgoing = outgoing
+            lastIncoming = incoming
+            if incoming == nil || incoming?.state == .acknowledged {
                 try? await UNUserNotificationCenter.current().setBadgeCount(0)
             }
         } catch {
