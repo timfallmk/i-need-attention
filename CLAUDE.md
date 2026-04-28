@@ -144,6 +144,13 @@ Symmetric (one scan → both can send/receive). See `App/Models/PairState.swift`
 - **Add a new view**: drop into `App/Views/`. Use `@Environment(AppState.self)` to read state. Mutations go through methods on AppState, not direct property writes.
 - **Add a new notification action**: extend `Constants.NotificationAction`, add the `UNNotificationAction` to the category in `PushNotifications.attentionPingCategory`, and handle the response in `userNotificationCenter(_:didReceive:)`.
 
+## Pull requests
+
+When opening a PR:
+
+1. **Assign** it to `timfallmk`.
+2. **Add the `claude` label.** If the label doesn't exist, create it first with color `#E07B39` (Claude orange), then apply it.
+
 ## Things that look weird but are deliberate
 
 - **`CloudKitService` uses `@unchecked Sendable`**: it owns immutable `CKContainer`/`CKDatabase` references, and Apple's CloudKit framework is documented as thread-safe. Marking it `Sendable` lets it be referenced from any actor without warnings.
