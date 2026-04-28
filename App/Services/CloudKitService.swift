@@ -180,16 +180,16 @@ final class CloudKitService: @unchecked Sendable {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             op.perSubscriptionSaveBlock = { id, result in
                 if case .failure(let error) = result {
-                    log.error("subscription \(id) failed: \(String(describing: error))")
+                    log.error("subscription \(id, privacy: .public) failed: \(String(describing: error), privacy: .public)")
                 }
             }
             op.modifySubscriptionsResultBlock = { result in
                 switch result {
                 case .success:
-                    log.info("subscriptions saved: \(attemptedIDs)")
+                    log.info("subscriptions saved: \(attemptedIDs, privacy: .public)")
                     cont.resume()
                 case .failure(let error):
-                    log.error("modifySubscriptions failed [\(attemptedIDs)]: \(String(describing: error))")
+                    log.error("modifySubscriptions failed [\(attemptedIDs, privacy: .public)]: \(String(describing: error), privacy: .public)")
                     cont.resume(throwing: error)
                 }
             }
