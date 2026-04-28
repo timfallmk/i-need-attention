@@ -22,6 +22,10 @@ final class NotificationService: UNNotificationServiceExtension {
         mutable.interruptionLevel = .timeSensitive
         // Wire the inline ack actions (❤️ 👍 🤗 🚨 ✅) into the banner pull-down.
         mutable.categoryIdentifier = Constants.NotificationAction.category
+        // Replaces the badge previously set via CKSubscription.NotificationInfo.shouldBadge,
+        // which we dropped to stay under Production's "additional fields" limit. Absolute 1
+        // (not an increment) is fine: any unread alert means "partner wants attention".
+        mutable.badge = 1
 
         let userInfo = request.content.userInfo
         guard let ckNotification = CKNotification(fromRemoteNotificationDictionary: userInfo),
