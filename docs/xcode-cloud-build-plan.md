@@ -31,7 +31,7 @@ Why tags over a `release` branch:
 
 - Each TestFlight build maps to a single tag (`1.0.3`) — easy to point at "the build on your phone"
 - No `release` branch to keep in sync with `main`
-- Force-pushing or rewriting history can't silently change what shipped — a tag is pinned to one commit
+- By convention a tag points at one commit, so the version label round-trips back to a known SHA. (Tags _can_ be moved with `git push --force --tags`; turn on GitHub tag protection rules if you want that locked down.)
 - Creating the tag is the explicit "ship this" gesture
 
 ### Release ritual
