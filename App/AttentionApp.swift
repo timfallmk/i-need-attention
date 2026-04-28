@@ -39,6 +39,7 @@ struct AttentionApp: App {
                 Task {
                     await appState.refreshICloudStatus()
                     await appState.refreshNotificationStatus()
+                    await appState.reconcileLatestAlert()
                 }
             }
         }

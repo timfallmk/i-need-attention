@@ -47,16 +47,32 @@ final class AppState {
             )
             // Pick up any partner-name change that happened while we were killed
             await refreshPairFromCloud()
-            // Pull latest alert so the status indicator is accurate on cold start
-            if let recent = try? await CloudKitService.shared.fetchMostRecentAlert(pairKey: pair.pairKey) {
+            await reconcileLatestAlert()
+        }
+        await refreshNotificationStatus()
+    }
+
+    /// Refetches the most recent alert and reconciles local state. Silent pushes for
+    /// outgoing-status updates are best-effort and routinely coalesced by APNs / iOS
+    /// background throttling — without this, the sender's "Sent waiting" indicator can
+    /// stay stale after the partner has acked. Also sweeps any stuck NSE-set badge
+    /// when nothing is pending an ack.
+    func reconcileLatestAlert() async {
+        guard let pair else { return }
+        do {
+            if let recent = try await CloudKitService.shared.fetchMostRecentAlert(pairKey: pair.pairKey) {
                 if recent.senderDeviceID == pair.myDeviceID {
                     pendingOutgoing = recent
-                } else {
+                } else if recent.senderDeviceID == pair.partnerDeviceID {
                     lastIncoming = recent
                 }
             }
+            if lastIncoming == nil || lastIncoming?.state == .acknowledged {
+                try? await UNUserNotificationCenter.current().setBadgeCount(0)
+            }
+        } catch {
+            log.error("reconcile: \(error.localizedDescription)")
         }
-        await refreshNotificationStatus()
     }
 
     func refreshNotificationStatus() async {
