@@ -36,9 +36,11 @@ Why tags over a `release` branch:
 
 ### Release ritual
 
-1. Bump `CURRENT_PROJECT_VERSION` (and `MARKETING_VERSION` if it's a user-visible release) in `project.yml`, run `xcodegen generate`, commit
-2. `git tag 1.0.3 && git push origin 1.0.3` — or draft a GitHub Release with the same tag, which does both in the UI
-3. Xcode Cloud picks up the tag, runs the workflow, posts to TestFlight
+1. Update `MARKETING_VERSION` in `project.yml` if this is a user-visible version bump, run `xcodegen generate`, commit and push. (`CURRENT_PROJECT_VERSION` is managed automatically by Xcode Cloud — do not bump it manually.)
+2. Create a GitHub Release: `gh release create 1.0.3 --notes "what changed"`. This creates the tag and pushes it in one step, and leaves a changelog entry on the Releases page.
+3. Xcode Cloud picks up the tag, runs the workflow, posts to TestFlight.
+
+GitHub Releases are preferred over bare `git tag` pushes because they attach release notes to each shipped build — useful for tracking what's on each phone. The underlying mechanism is identical from Xcode Cloud's perspective (both create a tag on the remote), so there's no functional difference.
 
 ### Workflow steps
 
