@@ -227,16 +227,13 @@ final class CloudKitService: @unchecked Sendable {
             subscriptionID: Constants.SubscriptionID.incomingAlerts,
             options: [.firesOnRecordCreation]
         )
-        // CloudKit caps the per-subscription "additional fields" payload. The NSE refetches
-        // the full record, so we only need the fields the localized title/body args reference.
+        // CloudKit caps the per-subscription "additional fields" payload, and Production is
+        // stricter than Development. NSE replaces title/body/sound from the fetched record,
+        // so we keep this minimal: a static alertBody to make it an alert push (so the NSE
+        // is invoked) plus mutable-content to route it through the extension.
         let info = CKSubscription.NotificationInfo()
-        info.titleLocalizationKey = "ATTENTION_NOTIFICATION_TITLE"
-        info.titleLocalizationArgs = [Constants.AlertField.senderName]
-        info.alertLocalizationKey = "ATTENTION_NOTIFICATION_BODY"
-        info.alertLocalizationArgs = [Constants.AlertField.senderName, Constants.AlertField.message]
-        info.soundName = "needs-attention.caf"
-        info.shouldBadge = true
-        info.shouldSendMutableContent = true     // routes through NSE so we can upgrade priority
+        info.alertBody = "Attention"
+        info.shouldSendMutableContent = true
         sub.notificationInfo = info
         return sub
     }
