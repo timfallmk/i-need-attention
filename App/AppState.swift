@@ -36,20 +36,7 @@ final class AppState {
 
     func bootstrap() async {
         await refreshICloudStatus()
-        #if DEBUG
-        // TEMPORARY: seeds _sub_trigger_sub_* into the Development schema.
-        // Wipes existing subs first so the create always fires regardless of saved pair state.
-        // Run once, verify subscriptions appear in CloudKit Dashboard → Development → Subscriptions,
-        // Deploy Schema Changes, then delete this entire #if DEBUG block.
-        log.info("DEBUG seed: wiping and re-registering subscriptions in Development")
-        try? await CloudKitService.shared.removeAllSubscriptions()
-        try? await CloudKitService.shared.registerSubscriptions(
-            pairKey: "schema-seed",
-            myDeviceID: "schema-seed-device"
-        )
-        log.info("DEBUG seed: done")
-        return
-        #endif
+
         if let pair {
             SharedSettings.partnerName = pair.partnerName
             // Re-register subscriptions in case they were dropped
