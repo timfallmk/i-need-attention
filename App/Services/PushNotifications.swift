@@ -140,11 +140,16 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
         }
         let recordID = CKRecord.ID(recordName: recordName)
 
+        let notificationID = response.notification.request.identifier
         Task { @MainActor in
             defer { completionHandler() }
             if Constants.NotificationAction.allAckActionIdentifiers.contains(actionID) {
                 let emoji = Constants.NotificationAction.emoji(for: actionID)
                 _ = try? await CloudKitService.shared.acknowledgeAlert(recordID: recordID, emoji: emoji)
+                // Mirrors AppState.acknowledgeIncoming: the NSE-set badge persists until ack,
+                // and inline ack from the banner is still an ack.
+                try? await UNUserNotificationCenter.current().setBadgeCount(0)
+                UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [notificationID])
             } else if actionID == UNNotificationDefaultActionIdentifier {
                 _ = try? await CloudKitService.shared.markAlertSeen(recordID: recordID)
             }
