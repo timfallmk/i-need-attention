@@ -131,7 +131,7 @@ To enable:
 
 - [ ] App Store Connect → **Xcode Cloud** → **Grant Access** → authorize on `timfallmk/i-need-attention`
 - [ ] Create workflow **Release to TestFlight**: start condition Tag Changes → `*.*.*`; Build action scheme `Attention`, platform iOS; Archive & Export action with Export method **TestFlight (Internal Only)**; Post-action: notify on failure
-- [ ] Ship by tagging: bump `CURRENT_PROJECT_VERSION` in `project.yml`, `xcodegen generate`, commit, then `git tag 1.0.3 && git push origin 1.0.3` (or draft a GitHub Release with that tag — same effect)
+- [ ] To ship: update `MARKETING_VERSION` in `project.yml` if needed, `xcodegen generate`, commit and push, then `gh release create 1.0.3 --notes "what changed"` (this creates the tag and fires the Xcode Cloud trigger). Xcode Cloud manages the build number automatically — do not bump `CURRENT_PROJECT_VERSION` manually.
 
 See `docs/xcode-cloud-build-plan.md` for the full rationale and trade-offs.
 
