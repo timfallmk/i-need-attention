@@ -102,7 +102,7 @@ struct AttentionButton: View {
                 }
             }
             .buttonStyle(PressedButtonStyle(pressed: $pressed))
-            .disabled(isCoolingDown || isSending)
+            .disabled(isCoolingDown)
             .scaleEffect(pressed ? 0.96 : 1.0)
             .animation(.spring(response: 0.28, dampingFraction: 0.55), value: pressed)
             .contextMenu {

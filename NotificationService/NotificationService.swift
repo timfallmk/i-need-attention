@@ -18,11 +18,6 @@ final class NotificationService: UNNotificationServiceExtension {
         let mutable = (request.content.mutableCopy() as? UNMutableNotificationContent) ?? UNMutableNotificationContent()
         self.bestAttemptContent = mutable
 
-        // Default to time-sensitive — pierces Focus, doesn't need Apple approval.
-        mutable.interruptionLevel = .timeSensitive
-        // Wire the inline ack actions (❤️ 👍 🤗 🚨 ✅) into the banner pull-down.
-        mutable.categoryIdentifier = Constants.NotificationAction.category
-
         let userInfo = request.content.userInfo
         guard let ckNotification = CKNotification(fromRemoteNotificationDictionary: userInfo),
               let queryNotification = ckNotification as? CKQueryNotification,
@@ -31,6 +26,15 @@ final class NotificationService: UNNotificationServiceExtension {
             contentHandler(mutable)
             return
         }
+
+        // Default to time-sensitive — pierces Focus, doesn't need Apple approval.
+        mutable.interruptionLevel = .timeSensitive
+        // Wire the inline ack actions (❤️ 👍 🤗 🚨 ✅) into the banner pull-down.
+        mutable.categoryIdentifier = Constants.NotificationAction.category
+        // Replaces the badge previously set via CKSubscription.NotificationInfo.shouldBadge,
+        // which we dropped to stay under Production's "additional fields" limit. Absolute 1
+        // (not an increment) is fine: any unread alert means "partner wants attention".
+        mutable.badge = 1
 
         // Fast path: read what we can from the desiredKeys payload, present immediately.
         applyContent(from: queryNotification, to: mutable)

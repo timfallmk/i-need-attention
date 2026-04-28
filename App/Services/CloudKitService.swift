@@ -175,11 +175,22 @@ final class CloudKitService: @unchecked Sendable {
 
         let op = CKModifySubscriptionsOperation(subscriptionsToSave: toSave, subscriptionIDsToDelete: nil)
         op.qualityOfService = .userInitiated
+        let log = self.log
+        let attemptedIDs = toSave.map(\.subscriptionID).joined(separator: ", ")
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            op.perSubscriptionSaveBlock = { id, result in
+                if case .failure(let error) = result {
+                    log.error("subscription \(id, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+                }
+            }
             op.modifySubscriptionsResultBlock = { result in
                 switch result {
-                case .success: cont.resume()
-                case .failure(let error): cont.resume(throwing: error)
+                case .success:
+                    log.info("subscriptions saved: \(attemptedIDs, privacy: .public)")
+                    cont.resume()
+                case .failure(let error):
+                    log.error("modifySubscriptions failed [\(attemptedIDs, privacy: .public)]: \(String(describing: error), privacy: .public)")
+                    cont.resume(throwing: error)
                 }
             }
             publicDB.add(op)
@@ -216,22 +227,13 @@ final class CloudKitService: @unchecked Sendable {
             subscriptionID: Constants.SubscriptionID.incomingAlerts,
             options: [.firesOnRecordCreation]
         )
+        // CloudKit caps the per-subscription "additional fields" payload, and Production is
+        // stricter than Development. NSE replaces title/body/sound from the fetched record,
+        // so we keep this minimal: a static alertBody to make it an alert push (so the NSE
+        // is invoked) plus mutable-content to route it through the extension.
         let info = CKSubscription.NotificationInfo()
-        info.titleLocalizationKey = "ATTENTION_NOTIFICATION_TITLE"
-        info.titleLocalizationArgs = [Constants.AlertField.senderName]
-        info.alertLocalizationKey = "ATTENTION_NOTIFICATION_BODY"
-        info.alertLocalizationArgs = [Constants.AlertField.senderName, Constants.AlertField.message]
-        info.soundName = "needs-attention.caf"
-        info.shouldBadge = true
-        info.shouldSendMutableContent = true     // routes through NSE so we can upgrade priority
-        info.desiredKeys = [
-            Constants.AlertField.pairKey,
-            Constants.AlertField.senderDeviceID,
-            Constants.AlertField.senderName,
-            Constants.AlertField.message,
-            Constants.AlertField.critical,
-            Constants.AlertField.state
-        ]
+        info.alertBody = "Attention"
+        info.shouldSendMutableContent = true
         sub.notificationInfo = info
         return sub
     }
@@ -245,13 +247,7 @@ final class CloudKitService: @unchecked Sendable {
             options: [.firesOnRecordUpdate]
         )
         let info = CKSubscription.NotificationInfo()
-        info.shouldSendContentAvailable = true   // silent push
-        info.desiredKeys = [
-            Constants.PairField.deviceA,
-            Constants.PairField.deviceB,
-            Constants.PairField.nameA,
-            Constants.PairField.nameB
-        ]
+        info.shouldSendContentAvailable = true   // silent push; handler refetches the record
         sub.notificationInfo = info
         return sub
     }
@@ -270,13 +266,7 @@ final class CloudKitService: @unchecked Sendable {
             options: [.firesOnRecordUpdate]
         )
         let info = CKSubscription.NotificationInfo()
-        info.shouldSendContentAvailable = true   // silent push, just wakes the app to refetch
-        info.desiredKeys = [
-            Constants.AlertField.state,
-            Constants.AlertField.seenAt,
-            Constants.AlertField.acknowledgedAt,
-            Constants.AlertField.ackEmoji
-        ]
+        info.shouldSendContentAvailable = true   // silent push; handler refetches the record
         sub.notificationInfo = info
         return sub
     }

@@ -1,6 +1,7 @@
 import CloudKit
 import Foundation
 import SwiftUI
+import UserNotifications
 import os.log
 
 /// Single source of truth for the UI. Mutations happen on the main actor; CloudKit calls
@@ -36,6 +37,7 @@ final class AppState {
 
     func bootstrap() async {
         await refreshICloudStatus()
+
         if let pair {
             SharedSettings.partnerName = pair.partnerName
             // Re-register subscriptions in case they were dropped
@@ -138,6 +140,7 @@ final class AppState {
             let updated = try await CloudKitService.shared.acknowledgeAlert(recordID: alert.id, emoji: emoji)
             lastIncoming = updated
             Haptics.success()
+            try? await UNUserNotificationCenter.current().setBadgeCount(0)
         } catch {
             log.error("ack: \(error.localizedDescription)")
         }
