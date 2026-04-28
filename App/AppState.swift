@@ -47,9 +47,11 @@ final class AppState {
             )
             // Pick up any partner-name change that happened while we were killed
             await refreshPairFromCloud()
-            // reconcileLatestAlert is called via scenePhase .active, which fires on
-            // launch too — no separate call here avoids a duplicate CloudKit fetch.
         }
+        // Run after the pair branch so unpaired users still get the badge swept,
+        // and so paired users get an initial sync without depending on a later
+        // scenePhase change firing (.onChange skips the initial value).
+        await reconcileLatestAlert()
         await refreshNotificationStatus()
     }
 
@@ -62,7 +64,14 @@ final class AppState {
     /// by APNs / iOS background throttling — calling this on foreground is what keeps
     /// the "Sent waiting" indicator from staying stale after the partner has acked.
     func reconcileLatestAlert() async {
-        guard let pair else { return }
+        guard let pair else {
+            // Unpaired: there's nothing to fetch, but a badge set before unpair would
+            // otherwise persist with no way to clear it.
+            pendingOutgoing = nil
+            lastIncoming = nil
+            try? await UNUserNotificationCenter.current().setBadgeCount(0)
+            return
+        }
         do {
             async let outgoingFetch = CloudKitService.shared.fetchMostRecentAlert(
                 pairKey: pair.pairKey, senderDeviceID: pair.myDeviceID
