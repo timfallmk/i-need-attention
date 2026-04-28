@@ -1,7 +1,6 @@
 import CloudKit
 import SwiftUI
 import UIKit
-import UserNotifications
 
 @main
 struct AttentionApp: App {
@@ -40,7 +39,6 @@ struct AttentionApp: App {
                 Task {
                     await appState.refreshICloudStatus()
                     await appState.refreshNotificationStatus()
-                    try? await UNUserNotificationCenter.current().setBadgeCount(0)
                 }
             }
         }
