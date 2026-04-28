@@ -138,9 +138,19 @@ final class CloudKitService: @unchecked Sendable {
         return model
     }
 
-    /// Latest alert in a pair (either direction). Used to repopulate UI on launch.
-    func fetchMostRecentAlert(pairKey: String) async throws -> AlertRecord? {
-        let predicate = NSPredicate(format: "%K == %@", Constants.AlertField.pairKey, pairKey)
+    /// Latest alert in a pair, optionally filtered to a specific sender.
+    /// Pass `senderDeviceID` to fetch the most recent outgoing or incoming alert independently.
+    func fetchMostRecentAlert(pairKey: String, senderDeviceID: String? = nil) async throws -> AlertRecord? {
+        let predicate: NSPredicate
+        if let senderDeviceID {
+            predicate = NSPredicate(
+                format: "%K == %@ AND %K == %@",
+                Constants.AlertField.pairKey, pairKey,
+                Constants.AlertField.senderDeviceID, senderDeviceID
+            )
+        } else {
+            predicate = NSPredicate(format: "%K == %@", Constants.AlertField.pairKey, pairKey)
+        }
         let query = CKQuery(recordType: Constants.RecordType.alert, predicate: predicate)
         query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let (results, _) = try await publicDB.records(matching: query, resultsLimit: 1)
