@@ -64,6 +64,7 @@ Go to <https://icloud.developer.apple.com/dashboard> → select your container �
 
 - [ ] Click **Import Schema…** and upload or paste the contents of `cloudkit-schema.ckdb`
 - [ ] If the import fails due to an existing schema conflict (e.g. you already created `Pair` manually), click **Reset Environment…** first (development only — no data loss since you haven't used the app yet), then import again
+- [ ] If you previously imported an older schema, re-import to pick up the **Queryable** flag on `Alert.state` (required by the `outgoing-ack-v1` subscription that delivers a banner to the sender when the partner acknowledges). Verify under **Indexes** that `Alert.state` shows `QUERYABLE`; add it manually if not.
 - [ ] After import, click **Security Roles** in the left sidebar and verify:
   - `_world`: **Read** only for `Pair` and `Alert` (CloudKit does not allow World Write — this is correct)
   - `_icloud`: **Create + Read + Write** for `Pair` and `Alert` — set manually if missing (both phones are always signed into iCloud so this is the effective write gate; the pairKey is the access secret)

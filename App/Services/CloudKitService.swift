@@ -162,9 +162,11 @@ final class CloudKitService: @unchecked Sendable {
 
     // MARK: - Subscriptions
 
-    /// Registers (idempotently) the three query subscriptions this app needs:
+    /// Registers (idempotently) the four query subscriptions this app needs:
     ///  - Incoming alerts: visible alert push when partner sends.
     ///  - Outgoing status: silent push when partner updates seen/ack on our alerts.
+    ///  - Outgoing ack: visible alert push specifically when the partner acks (so the
+    ///    sender sees a banner even with the app force-quit / device locked).
     ///  - Pair updates: silent push when the partner renames themselves.
     func registerSubscriptions(pairKey: String, myDeviceID: String) async throws {
         let existing = try await publicDB.allSubscriptions()
@@ -177,6 +179,9 @@ final class CloudKitService: @unchecked Sendable {
         }
         if !existingIDs.contains(Constants.SubscriptionID.outgoingStatus) {
             toSave.append(makeOutgoingStatusSubscription(pairKey: pairKey, myDeviceID: myDeviceID))
+        }
+        if !existingIDs.contains(Constants.SubscriptionID.outgoingAck) {
+            toSave.append(makeOutgoingAckSubscription(pairKey: pairKey, myDeviceID: myDeviceID))
         }
         if !existingIDs.contains(Constants.SubscriptionID.pairUpdates) {
             toSave.append(makePairUpdateSubscription(pairKey: pairKey))
@@ -277,6 +282,31 @@ final class CloudKitService: @unchecked Sendable {
         )
         let info = CKSubscription.NotificationInfo()
         info.shouldSendContentAvailable = true   // silent push; handler refetches the record
+        sub.notificationInfo = info
+        return sub
+    }
+
+    /// Updates to my outgoing alerts that transition to `acknowledged`. The server-side
+    /// state filter means this fires only on ack — `seen` transitions still go through
+    /// the silent `outgoingStatus` subscription. Routed as an alert push so the sender
+    /// sees a banner even when the app is force-quit or the device is locked, where
+    /// silent pushes are routinely throttled or dropped.
+    private func makeOutgoingAckSubscription(pairKey: String, myDeviceID: String) -> CKQuerySubscription {
+        let predicate = NSPredicate(
+            format: "%K == %@ AND %K == %@ AND %K == %@",
+            Constants.AlertField.pairKey, pairKey,
+            Constants.AlertField.senderDeviceID, myDeviceID,
+            Constants.AlertField.state, Constants.AlertState.acknowledged.rawValue
+        )
+        let sub = CKQuerySubscription(
+            recordType: Constants.RecordType.alert,
+            predicate: predicate,
+            subscriptionID: Constants.SubscriptionID.outgoingAck,
+            options: [.firesOnRecordUpdate]
+        )
+        let info = CKSubscription.NotificationInfo()
+        info.alertBody = "Acknowledged"          // placeholder; NSE rewrites with partner name + emoji
+        info.shouldSendMutableContent = true     // routes through the NSE
         sub.notificationInfo = info
         return sub
     }
