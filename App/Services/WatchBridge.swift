@@ -37,6 +37,9 @@ final class WatchBridge: NSObject {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         guard session.activationState == .activated else { return }
+        // No watch paired (or watch app uninstalled) → updateApplicationContext would
+        // throw on every state mutation. Bail out quietly instead of spamming logs.
+        guard session.isPaired, session.isWatchAppInstalled else { return }
         guard let data = snapshot.encode() else {
             log.error("snapshot encode failed")
             return
