@@ -124,6 +124,8 @@ Symmetric (one scan → both can send/receive). See `App/Models/PairState.swift`
 ### Watch
 
 - The watch app uses **WatchConnectivity** to relay button presses to the iPhone — it never talks to CloudKit directly. `WatchSession` (watch side) → `WatchBridge` (phone side) → `AppState.sendAttention(critical: false)`. Falls back to `transferUserInfo` when the iPhone is unreachable, which `WatchBridge.session(_:didReceiveUserInfo:)` drains when the phone wakes.
+- The watch status pill mirrors `StatusIndicatorView` on iOS. Phone is the source of truth: `AppState.pushWatchSnapshot()` is called at every state-mutation site and ships a `WatchSnapshot` (defined in `Shared/WatchSnapshot.swift`, JSON-encoded) to the watch via `WCSession.updateApplicationContext` (always — replaces previous, opportunistic delivery) plus a best-effort live `sendMessage` when reachable. Watch decodes into `WatchSession.snapshot` and `WatchStatusPill` renders.
+- Acknowledging from the watch goes back through the same bridge: `WatchSession.sendAck(emoji:)` → `Constants.WatchMessage.ackKind` carrying `recordName` + optional `emoji` → `WatchBridge` calls `AppState.acknowledgeIncomingFromWatch(recordName:emoji:)`. The phone guards `recordName == lastIncoming?.id.recordName` so a userInfo-queued ack from a previous alert can't acknowledge a newer one. The watch optimistically flips its local snapshot's `incoming.acknowledged = true` so the pill updates instantly; the phone's next snapshot reconciles.
 - The widget extension (`Watch/WatchWidget/`) is a face complication that opens `attention://press`. The watch app's `.onOpenURL` fires `sendPress()` immediately, so a complication tap is one-tap-to-press.
 
 ## Conventions
