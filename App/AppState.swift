@@ -247,12 +247,16 @@ final class AppState {
             )
         }
         let incomingInfo: WatchSnapshot.IncomingInfo? = lastIncoming.map { alert in
-            WatchSnapshot.IncomingInfo(
+            // Match StatusIndicatorView's "done" predicate: either the explicit state
+            // or a non-nil acknowledgedAt timestamp counts. Guards against records that
+            // somehow have one signal but not the other.
+            let acked = alert.state == .acknowledged || alert.acknowledgedAt != nil
+            return WatchSnapshot.IncomingInfo(
                 recordName: alert.id.recordName,
                 senderName: alert.senderName,
                 critical: alert.critical,
                 createdAt: alert.createdAt,
-                acknowledged: alert.state == .acknowledged
+                acknowledged: acked
             )
         }
         return WatchSnapshot(
