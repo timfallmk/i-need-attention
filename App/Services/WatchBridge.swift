@@ -11,7 +11,7 @@ import os.log
 @MainActor
 final class WatchBridge: NSObject {
     static let shared = WatchBridge()
-    private let log = Logger(subsystem: "com.timfallmk.attention", category: "Watch")
+    nonisolated private let log = Logger(subsystem: "com.timfallmk.attention", category: "Watch")
     private var pressHandler: (@MainActor () async -> Void)?
     private var ackHandler: (@MainActor (_ recordName: String, _ emoji: String?) async -> Void)?
     private var activatedHandler: (@MainActor () -> Void)?
@@ -98,18 +98,30 @@ extension WatchBridge: WCSessionDelegate {
         }
     }
 
+    /// Counterpart to the replyHandler variant — invoked when the watch sends a message
+    /// without expecting a reply (which is what `WatchSession.sendPress` / `sendAck` do).
+    /// Without this the reachable-watch path would drop on the floor and only the
+    /// `transferUserInfo` fallback would land.
+    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
+        dispatchWatchInbound(message)
+    }
+
     /// `transferUserInfo` from the watch lands here when the iPhone wasn't reachable at
     /// press/ack time. Without this, queued payloads would silently drop on the floor.
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
-        let kind = userInfo[Constants.WatchMessage.kindKey] as? String
+        dispatchWatchInbound(userInfo)
+    }
+
+    private nonisolated func dispatchWatchInbound(_ payload: [String: Any]) {
+        let kind = payload[Constants.WatchMessage.kindKey] as? String
         switch kind {
         case Constants.WatchMessage.pressKind:
             Task { @MainActor in
                 await self.pressHandler?()
             }
         case Constants.WatchMessage.ackKind:
-            let recordName = userInfo[Constants.WatchMessage.ackRecordNameKey] as? String
-            let emoji = userInfo[Constants.WatchMessage.ackEmojiKey] as? String
+            let recordName = payload[Constants.WatchMessage.ackRecordNameKey] as? String
+            let emoji = payload[Constants.WatchMessage.ackEmojiKey] as? String
             Task { @MainActor in
                 if let recordName {
                     await self.ackHandler?(recordName, emoji)

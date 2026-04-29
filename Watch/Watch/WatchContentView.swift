@@ -6,7 +6,6 @@ struct WatchContentView: View {
     @State private var pulse = false
     @State private var showAckSheet = false
     @State private var now = Date()
-    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
@@ -62,7 +61,19 @@ struct WatchContentView: View {
             }
             .padding(.vertical, 4)
         }
-        .onReceive(timer) { now = $0 }
+        .task(id: session.snapshot?.cooldownEnds) {
+            // Only tick while a cooldown is actively winding down — outside that
+            // window the 1Hz timer would just burn watch battery for no UI change.
+            guard let end = session.snapshot?.cooldownEnds, end > Date() else {
+                now = Date()
+                return
+            }
+            while !Task.isCancelled {
+                now = Date()
+                if Date() >= end { return }
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
         .sheet(isPresented: $showAckSheet) {
             WatchAckSheet { emoji in
                 session.sendAck(emoji: emoji)
