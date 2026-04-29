@@ -53,6 +53,7 @@ final class AppState {
         // scenePhase change firing (.onChange skips the initial value).
         await reconcileLatestAlert()
         await refreshNotificationStatus()
+        pushWatchSnapshot()
     }
 
     /// Refetches the most recent alert in each direction and reconciles local state.
@@ -93,6 +94,7 @@ final class AppState {
         } catch {
             log.error("reconcile: \(error.localizedDescription)")
         }
+        pushWatchSnapshot()
     }
 
     private static func clearDeliveredAckNotifications() async {
@@ -147,6 +149,7 @@ final class AppState {
             pendingOutgoing = record
             cooldownEnds = Date().addingTimeInterval(TimeInterval(settings.cooldownSeconds))
             Haptics.success()
+            pushWatchSnapshot()
         } catch {
             log.error("sendAttention: \(error.localizedDescription)")
             bannerMessage = error.localizedDescription
@@ -178,6 +181,7 @@ final class AppState {
                 log.error("markAlertSeen: \(error.localizedDescription)")
             }
         }
+        pushWatchSnapshot()
     }
 
     func acknowledgeIncoming(emoji: String?) async {
@@ -188,9 +192,22 @@ final class AppState {
             Haptics.success()
             try? await UNUserNotificationCenter.current().setBadgeCount(0)
             UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+            pushWatchSnapshot()
         } catch {
             log.error("ack: \(error.localizedDescription)")
         }
+    }
+
+    /// Forwarded from the watch via WatchBridge. Guards the recordName against the
+    /// current `lastIncoming` so a userInfo-queued ack from a previous alert can't
+    /// mark a newer one acknowledged.
+    func acknowledgeIncomingFromWatch(recordName: String, emoji: String?) async {
+        guard let alert = lastIncoming, alert.id.recordName == recordName else {
+            log.debug("dropping stale watch ack for record \(recordName, privacy: .public)")
+            return
+        }
+        guard alert.state != .acknowledged else { return }
+        await acknowledgeIncoming(emoji: emoji)
     }
 
     // MARK: - Pairing wrapper
@@ -198,6 +215,7 @@ final class AppState {
     func applyPair(_ state: PairState) {
         self.pair = state
         SharedSettings.partnerName = state.partnerName
+        pushWatchSnapshot()
     }
 
     func unpair() async {
@@ -206,6 +224,46 @@ final class AppState {
         pendingOutgoing = nil
         lastIncoming = nil
         SharedSettings.partnerName = nil
+        pushWatchSnapshot()
+    }
+
+    // MARK: - Watch snapshot
+
+    /// Snapshot the watch needs to render its status pill. Mirrors the iOS
+    /// StatusIndicatorView decision matrix.
+    func currentWatchSnapshot() -> WatchSnapshot {
+        let outgoingInfo: WatchSnapshot.OutgoingInfo? = pendingOutgoing.map { alert in
+            let mappedState: WatchSnapshot.Outgoing
+            switch alert.state {
+            case .sent: mappedState = .sent
+            case .seen: mappedState = .seen
+            case .acknowledged: mappedState = .acknowledged
+            }
+            return WatchSnapshot.OutgoingInfo(
+                state: mappedState,
+                critical: alert.critical,
+                ackEmoji: alert.ackEmoji
+            )
+        }
+        let incomingInfo: WatchSnapshot.IncomingInfo? = lastIncoming.map { alert in
+            WatchSnapshot.IncomingInfo(
+                recordName: alert.id.recordName,
+                senderName: alert.senderName,
+                critical: alert.critical,
+                createdAt: alert.createdAt,
+                acknowledged: alert.state == .acknowledged
+            )
+        }
+        return WatchSnapshot(
+            paired: pair != nil,
+            outgoing: outgoingInfo,
+            incoming: incomingInfo,
+            cooldownEnds: cooldownEnds
+        )
+    }
+
+    func pushWatchSnapshot() {
+        WatchBridge.shared.sendSnapshot(currentWatchSnapshot())
     }
 
     // MARK: - Display name sync
@@ -226,6 +284,7 @@ final class AppState {
             pair.save()
             self.pair = pair
             Haptics.light()
+            pushWatchSnapshot()
         } catch {
             log.error("updatePairName: \(error.localizedDescription)")
         }
@@ -254,6 +313,7 @@ final class AppState {
             pair.save()
             self.pair = pair
             SharedSettings.partnerName = partnerName
+            pushWatchSnapshot()
         } catch {
             log.error("refreshPair: \(error.localizedDescription)")
         }

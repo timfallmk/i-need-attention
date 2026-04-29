@@ -1,0 +1,48 @@
+import Foundation
+
+/// Compact view of the phone's alert state, shipped over WatchConnectivity so the watch
+/// can render the same status pill the iPhone does. Encoded as JSON inside the WCSession
+/// dictionary under `Constants.WatchMessage.snapshotKey`.
+struct WatchSnapshot: Codable, Equatable {
+    enum Outgoing: String, Codable {
+        case sent
+        case seen
+        case acknowledged
+    }
+
+    struct OutgoingInfo: Codable, Equatable {
+        var state: Outgoing
+        var critical: Bool
+        var ackEmoji: String?
+    }
+
+    struct IncomingInfo: Codable, Equatable {
+        /// CKRecord.ID.recordName — used by the phone to ignore stale acks when a newer
+        /// alert has already replaced this one.
+        var recordName: String
+        var senderName: String
+        var critical: Bool
+        var createdAt: Date
+        var acknowledged: Bool
+    }
+
+    var paired: Bool
+    var outgoing: OutgoingInfo?
+    var incoming: IncomingInfo?
+    /// Absolute time so the watch can locally tick the cooldown without phone help.
+    var cooldownEnds: Date?
+
+    static let empty = WatchSnapshot(paired: false, outgoing: nil, incoming: nil, cooldownEnds: nil)
+
+    func encode() -> Data? {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        return try? encoder.encode(self)
+    }
+
+    static func decode(_ data: Data) -> WatchSnapshot? {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        return try? decoder.decode(WatchSnapshot.self, from: data)
+    }
+}

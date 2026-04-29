@@ -2,21 +2,57 @@ import Foundation
 import WatchConnectivity
 import os.log
 
-/// Listens for "press" messages from the watch app and delegates the actual alert
-/// send back to the iPhone. The watch never talks to CloudKit directly — keeps things
-/// simple and avoids paying twice for iCloud auth.
+/// Two-way bridge with the watchOS app:
+///   - Watch → phone: "press" and "ack" messages (the watch never talks to CloudKit).
+///   - Phone → watch: `WatchSnapshot` updates so the watch pill mirrors the iOS pill.
+///
+/// State pushes use `updateApplicationContext` (always, opportunistic delivery) plus
+/// a best-effort `sendMessage` when reachable so foreground updates are instant.
 @MainActor
 final class WatchBridge: NSObject {
     static let shared = WatchBridge()
     private let log = Logger(subsystem: "com.timfallmk.attention", category: "Watch")
     private var pressHandler: (@MainActor () async -> Void)?
+    private var ackHandler: (@MainActor (_ recordName: String, _ emoji: String?) async -> Void)?
 
-    func activate(onPress: @escaping @MainActor () async -> Void) {
+    func activate(
+        onPress: @escaping @MainActor () async -> Void,
+        onAck: @escaping @MainActor (_ recordName: String, _ emoji: String?) async -> Void
+    ) {
         self.pressHandler = onPress
+        self.ackHandler = onAck
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         session.delegate = self
         session.activate()
+    }
+
+    /// Pushes the latest snapshot to the watch. Always updates the application context
+    /// (replaces previous content; delivered when the watch wakes); also sends a live
+    /// message when reachable for instant updates without round-tripping through APNs.
+    func sendSnapshot(_ snapshot: WatchSnapshot) {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        guard let data = snapshot.encode() else {
+            log.error("snapshot encode failed")
+            return
+        }
+        let context: [String: Any] = [Constants.WatchMessage.snapshotKey: data]
+        do {
+            try session.updateApplicationContext(context)
+        } catch {
+            log.error("updateApplicationContext: \(error.localizedDescription, privacy: .public)")
+        }
+        if session.isReachable {
+            let message: [String: Any] = [
+                Constants.WatchMessage.kindKey: Constants.WatchMessage.snapshotKind,
+                Constants.WatchMessage.snapshotKey: data
+            ]
+            session.sendMessage(message, replyHandler: nil) { [weak self] error in
+                self?.log.debug("snapshot sendMessage failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 }
 
@@ -33,26 +69,46 @@ extension WatchBridge: WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String : Any], replyHandler: @escaping ([String : Any]) -> Void) {
-        guard isPressMessage(message) else {
+        let kind = message[Constants.WatchMessage.kindKey] as? String
+        switch kind {
+        case Constants.WatchMessage.pressKind:
+            Task { @MainActor in
+                await self.pressHandler?()
+                replyHandler(["ok": true])
+            }
+        case Constants.WatchMessage.ackKind:
+            let recordName = message[Constants.WatchMessage.ackRecordNameKey] as? String
+            let emoji = message[Constants.WatchMessage.ackEmojiKey] as? String
+            Task { @MainActor in
+                if let recordName {
+                    await self.ackHandler?(recordName, emoji)
+                }
+                replyHandler(["ok": recordName != nil])
+            }
+        default:
             replyHandler(["ok": false])
-            return
-        }
-        Task { @MainActor in
-            await self.pressHandler?()
-            replyHandler(["ok": true])
         }
     }
 
     /// `transferUserInfo` from the watch lands here when the iPhone wasn't reachable at
-    /// press time. Without this, queued presses would silently drop on the floor.
+    /// press/ack time. Without this, queued payloads would silently drop on the floor.
     nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
-        guard isPressMessage(userInfo) else { return }
-        Task { @MainActor in
-            await self.pressHandler?()
+        let kind = userInfo[Constants.WatchMessage.kindKey] as? String
+        switch kind {
+        case Constants.WatchMessage.pressKind:
+            Task { @MainActor in
+                await self.pressHandler?()
+            }
+        case Constants.WatchMessage.ackKind:
+            let recordName = userInfo[Constants.WatchMessage.ackRecordNameKey] as? String
+            let emoji = userInfo[Constants.WatchMessage.ackEmojiKey] as? String
+            Task { @MainActor in
+                if let recordName {
+                    await self.ackHandler?(recordName, emoji)
+                }
+            }
+        default:
+            break
         }
-    }
-
-    private nonisolated func isPressMessage(_ payload: [String: Any]) -> Bool {
-        (payload[Constants.WatchMessage.kindKey] as? String) == Constants.WatchMessage.pressKind
     }
 }

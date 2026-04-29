@@ -26,9 +26,14 @@ struct AttentionApp: App {
                         appState.notificationsAuthorized = granted
                         await appState.refreshNotificationStatus()
                     }
-                    WatchBridge.shared.activate { @MainActor in
-                        await appState.sendAttention()
-                    }
+                    WatchBridge.shared.activate(
+                        onPress: { @MainActor in
+                            await appState.sendAttention()
+                        },
+                        onAck: { @MainActor (recordName, emoji) in
+                            await appState.acknowledgeIncomingFromWatch(recordName: recordName, emoji: emoji)
+                        }
+                    )
                 }
                 .preferredColorScheme(nil)
         }
