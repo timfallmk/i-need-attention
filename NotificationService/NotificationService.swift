@@ -40,7 +40,11 @@ final class NotificationService: UNNotificationServiceExtension {
             let bannersOn = SharedSettings.ackBannersEnabled
             mutable.interruptionLevel = bannersOn ? .active : .passive
             mutable.categoryIdentifier = Constants.NotificationAction.ackCategory
-            mutable.sound = bannersOn ? .default : nil
+            mutable.sound = bannersOn
+                ? (SharedSettings.customSoundEnabled
+                    ? UNNotificationSound(named: UNNotificationSoundName("needs-attention.caf"))
+                    : .default)
+                : nil
             mutable.badge = nil
         } else {
             // Default to time-sensitive — pierces Focus, doesn't need Apple approval.
