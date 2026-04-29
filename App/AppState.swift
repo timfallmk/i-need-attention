@@ -76,6 +76,7 @@ final class AppState {
             pendingOutgoing = nil
             lastIncoming = nil
             try? await UNUserNotificationCenter.current().setBadgeCount(0)
+            pushWatchSnapshot()
             return
         }
         do {

@@ -14,13 +14,16 @@ final class WatchBridge: NSObject {
     private let log = Logger(subsystem: "com.timfallmk.attention", category: "Watch")
     private var pressHandler: (@MainActor () async -> Void)?
     private var ackHandler: (@MainActor (_ recordName: String, _ emoji: String?) async -> Void)?
+    private var activatedHandler: (@MainActor () -> Void)?
 
     func activate(
         onPress: @escaping @MainActor () async -> Void,
-        onAck: @escaping @MainActor (_ recordName: String, _ emoji: String?) async -> Void
+        onAck: @escaping @MainActor (_ recordName: String, _ emoji: String?) async -> Void,
+        onActivated: @escaping @MainActor () -> Void = {}
     ) {
         self.pressHandler = onPress
         self.ackHandler = onAck
+        self.activatedHandler = onActivated
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
         session.delegate = self
@@ -60,6 +63,11 @@ extension WatchBridge: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if let error {
             log.error("WCSession activation: \(error.localizedDescription)")
+        }
+        if activationState == .activated {
+            Task { @MainActor in
+                self.activatedHandler?()
+            }
         }
     }
 
