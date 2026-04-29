@@ -24,7 +24,7 @@ struct AttentionApp: App {
                         onPress: { @MainActor in
                             await appState.sendAttention()
                         },
-                        onAck: { @MainActor (recordName, emoji) in
+                        onAck: { @MainActor recordName, emoji in
                             await appState.acknowledgeIncomingFromWatch(recordName: recordName, emoji: emoji)
                         },
                         onActivated: { @MainActor in
@@ -41,7 +41,6 @@ struct AttentionApp: App {
                         appState.notificationsAuthorized = granted
                         await appState.refreshNotificationStatus()
                     }
-                }
                 }
                 .preferredColorScheme(nil)
         }
