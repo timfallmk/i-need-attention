@@ -13,12 +13,16 @@ final class PushNotifications: NSObject {
 
     private override init() { super.init() }
 
-    /// Called from app launch. Sets the delegate, registers the inline-action category
-    /// (so users can ack from the banner without opening the app), and registers for
-    /// remote notifications.
+    /// Called from app launch. Sets the delegate, registers the notification categories
+    /// (the ping category with the five inline ack actions, plus the no-action ack
+    /// category for sender-side acknowledgement banners), and registers for remote
+    /// notifications.
     func configure() {
         UNUserNotificationCenter.current().delegate = self
-        UNUserNotificationCenter.current().setNotificationCategories([Self.attentionPingCategory])
+        UNUserNotificationCenter.current().setNotificationCategories([
+            Self.attentionPingCategory,
+            Self.attentionAckCategory
+        ])
         UIApplication.shared.registerForRemoteNotifications()
     }
 
@@ -50,6 +54,18 @@ final class PushNotifications: NSObject {
         return UNNotificationCategory(
             identifier: Constants.NotificationAction.category,
             actions: actions,
+            intentIdentifiers: [],
+            options: []
+        )
+    }
+
+    /// No actions: an ack banner is informational. Tapping it opens the app via the
+    /// default action; the response handler distinguishes ack-category notifications and
+    /// skips the markAlertSeen path that applies to incoming alerts.
+    private static var attentionAckCategory: UNNotificationCategory {
+        UNNotificationCategory(
+            identifier: Constants.NotificationAction.ackCategory,
+            actions: [],
             intentIdentifiers: [],
             options: []
         )
@@ -112,12 +128,18 @@ final class PushNotifications: NSObject {
 
 extension PushNotifications: UNUserNotificationCenterDelegate {
     /// When the alert push arrives while the app is foregrounded, the user is already looking
-    /// at the screen — show a banner and play sound but don't badge.
+    /// at the screen — show a banner and play sound but don't badge. For sender-side ack
+    /// banners (`ATTENTION_ACK`), `StatusIndicatorView` already shows the same emoji, so
+    /// suppress the banner entirely to avoid stacking duplicate UI on top of itself.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        if notification.request.content.categoryIdentifier == Constants.NotificationAction.ackCategory {
+            completionHandler([])
+            return
+        }
         completionHandler([.banner, .sound, .list])
     }
 
@@ -133,14 +155,25 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
     ) {
         let userInfo = response.notification.request.content.userInfo
         let actionID = response.actionIdentifier
+        let categoryID = response.notification.request.content.categoryIdentifier
 
         guard let recordName = userInfo["recordName"] as? String else {
             completionHandler()
             return
         }
-        let recordID = CKRecord.ID(recordName: recordName)
 
         let notificationID = response.notification.request.identifier
+
+        // Sender-side ack banner: tapping it just opens the app. Do NOT call markAlertSeen
+        // — recordName here is the sender's own outgoing alert, and "seen" would overwrite
+        // the acknowledged state.
+        if categoryID == Constants.NotificationAction.ackCategory {
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [notificationID])
+            completionHandler()
+            return
+        }
+
+        let recordID = CKRecord.ID(recordName: recordName)
         Task { @MainActor in
             defer { completionHandler() }
             if Constants.NotificationAction.allAckActionIdentifiers.contains(actionID) {

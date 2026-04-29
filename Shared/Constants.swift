@@ -37,6 +37,7 @@ enum Constants {
     enum SubscriptionID {
         static let incomingAlerts = "incoming-alerts-v1"
         static let outgoingStatus = "outgoing-status-v1"
+        static let outgoingAck = "outgoing-ack-v1"
         static let pairUpdates = "pair-updates-v1"
     }
 
@@ -55,6 +56,10 @@ enum Constants {
     /// the response in the notification delegate.
     enum NotificationAction {
         static let category = "ATTENTION_PING"
+        /// Informational category for sender-side ack banners. No actions — tapping the
+        /// banner just opens the app (default action). Kept distinct from `category` so
+        /// the existing five ack actions don't appear on the sender's own ack banner.
+        static let ackCategory = "ATTENTION_ACK"
 
         static let heart = "ack.heart"
         static let thumbs = "ack.thumbs"

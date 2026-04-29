@@ -31,7 +31,7 @@ DEFINE SCHEMA
         senderDeviceID   STRING QUERYABLE,
         senderName       STRING,
         message          STRING,
-        state            STRING,
+        state            STRING QUERYABLE,
         ackEmoji         STRING,
         seenAt           TIMESTAMP,
         acknowledgedAt   TIMESTAMP,

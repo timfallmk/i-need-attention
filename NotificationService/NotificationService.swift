@@ -1,11 +1,16 @@
 import CloudKit
 import UserNotifications
 
-/// Runs on receipt of every CloudKit push for incoming alerts. We use it to:
-///   1. Fetch the freshest version of the Alert record (in case the desiredKeys missed something)
-///   2. Set a friendly title/body using the sender's name
-///   3. Upgrade interruptionLevel to .critical (if sender requested + receiver granted entitlement)
-///      or .timeSensitive otherwise — so the alert always breaks through Focus.
+/// Runs on receipt of every CloudKit push routed through the extension. Two flavors:
+///
+///   - `incoming-alerts-v1`: a partner-sent "needs attention" — friendly title/body, ack
+///     actions in the pull-down, time-sensitive (or critical) interruption level.
+///   - `outgoing-ack-v1`: my partner just acked one of my alerts — informational banner
+///     with the partner's name + their ack emoji, .active interruption level (no Focus
+///     piercing for a confirmation).
+///
+/// Both flavors fetch the freshest record on the slow path so we don't ship stale
+/// title/body when desiredKeys has been pruned by CloudKit's per-subscription payload cap.
 final class NotificationService: UNNotificationServiceExtension {
     private var contentHandler: ((UNNotificationContent) -> Void)?
     private var bestAttemptContent: UNMutableNotificationContent?
@@ -27,24 +32,32 @@ final class NotificationService: UNNotificationServiceExtension {
             return
         }
 
-        // Default to time-sensitive — pierces Focus, doesn't need Apple approval.
-        mutable.interruptionLevel = .timeSensitive
-        // Wire the inline ack actions (❤️ 👍 🤗 🚨 ✅) into the banner pull-down.
-        mutable.categoryIdentifier = Constants.NotificationAction.category
-        // Replaces the badge previously set via CKSubscription.NotificationInfo.shouldBadge,
-        // which we dropped to stay under Production's "additional fields" limit. Absolute 1
-        // (not an increment) is fine: any unread alert means "partner wants attention".
-        mutable.badge = 1
+        let isAck = queryNotification.subscriptionID == Constants.SubscriptionID.outgoingAck
+        if isAck {
+            mutable.interruptionLevel = .active
+            mutable.categoryIdentifier = Constants.NotificationAction.ackCategory
+            mutable.sound = .default
+            mutable.badge = nil
+        } else {
+            // Default to time-sensitive — pierces Focus, doesn't need Apple approval.
+            mutable.interruptionLevel = .timeSensitive
+            // Wire the inline ack actions (❤️ 👍 🤗 🚨 ✅) into the banner pull-down.
+            mutable.categoryIdentifier = Constants.NotificationAction.category
+            // Replaces the badge previously set via CKSubscription.NotificationInfo.shouldBadge,
+            // which we dropped to stay under Production's "additional fields" limit. Absolute 1
+            // (not an increment) is fine: any unread alert means "partner wants attention".
+            mutable.badge = 1
+        }
 
         // Fast path: read what we can from the desiredKeys payload, present immediately.
-        applyContent(from: queryNotification, to: mutable)
+        applyContent(from: queryNotification, to: mutable, isAck: isAck)
 
-        // Slow path: fetch full record to validate critical flag etc., then deliver.
+        // Slow path: fetch full record to validate critical flag / pull ackEmoji, then deliver.
         let container = CKContainer(identifier: Constants.cloudKitContainerID)
         container.publicCloudDatabase.fetch(withRecordID: recordID) { [weak self] record, _ in
             guard let self else { return }
             if let record {
-                self.apply(record: record, to: mutable)
+                self.apply(record: record, to: mutable, isAck: isAck)
             }
             contentHandler(mutable)
         }
@@ -58,15 +71,22 @@ final class NotificationService: UNNotificationServiceExtension {
 
     // MARK: - Helpers
 
-    private func applyContent(from notification: CKQueryNotification, to content: UNMutableNotificationContent) {
+    private func applyContent(from notification: CKQueryNotification, to content: UNMutableNotificationContent, isAck: Bool) {
         let fields = notification.recordFields ?? [:]
-        let senderName = (fields["senderName"] as? String) ?? SharedSettings.partnerName ?? "Someone"
-        let message = (fields["message"] as? String) ?? "needs attention"
-        let senderRequestedCritical = (fields["critical"] as? Int ?? 0) == 1
+        let partnerName = SharedSettings.partnerName ?? "Partner"
 
-        content.title = senderName
-        content.body = message
-        applyPriority(senderRequestedCritical: senderRequestedCritical, to: content)
+        if isAck {
+            let emoji = (fields[Constants.AlertField.ackEmoji] as? String)
+            content.title = partnerName
+            content.body = ackBody(emoji: emoji)
+        } else {
+            let senderName = (fields[Constants.AlertField.senderName] as? String) ?? partnerName
+            let message = (fields[Constants.AlertField.message] as? String) ?? "needs attention"
+            let senderRequestedCritical = (fields[Constants.AlertField.critical] as? Int ?? 0) == 1
+            content.title = senderName
+            content.body = message
+            applyPriority(senderRequestedCritical: senderRequestedCritical, to: content)
+        }
 
         if let recordID = notification.recordID {
             var ui = content.userInfo
@@ -75,14 +95,27 @@ final class NotificationService: UNNotificationServiceExtension {
         }
     }
 
-    private func apply(record: CKRecord, to content: UNMutableNotificationContent) {
-        if let senderName = record["senderName"] as? String { content.title = senderName }
-        if let message = record["message"] as? String { content.body = message }
-        let senderRequestedCritical = (record["critical"] as? Int ?? 0) == 1
-        applyPriority(senderRequestedCritical: senderRequestedCritical, to: content)
+    private func apply(record: CKRecord, to content: UNMutableNotificationContent, isAck: Bool) {
+        if isAck {
+            let emoji = record[Constants.AlertField.ackEmoji] as? String
+            content.title = SharedSettings.partnerName ?? "Partner"
+            content.body = ackBody(emoji: emoji)
+        } else {
+            if let senderName = record[Constants.AlertField.senderName] as? String { content.title = senderName }
+            if let message = record[Constants.AlertField.message] as? String { content.body = message }
+            let senderRequestedCritical = (record[Constants.AlertField.critical] as? Int ?? 0) == 1
+            applyPriority(senderRequestedCritical: senderRequestedCritical, to: content)
+        }
         var ui = content.userInfo
         ui["recordName"] = record.recordID.recordName
         content.userInfo = ui
+    }
+
+    private func ackBody(emoji: String?) -> String {
+        if let emoji, !emoji.isEmpty {
+            return "Got back to you \(emoji)"
+        }
+        return "Got back to you"
     }
 
     /// Three-way decision: sender's per-send flag AND receiver's master toggle (read from
