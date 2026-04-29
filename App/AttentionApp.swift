@@ -16,6 +16,21 @@ struct AttentionApp: App {
                     appDelegate.appState = appState
                     Haptics.prepare()
                     PushNotifications.shared.configure()
+                    // Activate the watch bridge before bootstrap so that the initial
+                    // pushWatchSnapshot() inside bootstrap finds an activated WCSession
+                    // (sendSnapshot bails out otherwise). The bridge also re-pushes
+                    // when activation completes as a belt-and-braces guard.
+                    WatchBridge.shared.activate(
+                        onPress: { @MainActor in
+                            await appState.sendAttention()
+                        },
+                        onAck: { @MainActor (recordName, emoji) in
+                            await appState.acknowledgeIncomingFromWatch(recordName: recordName, emoji: emoji)
+                        },
+                        onActivated: { @MainActor in
+                            appState.pushWatchSnapshot()
+                        }
+                    )
                     await appState.bootstrap()
                     if !appState.notificationsAuthorized && !appState.notificationsDenied {
                         // First launch — ask for permission. Critical-alert option
@@ -26,14 +41,7 @@ struct AttentionApp: App {
                         appState.notificationsAuthorized = granted
                         await appState.refreshNotificationStatus()
                     }
-                    WatchBridge.shared.activate(
-                        onPress: { @MainActor in
-                            await appState.sendAttention()
-                        },
-                        onAck: { @MainActor (recordName, emoji) in
-                            await appState.acknowledgeIncomingFromWatch(recordName: recordName, emoji: emoji)
-                        }
-                    )
+                }
                 }
                 .preferredColorScheme(nil)
         }
