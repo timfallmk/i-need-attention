@@ -34,6 +34,7 @@ struct WatchStatusPill: View {
     // MARK: - Snapshot derivation (mirrors iOS StatusIndicatorView)
 
     private enum State {
+        case loading
         case unpaired
         case idle(coolingDown: Bool)
         case outgoingSent(critical: Bool)
@@ -43,7 +44,8 @@ struct WatchStatusPill: View {
     }
 
     private var state: State {
-        guard let snap = snapshot, snap.paired else { return .unpaired }
+        guard let snap = snapshot else { return .loading }
+        guard snap.paired else { return .unpaired }
         if let incoming = snap.incoming, !incoming.acknowledged {
             return .incomingPending(senderName: incoming.senderName, critical: incoming.critical)
         }
@@ -60,6 +62,7 @@ struct WatchStatusPill: View {
 
     private var emoji: String {
         switch state {
+        case .loading: return "💗"
         case .unpaired: return "🔗"
         case .idle: return "💗"
         case .outgoingSent(let c): return c ? "🚨" : "📡"
@@ -71,6 +74,7 @@ struct WatchStatusPill: View {
 
     private var title: String {
         switch state {
+        case .loading: return "Connecting…"
         case .unpaired: return "Not paired"
         case .idle: return "All quiet"
         case .outgoingSent: return "Sent"
@@ -82,6 +86,7 @@ struct WatchStatusPill: View {
 
     private var subtitle: String? {
         switch state {
+        case .loading: return nil
         case .unpaired: return "Pair on iPhone"
         case .idle(let cooling): return cooling ? "Cooling down" : nil
         case .outgoingSent: return "Waiting"
@@ -93,6 +98,7 @@ struct WatchStatusPill: View {
 
     private var tint: Color {
         switch state {
+        case .loading: return .secondary
         case .unpaired: return .secondary
         case .idle: return .secondary
         case .outgoingSent: return .blue
