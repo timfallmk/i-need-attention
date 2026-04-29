@@ -34,9 +34,13 @@ final class NotificationService: UNNotificationServiceExtension {
 
         let isAck = queryNotification.subscriptionID == Constants.SubscriptionID.outgoingAck
         if isAck {
-            mutable.interruptionLevel = .active
+            // Sender-side toggle: when off, deliver passively so the in-app indicator
+            // still flips (the alert push still wakes didReceiveRemoteNotification) but
+            // no banner pops and no sound plays.
+            let bannersOn = SharedSettings.ackBannersEnabled
+            mutable.interruptionLevel = bannersOn ? .active : .passive
             mutable.categoryIdentifier = Constants.NotificationAction.ackCategory
-            mutable.sound = .default
+            mutable.sound = bannersOn ? .default : nil
             mutable.badge = nil
         } else {
             // Default to time-sensitive — pierces Focus, doesn't need Apple approval.

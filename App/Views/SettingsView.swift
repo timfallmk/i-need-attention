@@ -36,6 +36,11 @@ struct SettingsView: View {
                 Section("Alert behavior") {
                     Toggle("Custom sound", isOn: $settings.customSoundEnabled)
 
+                    Toggle("Acknowledgement banners", isOn: $settings.ackBannersEnabled)
+                    Text("Notify you with a banner when your partner gets back to you. The in-app indicator updates either way.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
                     Toggle(criticalToggleLabel, isOn: $settings.acceptCriticalAlerts)
                     Text("When you allow this, alerts your partner sends with **Send as Critical** (long-press the button) will pierce silent mode and Focus. Requires Apple to grant the Critical Alerts entitlement; until then, criticals fall back to Time-Sensitive.")
                         .font(.footnote)
