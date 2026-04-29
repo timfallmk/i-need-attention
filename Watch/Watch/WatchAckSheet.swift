@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Compact emoji picker shown when the wearer wants to acknowledge an incoming alert.
-/// Same five glyphs as the iPhone AckSheet so behavior matches across devices.
+/// Uses a watch-friendly subset of the iPhone AckSheet glyphs — same core reactions,
+/// dropped the rarely-used 🙏 / ⏳ to keep the grid one tap-friendly screen.
 struct WatchAckSheet: View {
     let onPick: (String?) -> Void
     private let emojis = ["❤️", "👍", "🤗", "🚨"]
