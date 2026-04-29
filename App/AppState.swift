@@ -64,6 +64,11 @@ final class AppState {
     /// by APNs / iOS background throttling — calling this on foreground is what keeps
     /// the "Sent waiting" indicator from staying stale after the partner has acked.
     func reconcileLatestAlert() async {
+        // Sender-side ack banners are informational; once the app is foregrounded the
+        // StatusIndicatorView already shows the ack emoji, so the lock-screen banner
+        // has done its job. Sweep them regardless of pair state.
+        await Self.clearDeliveredAckNotifications()
+
         guard let pair else {
             // Unpaired: there's nothing to fetch, but a badge set before unpair would
             // otherwise persist with no way to clear it.
@@ -88,6 +93,16 @@ final class AppState {
         } catch {
             log.error("reconcile: \(error.localizedDescription)")
         }
+    }
+
+    private static func clearDeliveredAckNotifications() async {
+        let center = UNUserNotificationCenter.current()
+        let delivered = await center.deliveredNotifications()
+        let ackIDs = delivered
+            .filter { $0.request.content.categoryIdentifier == Constants.NotificationAction.ackCategory }
+            .map(\.request.identifier)
+        guard !ackIDs.isEmpty else { return }
+        center.removeDeliveredNotifications(withIdentifiers: ackIDs)
     }
 
     func refreshNotificationStatus() async {
