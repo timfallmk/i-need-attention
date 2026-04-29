@@ -10,6 +10,7 @@ enum SharedSettings {
         static let acceptCriticalAlerts = "shared.acceptCriticalAlerts"
         static let customSoundEnabled = "shared.customSoundEnabled"
         static let partnerName = "shared.partnerName"
+        static let ackBannersEnabled = "shared.ackBannersEnabled"
     }
 
     /// Receiver-side master switch. If false, even alerts marked critical by the sender
@@ -32,5 +33,15 @@ enum SharedSettings {
     static var partnerName: String? {
         get { suite.string(forKey: Keys.partnerName) }
         set { suite.set(newValue, forKey: Keys.partnerName) }
+    }
+
+    /// Sender-side: if false, the NSE downgrades the outgoing-ack banner to
+    /// `.passive` (no banner pop, no sound, still recorded in Notification Center).
+    /// The underlying state update still propagates via the silent outgoing-status
+    /// subscription, so the in-app indicator flips to ❤️ either way. Defaults to
+    /// true on first read — closing the loop is the whole point of the feature.
+    static var ackBannersEnabled: Bool {
+        get { suite.object(forKey: Keys.ackBannersEnabled) as? Bool ?? true }
+        set { suite.set(newValue, forKey: Keys.ackBannersEnabled) }
     }
 }
