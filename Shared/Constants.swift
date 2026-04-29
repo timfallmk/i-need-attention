@@ -45,6 +45,20 @@ enum Constants {
         static let kindKey = "kind"
         static let pressKind = "press"
         static let nameKey = "name"
+
+        /// Phone → watch: a fresh `WatchSnapshot` (JSON-encoded) under `snapshotKey`.
+        /// Sent both via `updateApplicationContext` (always, opportunistic delivery)
+        /// and via `sendMessage` when reachable (live foreground updates).
+        static let snapshotKind = "snapshot"
+        static let snapshotKey = "snapshot"
+
+        /// Watch → phone: acknowledge the latest incoming alert. `ackRecordNameKey`
+        /// carries the CKRecord.ID.recordName so the phone can guard against acking
+        /// a stale userInfo-queued message after a newer alert has replaced it.
+        /// `ackEmojiKey` is optional — omitted means "Just acknowledge".
+        static let ackKind = "ack"
+        static let ackRecordNameKey = "recordName"
+        static let ackEmojiKey = "emoji"
     }
 
     enum AppGroup {
