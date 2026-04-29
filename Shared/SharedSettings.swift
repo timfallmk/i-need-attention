@@ -1,7 +1,9 @@
 import Foundation
 
-/// Settings the receiver-side NSE needs to consult at delivery time. Lives in the App Group
-/// suite so the main app (writer) and the NSE (reader) see the same values.
+/// Settings the NSE consults at notification delivery time. Lives in the App Group suite so
+/// the main app (writer) and the NSE process (reader) see the same values. Covers both
+/// receiver-side settings (incoming alert priority and sound) and sender-side settings
+/// (whether outgoing-ack banners are shown as active-level interruptions).
 enum SharedSettings {
     private static let suite = UserDefaults(suiteName: Constants.AppGroup.identifier)
         ?? .standard
