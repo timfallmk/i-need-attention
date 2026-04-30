@@ -34,6 +34,16 @@ final class UserSettings {
         }
     }
 
+    /// Master switch for whether the NSE delivers pushes at `.timeSensitive`
+    /// (pierces Focus) vs `.active` (held by Focus). Applies to both incoming
+    /// requests and ack banners. Default true.
+    var timeSensitiveEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(timeSensitiveEnabled, forKey: Keys.timeSensitive)
+            SharedSettings.timeSensitiveEnabled = timeSensitiveEnabled
+        }
+    }
+
     var cooldownSeconds: Int {
         didSet { UserDefaults.standard.set(cooldownSeconds, forKey: Keys.cooldown) }
     }
@@ -44,11 +54,13 @@ final class UserSettings {
         self.acceptCriticalAlerts = d.bool(forKey: Keys.acceptCritical)
         self.customSoundEnabled = d.object(forKey: Keys.customSound) as? Bool ?? true
         self.ackBannersEnabled = d.object(forKey: Keys.ackBanners) as? Bool ?? true
+        self.timeSensitiveEnabled = d.object(forKey: Keys.timeSensitive) as? Bool ?? true
         self.cooldownSeconds = d.object(forKey: Keys.cooldown) as? Int ?? 30
         // Sync to App Group on init in case the NSE runs before the toggle is touched.
         SharedSettings.acceptCriticalAlerts = self.acceptCriticalAlerts
         SharedSettings.customSoundEnabled = self.customSoundEnabled
         SharedSettings.ackBannersEnabled = self.ackBannersEnabled
+        SharedSettings.timeSensitiveEnabled = self.timeSensitiveEnabled
     }
 
     private enum Keys {
@@ -56,6 +68,7 @@ final class UserSettings {
         static let acceptCritical = "attention.settings.acceptCritical"
         static let customSound = "attention.settings.customSound"
         static let ackBanners = "attention.settings.ackBanners"
+        static let timeSensitive = "attention.settings.timeSensitive"
         static let cooldown = "attention.settings.cooldown"
     }
 }
