@@ -79,6 +79,9 @@ enum Constants {
         static let ackKind = "ack"
         static let ackRecordNameKey = "recordName"
         static let ackEmojiKey = "emoji"
+
+        /// Watch → phone: clear the outgoing alert pill (mirrors the iOS × button).
+        static let clearKind = "clear"
     }
 
     enum AppGroup {

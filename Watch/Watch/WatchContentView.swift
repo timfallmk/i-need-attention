@@ -58,6 +58,19 @@ struct WatchContentView: View {
                     .buttonStyle(.plain)
                     .background(.ultraThinMaterial, in: Capsule())
                 }
+
+                if showsClearButton {
+                    Button {
+                        session.sendClear()
+                    } label: {
+                        Label("Clear", systemImage: "xmark.circle.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 10)
+                    }
+                    .buttonStyle(.plain)
+                    .background(.ultraThinMaterial, in: Capsule())
+                }
             }
             .padding(.vertical, 4)
         }
@@ -101,5 +114,9 @@ struct WatchContentView: View {
     private var showsAckButton: Bool {
         guard let incoming = session.snapshot?.incoming else { return false }
         return !incoming.acknowledged
+    }
+
+    private var showsClearButton: Bool {
+        session.snapshot?.outgoing?.state == .acknowledged
     }
 }
