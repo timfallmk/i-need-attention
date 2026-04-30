@@ -221,8 +221,12 @@ final class AppState {
         await acknowledgeIncoming(emoji: emoji)
     }
 
-    func clearOutgoing() {
-        guard pendingOutgoing?.state == .acknowledged else { return }
+    func clearOutgoing(recordName: String? = nil) {
+        guard let outgoing = pendingOutgoing, outgoing.state == .acknowledged else { return }
+        if let recordName, outgoing.id.recordName != recordName {
+            log.debug("dropping stale watch clear for record \(recordName, privacy: .public)")
+            return
+        }
         pendingOutgoing = nil
         pushWatchSnapshot()
     }
@@ -272,6 +276,7 @@ final class AppState {
             case .acknowledged: mappedState = .acknowledged
             }
             return WatchSnapshot.OutgoingInfo(
+                recordName: alert.id.recordName,
                 state: mappedState,
                 critical: alert.critical,
                 ackEmoji: alert.ackEmoji

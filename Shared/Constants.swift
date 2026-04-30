@@ -81,7 +81,10 @@ enum Constants {
         static let ackEmojiKey = "emoji"
 
         /// Watch → phone: clear the outgoing alert pill (mirrors the iOS × button).
+        /// `clearRecordNameKey` carries the CKRecord.ID.recordName of the outgoing
+        /// alert being cleared so the phone can ignore stale transferUserInfo clears.
         static let clearKind = "clear"
+        static let clearRecordNameKey = "clearRecordName"
     }
 
     enum AppGroup {
