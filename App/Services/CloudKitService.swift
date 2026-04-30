@@ -120,25 +120,44 @@ final class CloudKitService: @unchecked Sendable {
         return model
     }
 
+    /// Idempotent: a second call on an already-acked Alert skips the update and the
+    /// Ack-record save is a no-op (the deterministic Ack recordID makes the second
+    /// save trip `.serverRecordChanged`, which we swallow). One banner per Alert,
+    /// even under repeated taps, retries, or duplicated push delivery.
     func acknowledgeAlert(recordID: CKRecord.ID, emoji: String?) async throws -> AlertRecord {
         let record = try await publicDB.record(for: recordID)
-        record[Constants.AlertField.state] = Constants.AlertState.acknowledged.rawValue as CKRecordValue
-        record[Constants.AlertField.acknowledgedAt] = Date() as CKRecordValue
-        if let emoji {
-            record[Constants.AlertField.ackEmoji] = emoji as CKRecordValue
+        let alreadyAcked = (record[Constants.AlertField.state] as? String) == Constants.AlertState.acknowledged.rawValue
+
+        let saved: CKRecord
+        if alreadyAcked {
+            saved = record
+        } else {
+            record[Constants.AlertField.state] = Constants.AlertState.acknowledged.rawValue as CKRecordValue
+            record[Constants.AlertField.acknowledgedAt] = Date() as CKRecordValue
+            if let emoji {
+                record[Constants.AlertField.ackEmoji] = emoji as CKRecordValue
+            }
+            saved = try await publicDB.save(record)
         }
-        let saved = try await publicDB.save(record)
         guard let model = AlertRecord(record: saved) else { throw AttentionError.malformedRecord }
 
-        // Write a companion Ack record so the original sender's outgoing-ack-v2
-        // subscription (firesOnRecordCreation) fires. The Alert update above is the
-        // source of truth for the in-app indicator; the Ack record exists purely to
-        // trigger the visible banner. Best-effort: a failure here just degrades back
-        // to the silent outgoing-status path.
+        // Companion Ack record so the original sender's outgoing-ack-v2 subscription
+        // (firesOnRecordCreation) fires. Source of truth for the in-app indicator
+        // remains the Alert update above; the Ack record exists purely to trigger the
+        // visible banner.
+        //
+        // Deterministic recordID derived from the Alert's recordName: a second save
+        // attempt for the same Alert hits `.serverRecordChanged` (which we swallow) so
+        // we get exactly one Ack-creation event — and exactly one banner — regardless
+        // of how many times the caller invokes this method. Crucially this also
+        // recovers from a partial-failure case where a previous call wrote the Alert
+        // but failed to save the Ack: the next call still attempts the Ack write
+        // because `alreadyAcked` doesn't gate it.
         if let pairKey = saved[Constants.AlertField.pairKey] as? String,
            let originalSenderID = saved[Constants.AlertField.senderDeviceID] as? String,
            !pairKey.isEmpty, !originalSenderID.isEmpty {
-            let ack = CKRecord(recordType: Constants.RecordType.ack)
+            let ackRecordID = CKRecord.ID(recordName: "ack-\(recordID.recordName)")
+            let ack = CKRecord(recordType: Constants.RecordType.ack, recordID: ackRecordID)
             ack[Constants.AckField.pairKey] = pairKey as CKRecordValue
             ack[Constants.AckField.recipientDeviceID] = originalSenderID as CKRecordValue
             if let emoji {
@@ -147,6 +166,8 @@ final class CloudKitService: @unchecked Sendable {
             ack[Constants.AckField.alertRecordName] = recordID.recordName as CKRecordValue
             do {
                 _ = try await publicDB.save(ack)
+            } catch let error as CKError where error.code == .serverRecordChanged {
+                // Already created on a previous ack — subscription already fired, no-op.
             } catch {
                 log.error("ack record save failed: \(String(describing: error), privacy: .public)")
             }

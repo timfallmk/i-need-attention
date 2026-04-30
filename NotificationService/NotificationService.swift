@@ -7,9 +7,11 @@ import UserNotifications
 ///     title/body, ack actions in the pull-down, time-sensitive (or critical)
 ///     interruption level.
 ///   - `outgoing-ack-v2`: my partner just created an Ack record naming me as recipient —
-///     informational banner with the partner's name + their ack emoji, .active
-///     interruption level (no Focus piercing for a confirmation). The record type is
-///     `Ack`, not `Alert`; see CloudKitService.makeOutgoingAckSubscription for why.
+///     informational banner with the partner's name + their ack emoji. Interruption
+///     level is `.timeSensitive` when `SharedSettings.timeSensitiveEnabled` is on,
+///     `.active` otherwise; downgraded to `.passive` when ack banners are disabled.
+///     The record type is `Ack`, not `Alert`; see
+///     CloudKitService.makeOutgoingAckSubscription for why.
 ///
 /// Both flavors fetch the freshest record on the slow path so we don't ship stale
 /// title/body when desiredKeys has been pruned by CloudKit's per-subscription payload cap.
