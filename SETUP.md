@@ -35,7 +35,7 @@ Go to <https://developer.apple.com/account/resources>.
 
 **App IDs** → Identifiers → **+**:
 - [ ] `com.yourname.attention` — enable: Push Notifications, iCloud (with CloudKit), App Groups, Communication Notifications, Time Sensitive Notifications
-- [ ] `com.yourname.attention.notification-service` — enable: iCloud (with CloudKit), App Groups
+- [ ] `com.yourname.attention.notification-service` — enable: iCloud (with CloudKit), App Groups, Time Sensitive Notifications
 - [ ] `com.yourname.attention.watchkitapp` — no extra capabilities
 - [ ] `com.yourname.attention.watchkitapp.widget` — no extra capabilities (this is the watch face complication extension)
 
