@@ -225,9 +225,11 @@ final class CloudKitService: @unchecked Sendable {
         let existingIDs = Set(existing.map(\.subscriptionID))
 
         // If the ack subscription already lives on the server, the previously-saved
-        // diagnostic flag is stale — clear it so we don't keep flagging a healthy install.
+        // diagnostic flag + reason are stale — clear them so we don't keep flagging
+        // a healthy install.
         if existingIDs.contains(Constants.SubscriptionID.outgoingAck) {
             SharedSettings.outgoingAckSubscriptionUnavailable = false
+            SharedSettings.outgoingAckSubscriptionFailureReason = nil
         }
 
         var toSave: [CKSubscription] = []
@@ -258,12 +260,19 @@ final class CloudKitService: @unchecked Sendable {
                     results.markSaved(id)
                     if id == Constants.SubscriptionID.outgoingAck {
                         SharedSettings.outgoingAckSubscriptionUnavailable = false
+                        SharedSettings.outgoingAckSubscriptionFailureReason = nil
                     }
                 case .failure(let error):
                     results.markFailed(id, error: error)
                     log.error("subscription \(id, privacy: .public) failed: \(String(describing: error), privacy: .public)")
                     if id == Constants.SubscriptionID.outgoingAck {
                         SharedSettings.outgoingAckSubscriptionUnavailable = true
+                        // Bound the App Group payload — CKError descriptions can balloon when they
+                        // include the full request/response dump, and SharedSettings is read by the NSE.
+                        let raw = String(describing: error)
+                        SharedSettings.outgoingAckSubscriptionFailureReason = raw.count > 500
+                            ? String(raw.prefix(500)) + "…"
+                            : raw
                     }
                 }
             }
