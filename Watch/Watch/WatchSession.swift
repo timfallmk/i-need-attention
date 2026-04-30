@@ -77,6 +77,29 @@ final class WatchSession: NSObject, ObservableObject, WCSessionDelegate {
         snapshot = snap
     }
 
+    func sendClear() {
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        let message: [String: Any] = [
+            Constants.WatchMessage.kindKey: Constants.WatchMessage.clearKind
+        ]
+        if session.isReachable {
+            session.sendMessage(message, replyHandler: nil, errorHandler: { [weak self] _ in
+                session.transferUserInfo(message)
+                self?.log.debug("clear: queued via userInfo (sendMessage failed)")
+            })
+        } else {
+            session.transferUserInfo(message)
+        }
+        applyOptimisticClear()
+    }
+
+    private func applyOptimisticClear() {
+        guard var snap = snapshot else { return }
+        snap.outgoing = nil
+        snapshot = snap
+    }
+
     // MARK: - WCSessionDelegate
 
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {

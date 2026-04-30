@@ -14,15 +14,18 @@ final class WatchBridge: NSObject {
     nonisolated private let log = Logger(subsystem: "com.timfallmk.attention", category: "Watch")
     private var pressHandler: (@MainActor () async -> Void)?
     private var ackHandler: (@MainActor (_ recordName: String, _ emoji: String?) async -> Void)?
+    private var clearHandler: (@MainActor () -> Void)?
     private var activatedHandler: (@MainActor () -> Void)?
 
     func activate(
         onPress: @escaping @MainActor () async -> Void,
         onAck: @escaping @MainActor (_ recordName: String, _ emoji: String?) async -> Void,
+        onClear: @escaping @MainActor () -> Void,
         onActivated: @escaping @MainActor () -> Void = {}
     ) {
         self.pressHandler = onPress
         self.ackHandler = onAck
+        self.clearHandler = onClear
         self.activatedHandler = onActivated
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
@@ -96,6 +99,11 @@ extension WatchBridge: WCSessionDelegate {
                 }
                 replyHandler(["ok": recordName != nil])
             }
+        case Constants.WatchMessage.clearKind:
+            Task { @MainActor in
+                self.clearHandler?()
+                replyHandler(["ok": true])
+            }
         default:
             replyHandler(["ok": false])
         }
@@ -129,6 +137,10 @@ extension WatchBridge: WCSessionDelegate {
                 if let recordName {
                     await self.ackHandler?(recordName, emoji)
                 }
+            }
+        case Constants.WatchMessage.clearKind:
+            Task { @MainActor in
+                self.clearHandler?()
             }
         default:
             break

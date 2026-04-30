@@ -27,6 +27,9 @@ struct AttentionApp: App {
                         onAck: { @MainActor recordName, emoji in
                             await appState.acknowledgeIncomingFromWatch(recordName: recordName, emoji: emoji)
                         },
+                        onClear: { @MainActor in
+                            appState.clearOutgoing()
+                        },
                         onActivated: { @MainActor in
                             appState.pushWatchSnapshot()
                         }
