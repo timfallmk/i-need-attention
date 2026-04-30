@@ -6,6 +6,7 @@ enum Constants {
     enum RecordType {
         static let pair = "Pair"
         static let alert = "Alert"
+        static let ack = "Ack"
     }
 
     enum PairField {
@@ -34,10 +35,29 @@ enum Constants {
         case acknowledged
     }
 
+    /// Companion record written by the receiver when acking an Alert. CloudKit's
+    /// public-DB CKQuerySubscription rejects `firesOnRecordUpdate` combined with a
+    /// mutable-content alert push — see CLAUDE.md — so we route the sender-side
+    /// banner off `firesOnRecordCreation` of this record type instead. The Alert
+    /// record itself still carries the canonical state for the in-app indicator.
+    enum AckField {
+        static let pairKey = "pairKey"
+        /// Device that should receive the banner — i.e., the original Alert's
+        /// `senderDeviceID`. Named "recipient" from the Ack's perspective so the
+        /// subscription predicate reads naturally.
+        static let recipientDeviceID = "recipientDeviceID"
+        static let emoji = "emoji"
+        static let alertRecordName = "alertRecordName"
+    }
+
     enum SubscriptionID {
         static let incomingAlerts = "incoming-alerts-v1"
         static let outgoingStatus = "outgoing-status-v1"
-        static let outgoingAck = "outgoing-ack-v1"
+        /// v2 changed record type from Alert (firesOnRecordUpdate) to Ack
+        /// (firesOnRecordCreation) — the v1 form was rejected by CloudKit with
+        /// BAD_REQUEST so no real device ever had v1 registered, but the bumped
+        /// ID also avoids any chance of resurrecting a half-saved v1.
+        static let outgoingAck = "outgoing-ack-v2"
         static let pairUpdates = "pair-updates-v1"
     }
 

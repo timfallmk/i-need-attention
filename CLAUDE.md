@@ -64,9 +64,15 @@ Alert         one per "I need attention" press
   state                 "sent" | "seen" | "acknowledged"
   seenAt, acknowledgedAt, ackEmoji
   critical              0 or 1 — sender's per-press flag (long-press menu)
+
+Ack           one per acknowledgement — exists *only* to trigger the sender-side banner
+  pairKey               (queryable)
+  recipientDeviceID     (queryable) — the original Alert's senderDeviceID
+  emoji                 chosen ack emoji (optional)
+  alertRecordName       backreference to the Alert record (forward-compat; not read yet)
 ```
 
-Both record types live in the **public** database. The `pairKey` itself is the secret — anyone who knows it can read/write into the pair. We never expose it outside the in-person QR scan.
+All three record types live in the **public** database. The `pairKey` itself is the secret — anyone who knows it can read/write into the pair. We never expose it outside the in-person QR scan.
 
 ### Push delivery flow
 
@@ -89,11 +95,13 @@ banner displays → user pulls down → taps ❤️ / 👍 / 🤗 / 🚨 / Ackno
    ↓
 PushNotifications.userNotificationCenter(_:didReceive:)
    ↓
-CloudKitService.acknowledgeAlert  → CKRecord updated
+CloudKitService.acknowledgeAlert  → Alert state→acknowledged + Ack record created
    ↓
-A's outgoing-status CKQuerySubscription fires (silent push)
-   ↓
-A's StatusIndicatorView flips to ✅ (or chosen emoji)
+A's outgoing-status CKQuerySubscription fires on the Alert update (silent push)
+   → A's StatusIndicatorView flips to ✅ (or chosen emoji)
+A's outgoing-ack CKQuerySubscription fires on the Ack record creation (alert push)
+   → NSE renders "PartnerName: Got back to you ❤️", banner shows even if A's app
+     was force-quit / locked when the ack arrived
 ```
 
 ### Concurrency model
@@ -161,7 +169,8 @@ When opening a PR:
 - **The watch press always sends with `critical: false`**: the watch UI doesn't have a long-press affordance; only the phone can send criticals.
 - **`SharedSettings.acceptCriticalAlerts` defaults to `false`**: opt-in is the right default for an alert that pierces silent mode.
 - **`needs-attention.caf` may not exist in the bundle**: that's fine. iOS silently falls back to no-sound. Settings → Custom sound off uses the system default; on uses the bundled file (or nothing if missing). See `App/Resources/SOUND_PLACEHOLDER.md`.
-- **`incoming-alerts-v1` subscription uses `alertBody` + `shouldSendMutableContent`, not `shouldSendContentAvailable`**: CloudKit requires a non-empty `alertBody` to classify a push as an alert push (vs. silent). The NSE only runs on alert pushes — a silent push goes directly to the app's background handler. The static body ("Attention") is immediately overwritten by the NSE with the real sender name and message. The other two subscriptions (`outgoing-status-v1`, `pair-updates-v1`) are silent pushes and use `shouldSendContentAvailable = true` only.
+- **`incoming-alerts-v1` subscription uses `alertBody` + `shouldSendMutableContent`, not `shouldSendContentAvailable`**: CloudKit requires a non-empty `alertBody` to classify a push as an alert push (vs. silent). The NSE only runs on alert pushes — a silent push goes directly to the app's background handler. The static body ("Attention") is immediately overwritten by the NSE with the real sender name and message. The other two silent subscriptions (`outgoing-status-v1`, `pair-updates-v1`) use `shouldSendContentAvailable = true` only.
+- **`outgoing-ack-v2` subscribes to `Ack` record creations, not `Alert` updates**: a v1 attempt subscribed to Alert with `firesOnRecordUpdate` + `state == "acknowledged"` predicate + a mutable-content alert push. CloudKit's public-DB CKQuerySubscription rejects that combination with `BAD_REQUEST` — visible-push-on-update is treated as a spam vector since update permissions are broader than create permissions. Routing the banner off creation of a dedicated `Ack` record sidesteps the restriction at the cost of a second write per acknowledgement (the Alert is still updated for the in-app indicator and the silent `outgoing-status-v1` push). Ack records aren't garbage-collected; for a personal-use app with one pair the volume is negligible.
 - **`os_log` interpolations in `CloudKitService` use `privacy: .public`**: CloudKit error descriptions are dynamic strings and are redacted by default. They contain no secrets (no pairKey, no user data — only record type names and CKError codes), so `.public` is safe and necessary for debugging subscription failures in Console.app.
 - **Badge is set to `1` in the NSE, cleared in `acknowledgeIncoming`**: `CKSubscription.NotificationInfo.shouldBadge` was dropped to stay under Production's notificationInfo field limit. The NSE sets an absolute `1` (not an increment) because at most one incoming alert is ever "pending" at a time. The badge persists until the user acknowledges, not just until they foreground the app.
 - **`registerSubscriptions` returns silently when all subscriptions exist**: the guard `!toSave.isEmpty` returns early without logging if all subscription IDs are already registered. This is expected on every launch after the first. Absence of log output is success, not silence-hiding-failure.
