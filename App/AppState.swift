@@ -32,6 +32,10 @@ final class AppState {
 
     private let log = Logger(subsystem: "com.timfallmk.attention", category: "AppState")
 
+    // Record name of the most recently user-dismissed acknowledged alert. Persisted so
+    // reconcileLatestAlert doesn't re-surface it after backgrounding/relaunch.
+    private static let dismissedOutgoingKey = "attention.dismissedOutgoingRecordName"
+
     init() {
         self.settings = UserSettings()
         self.pair = PairState.load()
@@ -97,7 +101,9 @@ final class AppState {
                 pairKey: pair.pairKey, senderDeviceID: pair.partnerDeviceID
             )
             let (outgoing, incoming) = try await (outgoingFetch, incomingFetch)
-            pendingOutgoing = outgoing
+            let dismissedName = UserDefaults.standard.string(forKey: Self.dismissedOutgoingKey)
+            let wasDismissed = outgoing?.state == .acknowledged && outgoing?.id.recordName == dismissedName
+            pendingOutgoing = wasDismissed ? nil : outgoing
             lastIncoming = incoming
             if incoming == nil || incoming?.state == .acknowledged {
                 try? await UNUserNotificationCenter.current().setBadgeCount(0)
@@ -157,6 +163,7 @@ final class AppState {
                 message: "needs attention",
                 critical: critical
             )
+            UserDefaults.standard.removeObject(forKey: Self.dismissedOutgoingKey)
             pendingOutgoing = record
             cooldownEnds = Date().addingTimeInterval(TimeInterval(settings.cooldownSeconds))
             Haptics.success()
@@ -227,6 +234,7 @@ final class AppState {
             log.debug("dropping stale watch clear for record \(recordName, privacy: .public)")
             return
         }
+        UserDefaults.standard.set(outgoing.id.recordName, forKey: Self.dismissedOutgoingKey)
         pendingOutgoing = nil
         pushWatchSnapshot()
     }
