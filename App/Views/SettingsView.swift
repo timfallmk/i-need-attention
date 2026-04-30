@@ -67,7 +67,7 @@ struct SettingsView: View {
                             Text("Unavailable")
                                 .foregroundStyle(.orange)
                         }
-                        Text("CloudKit rejected the subscription that delivers your partner's acknowledgement to your lock screen. The in-app indicator still updates. The fix is almost always to seed the `_sub_trigger_outgoing-ack-v2` index: run a **Debug** build of this app on a device once (the bootstrap seeder registers all subscriptions against Development), then click **Deploy Schema Changes…** in CloudKit Dashboard and confirm the new trigger row appears in the diff. Less commonly the **Ack** record type or its `pairKey` / `recipientDeviceID` queryable indexes are missing from Production — `cloudkit-schema.ckdb` covers those.")
+                        Text("CloudKit didn't accept the subscription that delivers your partner's acknowledgement to your lock screen. The in-app indicator still updates. Check the captured error below to decide what's actually wrong: a `BAD_REQUEST` / `SubscriptionCreate` rejection points at a missing `_sub_trigger_outgoing-ack-v2` index in Production — fix it by running a **Debug** build of this app on a device once, then clicking **Deploy Schema Changes…** in CloudKit Dashboard. A network or iCloud-account error usually clears on its own; relaunching retries the registration. As a fallback, re-import `cloudkit-schema.ckdb` so the **Ack** record type and its `pairKey` / `recipientDeviceID` queryable indexes exist in Production.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         if let reason = appState.outgoingAckSubscriptionFailureReason {
