@@ -313,6 +313,40 @@ final class CloudKitService: @unchecked Sendable {
         }
     }
 
+    #if DEBUG
+    /// Deletes any subscriptions left over from `AppState.bootstrap`'s unpaired
+    /// schema seeder — i.e. those whose predicate references the placeholder
+    /// `pairKey == "schema-seed"`. Called before the paired re-registration
+    /// path so `registerSubscriptions`' idempotent-on-ID check doesn't keep
+    /// the inert placeholders alive under the real subscription IDs (which
+    /// would silently break paired Dev tests). No-op when nothing matches.
+    func purgeSeededSubscriptions() async throws {
+        let existing = try await publicDB.allSubscriptions()
+        let seededIDs: [String] = existing.compactMap { sub in
+            guard let qsub = sub as? CKQuerySubscription else { return nil }
+            return qsub.predicate.predicateFormat.contains("\"schema-seed\"")
+                ? sub.subscriptionID
+                : nil
+        }
+        guard !seededIDs.isEmpty else { return }
+        log.info("purging seeded subs: \(seededIDs.joined(separator: ", "), privacy: .public)")
+        let op = CKModifySubscriptionsOperation(
+            subscriptionsToSave: nil,
+            subscriptionIDsToDelete: seededIDs
+        )
+        op.qualityOfService = .userInitiated
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            op.modifySubscriptionsResultBlock = { result in
+                switch result {
+                case .success: cont.resume()
+                case .failure(let error): cont.resume(throwing: error)
+                }
+            }
+            publicDB.add(op)
+        }
+    }
+    #endif
+
     // MARK: - Subscription factories
 
     private func makeIncomingSubscription(pairKey: String, myDeviceID: String) -> CKQuerySubscription {

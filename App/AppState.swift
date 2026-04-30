@@ -70,6 +70,13 @@ final class AppState {
 
         if let pair {
             SharedSettings.partnerName = pair.partnerName
+            #if DEBUG
+            // The unpaired seeder above writes placeholder-predicate subs under
+            // the real subscription IDs. registerSubscriptions is idempotent on
+            // ID, so without this purge the placeholders would survive pairing
+            // and silently swallow real-pair pushes in Dev.
+            try? await CloudKitService.shared.purgeSeededSubscriptions()
+            #endif
             // Re-register subscriptions in case they were dropped
             try? await CloudKitService.shared.registerSubscriptions(
                 pairKey: pair.pairKey,
