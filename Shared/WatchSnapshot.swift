@@ -11,6 +11,9 @@ struct WatchSnapshot: Codable, Equatable {
     }
 
     struct OutgoingInfo: Codable, Equatable {
+        /// CKRecord.ID.recordName — echoed back in the clear payload so the phone
+        /// can ignore stale clears that don't match the current pendingOutgoing.
+        var recordName: String
         var state: Outgoing
         var critical: Bool
         var ackEmoji: String?
