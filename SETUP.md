@@ -68,7 +68,8 @@ Go to <https://icloud.developer.apple.com/dashboard> → select your container �
 - [ ] After import, click **Security Roles** in the left sidebar and verify:
   - `_world`: **Read** only for `Pair`, `Alert`, and `Ack` (CloudKit does not allow World Write — this is correct)
   - `_icloud`: **Create + Read + Write** for `Pair`, `Alert`, and `Ack` — set manually if missing (both phones are always signed into iCloud so this is the effective write gate; the pairKey is the access secret)
-- [ ] Click **Deploy Schema Changes…** and promote to **Production** when you're ready to ship to TestFlight (development environment is what Xcode debug builds use; TestFlight/release builds use production).
+- [ ] **Seed subscription triggers**: build & run the **Debug** scheme to a real device against your personal iCloud account once. The DEBUG-only block in `AppState.bootstrap()` calls `registerSubscriptions` against Development, and CloudKit auto-creates a `_sub_trigger_<subscriptionID>` record per subscription as a side effect. These aren't in `cloudkit-schema.ckdb`; they're created on first save and must exist in Production before TestFlight builds can register subscriptions (without them, `SubscriptionCreate` is rejected with `BAD_REQUEST` because Production is schema-locked).
+- [ ] Click **Deploy Schema Changes…** and promote to **Production** when you're ready to ship to TestFlight (development environment is what Xcode debug builds use; TestFlight/release builds use production). The first deploy after a fresh import covers the user-visible record types; the deploy *after seeding* covers the new `_sub_trigger_*` rows. Both deploys are normal — re-run **Deploy Schema Changes…** any time you add a new subscription type.
 
 ## 5. First build directly to a phone (sanity check before publishing)
 
@@ -142,6 +143,7 @@ See `docs/xcode-cloud-build-plan.md` for the full rationale and trade-offs.
 
 - **"No matching subscription found" or pushes don't arrive**: forgot to add the **Queryable** index on `pairKey`/`senderDeviceID` in CloudKit Dashboard. Go fix it, then re-pair (the app re-creates subscriptions on pair).
 - **CloudKit works in debug but not in TestFlight**: you forgot to **Deploy Schema to Production**.
+- **Settings → Diagnostics shows "Acknowledgement push: Unavailable" after a clean schema import**: the `_sub_trigger_<subscriptionID>` index is missing from Production. These aren't in `cloudkit-schema.ckdb` — CloudKit auto-creates them the first time a Debug build saves the subscription against Development. Run a Debug build on a real device once, then **Deploy Schema Changes…** again (the diff will now include the trigger). The captured CKError shown beneath the row should clear on next launch.
 - **"Accept Critical Alerts" toggle does nothing**: either Apple hasn't granted the entitlement yet, or the receiver phone never actually granted Critical Alert permission in the iOS notification permission dialog. Settings → Notifications → Attention → toggle Critical Alerts.
 - **Pairing QR scan does nothing**: camera permission was denied. Settings → Attention → Camera → On.
 - **Watch button does nothing when phone is off**: the watch queues the press via `transferUserInfo` and the iPhone sends the alert when it next wakes. Expected.
