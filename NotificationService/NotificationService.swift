@@ -3,11 +3,13 @@ import UserNotifications
 
 /// Runs on receipt of every CloudKit push routed through the extension. Two flavors:
 ///
-///   - `incoming-alerts-v1`: a partner-sent "needs attention" — friendly title/body, ack
-///     actions in the pull-down, time-sensitive (or critical) interruption level.
-///   - `outgoing-ack-v1`: my partner just acked one of my alerts — informational banner
-///     with the partner's name + their ack emoji, .active interruption level (no Focus
-///     piercing for a confirmation).
+///   - `incoming-alerts-v1`: a partner-sent "needs attention" Alert record — friendly
+///     title/body, ack actions in the pull-down, time-sensitive (or critical)
+///     interruption level.
+///   - `outgoing-ack-v2`: my partner just created an Ack record naming me as recipient —
+///     informational banner with the partner's name + their ack emoji, .active
+///     interruption level (no Focus piercing for a confirmation). The record type is
+///     `Ack`, not `Alert`; see CloudKitService.makeOutgoingAckSubscription for why.
 ///
 /// Both flavors fetch the freshest record on the slow path so we don't ship stale
 /// title/body when desiredKeys has been pruned by CloudKit's per-subscription payload cap.
@@ -84,7 +86,7 @@ final class NotificationService: UNNotificationServiceExtension {
         let partnerName = SharedSettings.partnerName ?? "Partner"
 
         if isAck {
-            let emoji = (fields[Constants.AlertField.ackEmoji] as? String)
+            let emoji = fields[Constants.AckField.emoji] as? String
             content.title = partnerName
             content.body = ackBody(emoji: emoji)
         } else {
@@ -105,7 +107,7 @@ final class NotificationService: UNNotificationServiceExtension {
 
     private func apply(record: CKRecord, to content: UNMutableNotificationContent, isAck: Bool) {
         if isAck {
-            let emoji = record[Constants.AlertField.ackEmoji] as? String
+            let emoji = record[Constants.AckField.emoji] as? String
             content.title = SharedSettings.partnerName ?? "Partner"
             content.body = ackBody(emoji: emoji)
         } else {

@@ -129,6 +129,28 @@ final class CloudKitService: @unchecked Sendable {
         }
         let saved = try await publicDB.save(record)
         guard let model = AlertRecord(record: saved) else { throw AttentionError.malformedRecord }
+
+        // Write a companion Ack record so the original sender's outgoing-ack-v2
+        // subscription (firesOnRecordCreation) fires. The Alert update above is the
+        // source of truth for the in-app indicator; the Ack record exists purely to
+        // trigger the visible banner. Best-effort: a failure here just degrades back
+        // to the silent outgoing-status path.
+        if let pairKey = saved[Constants.AlertField.pairKey] as? String,
+           let originalSenderID = saved[Constants.AlertField.senderDeviceID] as? String,
+           !pairKey.isEmpty, !originalSenderID.isEmpty {
+            let ack = CKRecord(recordType: Constants.RecordType.ack)
+            ack[Constants.AckField.pairKey] = pairKey as CKRecordValue
+            ack[Constants.AckField.recipientDeviceID] = originalSenderID as CKRecordValue
+            if let emoji {
+                ack[Constants.AckField.emoji] = emoji as CKRecordValue
+            }
+            ack[Constants.AckField.alertRecordName] = recordID.recordName as CKRecordValue
+            do {
+                _ = try await publicDB.save(ack)
+            } catch {
+                log.error("ack record save failed: \(String(describing: error), privacy: .public)")
+            }
+        }
         return model
     }
 
@@ -286,23 +308,27 @@ final class CloudKitService: @unchecked Sendable {
         return sub
     }
 
-    /// Updates to my outgoing alerts that transition to `acknowledged`. The server-side
-    /// state filter means this fires only on ack — `seen` transitions still go through
-    /// the silent `outgoingStatus` subscription. Routed as an alert push so the sender
-    /// sees a banner even when the app is force-quit or the device is locked, where
-    /// silent pushes are routinely throttled or dropped.
+    /// Fires when my partner writes an Ack record naming me as the recipient — i.e.,
+    /// they just acked one of my outgoing alerts. Routed as an alert push so the
+    /// sender sees a banner even when the app is force-quit or the device is locked.
+    ///
+    /// This used to be a `firesOnRecordUpdate` subscription on the Alert record with
+    /// a `state == "acknowledged"` predicate. CloudKit rejects that combination —
+    /// public-DB CKQuerySubscription doesn't accept mutable-content alert pushes
+    /// alongside `firesOnRecordUpdate` (anti-abuse: any signed-in user can update
+    /// records they didn't create, so visible-push-on-update would be a spam vector).
+    /// `firesOnRecordCreation` on a dedicated Ack record sidesteps the restriction.
     private func makeOutgoingAckSubscription(pairKey: String, myDeviceID: String) -> CKQuerySubscription {
         let predicate = NSPredicate(
-            format: "%K == %@ AND %K == %@ AND %K == %@",
-            Constants.AlertField.pairKey, pairKey,
-            Constants.AlertField.senderDeviceID, myDeviceID,
-            Constants.AlertField.state, Constants.AlertState.acknowledged.rawValue
+            format: "%K == %@ AND %K == %@",
+            Constants.AckField.pairKey, pairKey,
+            Constants.AckField.recipientDeviceID, myDeviceID
         )
         let sub = CKQuerySubscription(
-            recordType: Constants.RecordType.alert,
+            recordType: Constants.RecordType.ack,
             predicate: predicate,
             subscriptionID: Constants.SubscriptionID.outgoingAck,
-            options: [.firesOnRecordUpdate]
+            options: [.firesOnRecordCreation]
         )
         let info = CKSubscription.NotificationInfo()
         info.alertBody = "Acknowledged"          // placeholder; NSE rewrites with partner name + emoji
