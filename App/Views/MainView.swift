@@ -26,7 +26,8 @@ struct MainView: View {
                 StatusIndicatorView(
                     outgoing: appState.pendingOutgoing,
                     incoming: appState.lastIncoming,
-                    isOnCooldown: appState.isOnCooldown
+                    isOnCooldown: appState.isOnCooldown,
+                    onClear: { appState.clearOutgoing() }
                 )
                 .padding(.top, 8)
 

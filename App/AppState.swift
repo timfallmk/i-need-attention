@@ -221,6 +221,11 @@ final class AppState {
         await acknowledgeIncoming(emoji: emoji)
     }
 
+    func clearOutgoing() {
+        pendingOutgoing = nil
+        pushWatchSnapshot()
+    }
+
     // MARK: - Pairing wrapper
 
     func applyPair(_ state: PairState) {
