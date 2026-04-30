@@ -42,3 +42,22 @@ DEFINE SCHEMA
         GRANT WRITE TO "_icloud",
         GRANT CREATE TO "_icloud"
     );
+
+    RECORD TYPE Ack (
+        "___createTime"     TIMESTAMP,
+        "___createdBy"      REFERENCE,
+        "___etag"           STRING,
+        "___modTime"        TIMESTAMP,
+        "___modifiedBy"     REFERENCE,
+        "___recordID"       REFERENCE QUERYABLE,
+
+        pairKey             STRING QUERYABLE,
+        recipientDeviceID   STRING QUERYABLE,
+        emoji               STRING,
+        alertRecordName     STRING,
+
+        GRANT READ TO "_world",
+        GRANT READ TO "_icloud",
+        GRANT WRITE TO "_icloud",
+        GRANT CREATE TO "_icloud"
+    );
