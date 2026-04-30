@@ -29,6 +29,7 @@ struct StatusIndicatorView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Clear")
                 .transition(.opacity)
             }
         }
