@@ -14,6 +14,7 @@ enum SharedSettings {
         static let partnerName = "shared.partnerName"
         static let ackBannersEnabled = "shared.ackBannersEnabled"
         static let timeSensitiveEnabled = "shared.timeSensitiveEnabled"
+        static let outgoingAckUnavailable = "shared.outgoingAckUnavailable"
     }
 
     /// Receiver-side master switch. If false, even alerts marked critical by the sender
@@ -57,5 +58,16 @@ enum SharedSettings {
     static var timeSensitiveEnabled: Bool {
         get { suite.object(forKey: Keys.timeSensitiveEnabled) as? Bool ?? true }
         set { suite.set(newValue, forKey: Keys.timeSensitiveEnabled) }
+    }
+
+    /// True when the most recent attempt to register `outgoing-ack-v2` was rejected
+    /// by CloudKit (commonly NOT_FOUND on the `Ack` record type or its queryable
+    /// indexes). The Alert update path still drives the in-app indicator, but the
+    /// lock-screen "got back to you" banner won't fire until the schema is
+    /// re-imported and deployed. Surfaced in the Settings → Diagnostics row so a
+    /// silently-degraded feature stays visible.
+    static var outgoingAckSubscriptionUnavailable: Bool {
+        get { suite.bool(forKey: Keys.outgoingAckUnavailable) }
+        set { suite.set(newValue, forKey: Keys.outgoingAckUnavailable) }
     }
 }

@@ -59,9 +59,20 @@ struct SettingsView: View {
                     )
                 }
 
-                Section("Diagnostics") {
+                Section {
                     LabeledContent("iCloud", value: iCloudStatusLabel)
                     LabeledContent("Notifications", value: appState.notificationsAuthorized ? "Allowed" : "Off")
+                    if appState.pair != nil && appState.outgoingAckSubscriptionUnavailable {
+                        LabeledContent("Acknowledgement push") {
+                            Text("Unavailable")
+                                .foregroundStyle(.orange)
+                        }
+                        Text("CloudKit rejected the subscription that delivers your partner's acknowledgement to your lock screen. The in-app indicator still updates. Re-import `cloudkit-schema.ckdb` in CloudKit Dashboard so the **Ack** record type and its `pairKey` / `recipientDeviceID` queryable indexes exist in both Development and Production, then relaunch.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Diagnostics")
                 }
 
                 if appState.pair != nil {
