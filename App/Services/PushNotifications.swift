@@ -75,7 +75,7 @@ final class PushNotifications: NSObject {
     /// critical-alert entitlement; otherwise the option is silently ignored by the system.
     @discardableResult
     func requestAuthorization(requestCritical: Bool) async -> Bool {
-        var options: UNAuthorizationOptions = [.alert, .sound, .badge, .timeSensitive]
+        var options: UNAuthorizationOptions = [.alert, .sound, .badge]
         if requestCritical {
             options.insert(.criticalAlert)
         }
