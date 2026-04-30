@@ -26,11 +26,16 @@ final class AppState {
     var bannerMessage: String?
     var cooldownEnds: Date?
 
+    /// Mirrors `SharedSettings.outgoingAckSubscriptionUnavailable` so SwiftUI can
+    /// observe it. Refreshed after every `registerSubscriptions` call.
+    var outgoingAckSubscriptionUnavailable: Bool = false
+
     private let log = Logger(subsystem: "com.timfallmk.attention", category: "AppState")
 
     init() {
         self.settings = UserSettings()
         self.pair = PairState.load()
+        self.outgoingAckSubscriptionUnavailable = SharedSettings.outgoingAckSubscriptionUnavailable
     }
 
     // MARK: - Boot
@@ -45,8 +50,13 @@ final class AppState {
                 pairKey: pair.pairKey,
                 myDeviceID: pair.myDeviceID
             )
+            refreshSubscriptionDiagnostics()
             // Pick up any partner-name change that happened while we were killed
             await refreshPairFromCloud()
+        } else {
+            // No pair = no subscription = no useful diagnostic. Clear any stale flag.
+            SharedSettings.outgoingAckSubscriptionUnavailable = false
+            refreshSubscriptionDiagnostics()
         }
         // Run after the pair branch so unpaired users still get the badge swept,
         // and so paired users get an initial sync without depending on a later
@@ -216,7 +226,18 @@ final class AppState {
     func applyPair(_ state: PairState) {
         self.pair = state
         SharedSettings.partnerName = state.partnerName
+        // PairingService.{waitForJoiner,completePairing} runs registerSubscriptions
+        // immediately before returning the PairState that lands here; pull the latest
+        // diagnostic flag now so SettingsView reflects the just-attempted save.
+        refreshSubscriptionDiagnostics()
         pushWatchSnapshot()
+    }
+
+    /// Mirrors the App-Group flag onto the @Observable property so SwiftUI re-renders.
+    /// Cheap and idempotent; safe to call from every code path that registers (or
+    /// would have registered) subscriptions.
+    func refreshSubscriptionDiagnostics() {
+        outgoingAckSubscriptionUnavailable = SharedSettings.outgoingAckSubscriptionUnavailable
     }
 
     func unpair() async {
@@ -225,6 +246,10 @@ final class AppState {
         pendingOutgoing = nil
         lastIncoming = nil
         SharedSettings.partnerName = nil
+        // No pair means no subscription means the diagnostic doesn't apply. Clear it
+        // so reverting to unpaired state resets the warning.
+        SharedSettings.outgoingAckSubscriptionUnavailable = false
+        refreshSubscriptionDiagnostics()
         pushWatchSnapshot()
     }
 

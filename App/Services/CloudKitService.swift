@@ -211,9 +211,24 @@ final class CloudKitService: @unchecked Sendable {
     ///  - Outgoing ack: visible alert push specifically when the partner acks (so the
     ///    sender sees a banner even with the app force-quit / device locked).
     ///  - Pair updates: silent push when the partner renames themselves.
+    ///
+    /// Resilient to per-subscription failure: if at least one save succeeds, partial
+    /// failures are logged but not propagated. The next launch retries the missing
+    /// IDs (since they aren't in `existingIDs`). The known-failure case worth
+    /// surfacing is `outgoing-ack-v2`, which depends on the deployed `Ack` record
+    /// type — its outcome is mirrored to `SharedSettings.outgoingAckSubscriptionUnavailable`
+    /// so the Settings → Diagnostics row can flag the silent feature degradation.
+    /// Throws only when the operation fails wholesale (no subscription saved at
+    /// all), so callers should still treat the throw as "try again on next boot".
     func registerSubscriptions(pairKey: String, myDeviceID: String) async throws {
         let existing = try await publicDB.allSubscriptions()
         let existingIDs = Set(existing.map(\.subscriptionID))
+
+        // If the ack subscription already lives on the server, the previously-saved
+        // diagnostic flag is stale — clear it so we don't keep flagging a healthy install.
+        if existingIDs.contains(Constants.SubscriptionID.outgoingAck) {
+            SharedSettings.outgoingAckSubscriptionUnavailable = false
+        }
 
         var toSave: [CKSubscription] = []
 
@@ -235,10 +250,21 @@ final class CloudKitService: @unchecked Sendable {
         op.qualityOfService = .userInitiated
         let log = self.log
         let attemptedIDs = toSave.map(\.subscriptionID).joined(separator: ", ")
+        let results = SubscriptionSaveResults()
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             op.perSubscriptionSaveBlock = { id, result in
-                if case .failure(let error) = result {
+                switch result {
+                case .success:
+                    results.markSaved(id)
+                    if id == Constants.SubscriptionID.outgoingAck {
+                        SharedSettings.outgoingAckSubscriptionUnavailable = false
+                    }
+                case .failure(let error):
+                    results.markFailed(id, error: error)
                     log.error("subscription \(id, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+                    if id == Constants.SubscriptionID.outgoingAck {
+                        SharedSettings.outgoingAckSubscriptionUnavailable = true
+                    }
                 }
             }
             op.modifySubscriptionsResultBlock = { result in
@@ -247,8 +273,15 @@ final class CloudKitService: @unchecked Sendable {
                     log.info("subscriptions saved: \(attemptedIDs, privacy: .public)")
                     cont.resume()
                 case .failure(let error):
-                    log.error("modifySubscriptions failed [\(attemptedIDs, privacy: .public)]: \(String(describing: error), privacy: .public)")
-                    cont.resume(throwing: error)
+                    if results.savedCount > 0 {
+                        // Partial failure: the saved ones stuck. Per-subscription failures
+                        // are already logged above; don't poison the call site.
+                        log.error("subscriptions partial failure — saved [\(results.savedJoined, privacy: .public)] failed [\(results.failedJoined, privacy: .public)]: \(String(describing: error), privacy: .public)")
+                        cont.resume()
+                    } else {
+                        log.error("modifySubscriptions failed [\(attemptedIDs, privacy: .public)]: \(String(describing: error), privacy: .public)")
+                        cont.resume(throwing: error)
+                    }
                 }
             }
             publicDB.add(op)
@@ -357,6 +390,19 @@ final class CloudKitService: @unchecked Sendable {
         sub.notificationInfo = info
         return sub
     }
+}
+
+/// Per-subscription tally for `registerSubscriptions`. CloudKit invokes the per-save
+/// and final result blocks serially on the operation's internal queue, so a plain
+/// class with `@unchecked Sendable` is enough — no concurrent mutation in practice.
+private final class SubscriptionSaveResults: @unchecked Sendable {
+    private(set) var saved: [String] = []
+    private(set) var failed: [(String, Error)] = []
+    func markSaved(_ id: String) { saved.append(id) }
+    func markFailed(_ id: String, error: Error) { failed.append((id, error)) }
+    var savedCount: Int { saved.count }
+    var savedJoined: String { saved.joined(separator: ", ") }
+    var failedJoined: String { failed.map(\.0).joined(separator: ", ") }
 }
 
 enum AttentionError: LocalizedError {
