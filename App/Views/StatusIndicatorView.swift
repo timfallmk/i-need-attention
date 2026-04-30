@@ -5,6 +5,7 @@ struct StatusIndicatorView: View {
     let outgoing: AlertRecord?
     let incoming: AlertRecord?
     let isOnCooldown: Bool
+    var onClear: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 10) {
@@ -21,6 +22,15 @@ struct StatusIndicatorView: View {
                 }
             }
             Spacer(minLength: 0)
+            if case .outgoingAcked = snapshot, let onClear {
+                Button(action: onClear) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
