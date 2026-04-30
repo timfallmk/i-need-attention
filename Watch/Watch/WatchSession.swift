@@ -78,10 +78,12 @@ final class WatchSession: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     func sendClear() {
+        guard let recordName = snapshot?.outgoing?.recordName else { return }
         let session = WCSession.default
         guard session.activationState == .activated else { return }
         let message: [String: Any] = [
-            Constants.WatchMessage.kindKey: Constants.WatchMessage.clearKind
+            Constants.WatchMessage.kindKey: Constants.WatchMessage.clearKind,
+            Constants.WatchMessage.clearRecordNameKey: recordName
         ]
         if session.isReachable {
             session.sendMessage(message, replyHandler: nil, errorHandler: { [weak self] _ in

@@ -14,13 +14,13 @@ final class WatchBridge: NSObject {
     nonisolated private let log = Logger(subsystem: "com.timfallmk.attention", category: "Watch")
     private var pressHandler: (@MainActor () async -> Void)?
     private var ackHandler: (@MainActor (_ recordName: String, _ emoji: String?) async -> Void)?
-    private var clearHandler: (@MainActor () -> Void)?
+    private var clearHandler: (@MainActor (_ recordName: String) -> Void)?
     private var activatedHandler: (@MainActor () -> Void)?
 
     func activate(
         onPress: @escaping @MainActor () async -> Void,
         onAck: @escaping @MainActor (_ recordName: String, _ emoji: String?) async -> Void,
-        onClear: @escaping @MainActor () -> Void,
+        onClear: @escaping @MainActor (_ recordName: String) -> Void,
         onActivated: @escaping @MainActor () -> Void = {}
     ) {
         self.pressHandler = onPress
@@ -100,9 +100,12 @@ extension WatchBridge: WCSessionDelegate {
                 replyHandler(["ok": recordName != nil])
             }
         case Constants.WatchMessage.clearKind:
+            let clearRecordName = message[Constants.WatchMessage.clearRecordNameKey] as? String
             Task { @MainActor in
-                self.clearHandler?()
-                replyHandler(["ok": true])
+                if let clearRecordName {
+                    self.clearHandler?(clearRecordName)
+                }
+                replyHandler(["ok": clearRecordName != nil])
             }
         default:
             replyHandler(["ok": false])
@@ -139,8 +142,11 @@ extension WatchBridge: WCSessionDelegate {
                 }
             }
         case Constants.WatchMessage.clearKind:
+            let clearRecordName = payload[Constants.WatchMessage.clearRecordNameKey] as? String
             Task { @MainActor in
-                self.clearHandler?()
+                if let clearRecordName {
+                    self.clearHandler?(clearRecordName)
+                }
             }
         default:
             break
