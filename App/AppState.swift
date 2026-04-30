@@ -222,6 +222,7 @@ final class AppState {
     }
 
     func clearOutgoing() {
+        guard pendingOutgoing?.state == .acknowledged else { return }
         pendingOutgoing = nil
         pushWatchSnapshot()
     }
