@@ -15,6 +15,7 @@ enum SharedSettings {
         static let ackBannersEnabled = "shared.ackBannersEnabled"
         static let timeSensitiveEnabled = "shared.timeSensitiveEnabled"
         static let outgoingAckUnavailable = "shared.outgoingAckUnavailable"
+        static let outgoingAckFailureReason = "shared.outgoingAckFailureReason"
     }
 
     /// Receiver-side master switch. If false, even alerts marked critical by the sender
@@ -61,13 +62,21 @@ enum SharedSettings {
     }
 
     /// True when the most recent attempt to register `outgoing-ack-v2` was rejected
-    /// by CloudKit (commonly NOT_FOUND on the `Ack` record type or its queryable
-    /// indexes). The Alert update path still drives the in-app indicator, but the
-    /// lock-screen "got back to you" banner won't fire until the schema is
-    /// re-imported and deployed. Surfaced in the Settings → Diagnostics row so a
-    /// silently-degraded feature stays visible.
+    /// by CloudKit. The Alert update path still drives the in-app indicator, but the
+    /// lock-screen "got back to you" banner won't fire until Production has the
+    /// `_sub_trigger_outgoing-ack-v2` index. Surfaced in the Settings → Diagnostics
+    /// row so a silently-degraded feature stays visible.
     static var outgoingAckSubscriptionUnavailable: Bool {
         get { suite.bool(forKey: Keys.outgoingAckUnavailable) }
         set { suite.set(newValue, forKey: Keys.outgoingAckUnavailable) }
+    }
+
+    /// `String(describing:)` of the CKError captured the last time `outgoing-ack-v2`
+    /// failed to save. Cleared on a successful save or when the subscription is
+    /// already present server-side. Surfaced beneath the Diagnostics explainer so
+    /// the actual server reason is visible without having to plug into Console.app.
+    static var outgoingAckSubscriptionFailureReason: String? {
+        get { suite.string(forKey: Keys.outgoingAckFailureReason) }
+        set { suite.set(newValue, forKey: Keys.outgoingAckFailureReason) }
     }
 }

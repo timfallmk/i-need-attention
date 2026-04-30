@@ -30,6 +30,10 @@ final class AppState {
     /// observe it. Refreshed after every `registerSubscriptions` call.
     var outgoingAckSubscriptionUnavailable: Bool = false
 
+    /// Mirrors `SharedSettings.outgoingAckSubscriptionFailureReason` so the
+    /// captured CKError appears under the Diagnostics row without polling.
+    var outgoingAckSubscriptionFailureReason: String?
+
     private let log = Logger(subsystem: "com.timfallmk.attention", category: "AppState")
 
     // Record name of the most recently user-dismissed acknowledged alert. Persisted so
@@ -40,12 +44,29 @@ final class AppState {
         self.settings = UserSettings()
         self.pair = PairState.load()
         self.outgoingAckSubscriptionUnavailable = SharedSettings.outgoingAckSubscriptionUnavailable
+        self.outgoingAckSubscriptionFailureReason = SharedSettings.outgoingAckSubscriptionFailureReason
     }
 
     // MARK: - Boot
 
     func bootstrap() async {
         await refreshICloudStatus()
+
+        #if DEBUG
+        // Seeds the CloudKit-internal `_sub_trigger_<subscriptionID>` records into
+        // the Development environment for every subscription this app declares.
+        // Production rejects schema mutations from devices, so those triggers must
+        // exist in Dev before "Deploy Schema Changes…" can promote them — without
+        // this, every newly-introduced subscription ID is rejected in Production
+        // with BAD_REQUEST. Gated on `pair == nil` so it never shadows a real Dev
+        // pair's predicates (registerSubscriptions is idempotent on subscription ID).
+        if pair == nil {
+            try? await CloudKitService.shared.registerSubscriptions(
+                pairKey: "schema-seed",
+                myDeviceID: "schema-seed-device"
+            )
+        }
+        #endif
 
         if let pair {
             SharedSettings.partnerName = pair.partnerName
@@ -60,6 +81,7 @@ final class AppState {
         } else {
             // No pair = no subscription = no useful diagnostic. Clear any stale flag.
             SharedSettings.outgoingAckSubscriptionUnavailable = false
+            SharedSettings.outgoingAckSubscriptionFailureReason = nil
             refreshSubscriptionDiagnostics()
         }
         // Run after the pair branch so unpaired users still get the badge swept,
@@ -256,6 +278,7 @@ final class AppState {
     /// would have registered) subscriptions.
     func refreshSubscriptionDiagnostics() {
         outgoingAckSubscriptionUnavailable = SharedSettings.outgoingAckSubscriptionUnavailable
+        outgoingAckSubscriptionFailureReason = SharedSettings.outgoingAckSubscriptionFailureReason
     }
 
     func unpair() async {
@@ -267,6 +290,7 @@ final class AppState {
         // No pair means no subscription means the diagnostic doesn't apply. Clear it
         // so reverting to unpaired state resets the warning.
         SharedSettings.outgoingAckSubscriptionUnavailable = false
+        SharedSettings.outgoingAckSubscriptionFailureReason = nil
         refreshSubscriptionDiagnostics()
         pushWatchSnapshot()
     }

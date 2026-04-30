@@ -67,9 +67,15 @@ struct SettingsView: View {
                             Text("Unavailable")
                                 .foregroundStyle(.orange)
                         }
-                        Text("CloudKit rejected the subscription that delivers your partner's acknowledgement to your lock screen. The in-app indicator still updates. Re-import `cloudkit-schema.ckdb` in CloudKit Dashboard so the **Ack** record type and its `pairKey` / `recipientDeviceID` queryable indexes exist in both Development and Production, then relaunch.")
+                        Text("CloudKit rejected the subscription that delivers your partner's acknowledgement to your lock screen. The in-app indicator still updates. The fix is almost always to seed the `_sub_trigger_outgoing-ack-v2` index: run a **Debug** build of this app on a device once (the bootstrap seeder registers all subscriptions against Development), then click **Deploy Schema Changes…** in CloudKit Dashboard and confirm the new trigger row appears in the diff. Less commonly the **Ack** record type or its `pairKey` / `recipientDeviceID` queryable indexes are missing from Production — `cloudkit-schema.ckdb` covers those.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+                        if let reason = appState.outgoingAckSubscriptionFailureReason {
+                            Text("CloudKit said: \(reason)")
+                                .font(.footnote.monospaced())
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
                     }
                 } header: {
                     Text("Diagnostics")
