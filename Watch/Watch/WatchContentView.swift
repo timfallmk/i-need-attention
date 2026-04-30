@@ -117,6 +117,6 @@ struct WatchContentView: View {
     }
 
     private var showsClearButton: Bool {
-        session.snapshot?.outgoing?.state == .acknowledged
+        !showsAckButton && session.snapshot?.outgoing?.state == .acknowledged
     }
 }
