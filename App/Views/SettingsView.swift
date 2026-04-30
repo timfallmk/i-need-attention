@@ -36,6 +36,11 @@ struct SettingsView: View {
                 Section("Alert behavior") {
                     Toggle("Custom sound", isOn: $settings.customSoundEnabled)
 
+                    Toggle("Time-sensitive alerts", isOn: $settings.timeSensitiveEnabled)
+                    Text("Pierce Focus and Do Not Disturb for both incoming requests and acknowledgements. Off keeps them quiet under Focus.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
                     Toggle("Acknowledgement banners", isOn: $settings.ackBannersEnabled)
                     Text("Notify you with a banner when your partner gets back to you. The in-app indicator updates either way.")
                         .font(.footnote)

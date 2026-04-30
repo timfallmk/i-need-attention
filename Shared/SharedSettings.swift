@@ -13,6 +13,7 @@ enum SharedSettings {
         static let customSoundEnabled = "shared.customSoundEnabled"
         static let partnerName = "shared.partnerName"
         static let ackBannersEnabled = "shared.ackBannersEnabled"
+        static let timeSensitiveEnabled = "shared.timeSensitiveEnabled"
     }
 
     /// Receiver-side master switch. If false, even alerts marked critical by the sender
@@ -45,5 +46,16 @@ enum SharedSettings {
     static var ackBannersEnabled: Bool {
         get { suite.object(forKey: Keys.ackBannersEnabled) as? Bool ?? true }
         set { suite.set(newValue, forKey: Keys.ackBannersEnabled) }
+    }
+
+    /// Master switch governing whether the NSE delivers pushes at `.timeSensitive`
+    /// (pierces Focus / Do Not Disturb) or the default `.active` level. Applies
+    /// to both incoming attention requests and sender-side ack banners. Critical
+    /// alerts still win over this when sender-flagged + receiver-accepted +
+    /// entitlement granted; ack-banners-disabled still forces `.passive`.
+    /// Defaults to true — the whole product is "this should pierce Focus".
+    static var timeSensitiveEnabled: Bool {
+        get { suite.object(forKey: Keys.timeSensitiveEnabled) as? Bool ?? true }
+        set { suite.set(newValue, forKey: Keys.timeSensitiveEnabled) }
     }
 }

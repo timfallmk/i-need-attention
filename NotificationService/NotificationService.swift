@@ -35,12 +35,13 @@ final class NotificationService: UNNotificationServiceExtension {
         }
 
         let isAck = queryNotification.subscriptionID == Constants.SubscriptionID.outgoingAck
+        let timeSensitive = SharedSettings.timeSensitiveEnabled
         if isAck {
             // Sender-side toggle: when off, deliver passively so the in-app indicator
             // still flips (the alert push still wakes didReceiveRemoteNotification) but
             // no banner pops and no sound plays.
             let bannersOn = SharedSettings.ackBannersEnabled
-            mutable.interruptionLevel = bannersOn ? .active : .passive
+            mutable.interruptionLevel = bannersOn ? (timeSensitive ? .timeSensitive : .active) : .passive
             mutable.categoryIdentifier = Constants.NotificationAction.ackCategory
             mutable.sound = bannersOn
                 ? (SharedSettings.customSoundEnabled
@@ -49,8 +50,9 @@ final class NotificationService: UNNotificationServiceExtension {
                 : nil
             mutable.badge = nil
         } else {
-            // Default to time-sensitive — pierces Focus, doesn't need Apple approval.
-            mutable.interruptionLevel = .timeSensitive
+            // applyPriority below upgrades to .critical when sender-flagged + receiver-
+            // accepts + entitlement granted, otherwise honors the user's time-sensitive toggle.
+            mutable.interruptionLevel = timeSensitive ? .timeSensitive : .active
             // Wire the inline ack actions (❤️ 👍 🤗 🚨 ✅) into the banner pull-down.
             mutable.categoryIdentifier = Constants.NotificationAction.category
             // Replaces the badge previously set via CKSubscription.NotificationInfo.shouldBadge,
@@ -128,9 +130,11 @@ final class NotificationService: UNNotificationServiceExtension {
         return "Got back to you"
     }
 
-    /// Three-way decision: sender's per-send flag AND receiver's master toggle (read from
-    /// the App Group) AND Apple's entitlement (enforced by the system, silently downgrades
-    /// .critical to active if missing). We keep .timeSensitive as the floor for everything.
+    /// Three-way decision for incoming alerts: sender's per-send flag AND receiver's
+    /// critical-accepts toggle AND Apple's entitlement (enforced by the system, silently
+    /// downgrades .critical to active if missing). When critical doesn't apply, the
+    /// receiver's master `timeSensitiveEnabled` toggle decides between `.timeSensitive`
+    /// (default) and `.active`.
     ///
     /// Sound resolution: if the bundled custom sound is enabled in SharedSettings and the
     /// .caf is present, use it; otherwise fall back to the system default. UNNotificationSound
@@ -142,7 +146,7 @@ final class NotificationService: UNNotificationServiceExtension {
             content.interruptionLevel = .critical
             content.sound = UNNotificationSound.defaultCriticalSound(withAudioVolume: 1.0)
         } else {
-            content.interruptionLevel = .timeSensitive
+            content.interruptionLevel = SharedSettings.timeSensitiveEnabled ? .timeSensitive : .active
             content.sound = SharedSettings.customSoundEnabled
                 ? UNNotificationSound(named: UNNotificationSoundName("needs-attention.caf"))
                 : UNNotificationSound.default
