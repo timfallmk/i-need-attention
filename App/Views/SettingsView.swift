@@ -46,10 +46,13 @@ struct SettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
-                    Toggle(criticalToggleLabel, isOn: $settings.acceptCriticalAlerts)
-                    Text("When you allow this, alerts your partner sends with **Send as Critical** (long-press the button) will pierce silent mode and Focus. Requires Apple to grant the Critical Alerts entitlement; until then, criticals fall back to Time-Sensitive.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    // Critical Alerts UI commented out (Apple denied entitlement).
+                    // The acceptCriticalAlerts setting + App Group mirror are kept so
+                    // re-enabling is just restoring this toggle row.
+                    // Toggle(criticalToggleLabel, isOn: $settings.acceptCriticalAlerts)
+                    // Text("When you allow this, alerts your partner sends with **Send as Critical** (long-press the button) will pierce silent mode and Focus. Requires Apple to grant the Critical Alerts entitlement; until then, criticals fall back to Time-Sensitive.")
+                    //     .font(.footnote)
+                    //     .foregroundStyle(.secondary)
 
                     Stepper(
                         "Cooldown: \(settings.cooldownSeconds)s",
@@ -126,12 +129,13 @@ struct SettingsView: View {
         }
     }
 
-    private var criticalToggleLabel: String {
-        if let name = appState.pair?.partnerName, !name.isEmpty {
-            return "Accept Critical Alerts from \(name)"
-        }
-        return "Accept Critical Alerts"
-    }
+    // Critical Alerts label commented out (Apple denied entitlement).
+    // private var criticalToggleLabel: String {
+    //     if let name = appState.pair?.partnerName, !name.isEmpty {
+    //         return "Accept Critical Alerts from \(name)"
+    //     }
+    //     return "Accept Critical Alerts"
+    // }
 
     private var iCloudStatusLabel: String {
         switch appState.iCloudStatus {

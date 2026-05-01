@@ -174,12 +174,16 @@ final class AppState {
         return Date() < end
     }
 
-    func sendAttention(critical: Bool = false) async {
+    func sendAttention(noun: String? = nil) async {
         guard let pair else {
             bannerMessage = AttentionError.noPair.errorDescription
             return
         }
         guard !isOnCooldown else { return }
+
+        let trimmed = noun?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedNoun = (trimmed?.isEmpty == false) ? trimmed! : "attention"
+        let body = "needs \(resolvedNoun)"
 
         Haptics.press()
         do {
@@ -189,8 +193,8 @@ final class AppState {
                 pairKey: pair.pairKey,
                 senderDeviceID: pair.myDeviceID,
                 senderName: settings.displayName,
-                message: "needs attention",
-                critical: critical
+                message: body,
+                critical: false
             )
             UserDefaults.standard.removeObject(forKey: Self.dismissedOutgoingKey)
             pendingOutgoing = record
@@ -331,7 +335,8 @@ final class AppState {
                 senderName: alert.senderName,
                 critical: alert.critical,
                 createdAt: alert.createdAt,
-                acknowledged: acked
+                acknowledged: acked,
+                message: alert.message
             )
         }
         return WatchSnapshot(

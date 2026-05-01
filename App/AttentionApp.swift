@@ -36,10 +36,14 @@ struct AttentionApp: App {
                     )
                     await appState.bootstrap()
                     if !appState.notificationsAuthorized && !appState.notificationsDenied {
-                        // First launch — ask for permission. Critical-alert option
-                        // only takes effect if Apple has granted the entitlement.
+                        // First launch — ask for permission. Critical Alerts opt-in
+                        // commented out: Apple denied the entitlement. Re-enable by
+                        // restoring the requestCritical: parameter to the user setting.
+                        // let granted = await PushNotifications.shared.requestAuthorization(
+                        //     requestCritical: appState.settings.acceptCriticalAlerts
+                        // )
                         let granted = await PushNotifications.shared.requestAuthorization(
-                            requestCritical: appState.settings.acceptCriticalAlerts
+                            requestCritical: false
                         )
                         appState.notificationsAuthorized = granted
                         await appState.refreshNotificationStatus()
