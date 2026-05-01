@@ -158,7 +158,7 @@ Symmetric (one scan → both can send/receive). See `App/Models/PairState.swift`
 
 When opening a PR:
 
-1. **Assign** it to `timfallmk`.
+1. **Assign** it to the PR author.
 2. **Add the `claude` label.** If the label doesn't exist, create it first with color `#E07B39` (Claude orange), then apply it.
 3. If the changes required a new release, increment the build number and remind the user to regenerate locally.
 
