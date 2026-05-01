@@ -181,8 +181,12 @@ final class AppState {
         }
         guard !isOnCooldown else { return }
 
-        let trimmed = noun?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedNoun = (trimmed?.isEmpty == false) ? trimmed! : "attention"
+        let resolvedNoun: String
+        if let trimmed = noun?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty {
+            resolvedNoun = trimmed
+        } else {
+            resolvedNoun = "attention"
+        }
         let body = "needs \(resolvedNoun)"
 
         Haptics.press()

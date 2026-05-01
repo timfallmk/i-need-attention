@@ -107,7 +107,11 @@ struct AttentionButton: View {
             .disabled(isCoolingDown)
             .scaleEffect(pressed ? 0.96 : 1.0)
             .animation(.spring(response: 0.28, dampingFraction: 0.55), value: pressed)
-            .simultaneousGesture(
+            // highPriorityGesture (rather than simultaneousGesture) ensures a
+            // recognized long-press suppresses the Button's tap action — otherwise
+            // a held-then-released touch could fire both the default send and open
+            // the picker.
+            .highPriorityGesture(
                 LongPressGesture(minimumDuration: 0.4)
                     .onEnded { _ in
                         guard !isCoolingDown else { return }
