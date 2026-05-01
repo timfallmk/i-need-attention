@@ -24,6 +24,19 @@ enum NounPresets {
         return cleaned.isEmpty ? nil : cleaned
     }
 
+    /// Strip newlines, trim whitespace, and cap a single noun string to `maxLength`.
+    /// Returns `nil` if the result is empty. Public so `AppState.sendAttention` can
+    /// enforce the same invariant on its central send path, regardless of the caller
+    /// (UI picker, watch bridge, future automation hooks).
+    static func sanitize(_ s: String) -> String? {
+        let stripped = s
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !stripped.isEmpty else { return nil }
+        return stripped.count > maxLength ? String(stripped.prefix(maxLength)) : stripped
+    }
+
     /// Strip newlines, trim whitespace, cap to `maxLength`, drop empties, and
     /// de-duplicate while preserving order. SwiftUI's `ForEach(id: \.self)` over
     /// the result needs unique strings.
@@ -31,16 +44,9 @@ enum NounPresets {
         var seen = Set<String>()
         var out: [String] = []
         for item in raw {
-            let stripped = item
-                .replacingOccurrences(of: "\n", with: " ")
-                .replacingOccurrences(of: "\r", with: " ")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !stripped.isEmpty else { continue }
-            let bounded = stripped.count > maxLength
-                ? String(stripped.prefix(maxLength))
-                : stripped
-            if seen.insert(bounded).inserted {
-                out.append(bounded)
+            guard let cleaned = sanitize(item) else { continue }
+            if seen.insert(cleaned).inserted {
+                out.append(cleaned)
             }
         }
         return out
