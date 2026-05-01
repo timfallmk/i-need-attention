@@ -37,21 +37,24 @@ struct WatchStatusPill: View {
         case loading
         case unpaired
         case idle(coolingDown: Bool)
-        case outgoingSent(critical: Bool)
+        case outgoingSent
         case outgoingSeen
         case outgoingAcked(String?)
-        case incomingPending(senderName: String, critical: Bool)
+        case incomingPending(senderName: String, message: String?)
     }
 
     private var state: State {
         guard let snap = snapshot else { return .loading }
         guard snap.paired else { return .unpaired }
         if let incoming = snap.incoming, !incoming.acknowledged {
-            return .incomingPending(senderName: incoming.senderName, critical: incoming.critical)
+            return .incomingPending(senderName: incoming.senderName, message: incoming.message)
         }
         if let outgoing = snap.outgoing {
             switch outgoing.state {
-            case .sent: return .outgoingSent(critical: outgoing.critical)
+            // Critical Alerts UI commented out (Apple denied entitlement). The wire
+            // field stays so re-enabling is just restoring the critical: parameter.
+            // case .sent: return .outgoingSent(critical: outgoing.critical)
+            case .sent: return .outgoingSent
             case .seen: return .outgoingSeen
             case .acknowledged: return .outgoingAcked(outgoing.ackEmoji)
             }
@@ -65,10 +68,12 @@ struct WatchStatusPill: View {
         case .loading: return "💗"
         case .unpaired: return "🔗"
         case .idle: return "💗"
-        case .outgoingSent(let c): return c ? "🚨" : "📡"
+        // case .outgoingSent(let c): return c ? "🚨" : "📡"
+        case .outgoingSent: return "📡"
         case .outgoingSeen: return "👀"
         case .outgoingAcked(let e): return e ?? "✅"
-        case .incomingPending(_, let c): return c ? "🚨" : "🔔"
+        // case .incomingPending(_, let c): return c ? "🚨" : "🔔"
+        case .incomingPending: return "🔔"
         }
     }
 
@@ -80,7 +85,9 @@ struct WatchStatusPill: View {
         case .outgoingSent: return "Sent"
         case .outgoingSeen: return "Seen"
         case .outgoingAcked: return "Acknowledged"
-        case .incomingPending(let name, _): return "\(name) needs you"
+        case .incomingPending(let name, let message):
+            let body = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return body.isEmpty ? "\(name) needs you" : "\(name) \(body)"
         }
     }
 

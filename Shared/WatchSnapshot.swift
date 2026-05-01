@@ -27,6 +27,9 @@ struct WatchSnapshot: Codable, Equatable {
         var critical: Bool
         var createdAt: Date
         var acknowledged: Bool
+        /// Full body string ("needs hugs"). Optional for backward compatibility with
+        /// snapshots encoded by older app versions.
+        var message: String?
     }
 
     var paired: Bool

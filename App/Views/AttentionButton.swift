@@ -6,8 +6,10 @@ struct AttentionButton: View {
     let cooldownRemaining: TimeInterval
     let cooldownTotal: TimeInterval
     let isSending: Bool
-    /// Tap = standard ping, long-press menu offers a critical send.
-    let onPress: (_ critical: Bool) async -> Void
+    /// Tap sends the default "needs attention".
+    let onPress: () async -> Void
+    /// Long-press opens a picker so the user can pick or compose a different noun.
+    let onLongPress: () -> Void
 
     @State private var pressed = false
     @State private var pulse = false
@@ -65,7 +67,7 @@ struct AttentionButton: View {
 
             // The button itself
             Button {
-                Task { await onPress(false) }
+                Task { await onPress() }
             } label: {
                 ZStack {
                     Circle()
@@ -105,18 +107,14 @@ struct AttentionButton: View {
             .disabled(isCoolingDown)
             .scaleEffect(pressed ? 0.96 : 1.0)
             .animation(.spring(response: 0.28, dampingFraction: 0.55), value: pressed)
-            .contextMenu {
-                Button {
-                    Task { await onPress(false) }
-                } label: {
-                    Label("Send", systemImage: "hand.raised.fill")
-                }
-                Button(role: .destructive) {
-                    Task { await onPress(true) }
-                } label: {
-                    Label("Send as Critical", systemImage: "exclamationmark.triangle.fill")
-                }
-            }
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.4)
+                    .onEnded { _ in
+                        guard !isCoolingDown else { return }
+                        Haptics.tick()
+                        onLongPress()
+                    }
+            )
         }
         .frame(width: 280, height: 280)
         .onChange(of: isSending) { _, sending in

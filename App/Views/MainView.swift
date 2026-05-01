@@ -5,6 +5,7 @@ struct MainView: View {
     @Environment(AppState.self) private var appState
     @State private var showSettings = false
     @State private var showAckSheet = false
+    @State private var showNounPicker = false
     @State private var now = Date()
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -37,12 +38,12 @@ struct MainView: View {
                     isCoolingDown: appState.isOnCooldown,
                     cooldownRemaining: cooldownRemaining,
                     cooldownTotal: TimeInterval(appState.settings.cooldownSeconds),
-                    isSending: appState.pendingOutgoing?.state == .sent
-                ) { critical in
-                    await appState.sendAttention(critical: critical)
-                }
+                    isSending: appState.pendingOutgoing?.state == .sent,
+                    onPress: { await appState.sendAttention() },
+                    onLongPress: { showNounPicker = true }
+                )
 
-                Text("Long-press for urgent")
+                Text("Long-press to choose")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
 
@@ -77,6 +78,17 @@ struct MainView: View {
                 showAckSheet = false
             }
             .presentationDetents([.height(260)])
+        }
+        .sheet(isPresented: $showNounPicker) {
+            NounPickerSheet(
+                onPick: { noun in
+                    showNounPicker = false
+                    Task { await appState.sendAttention(noun: noun) }
+                },
+                onCancel: { showNounPicker = false }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.hidden)
         }
         .onReceive(timer) { now = $0 }
         .banner($bindable.bannerMessage, tone: .error)

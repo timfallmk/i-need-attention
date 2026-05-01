@@ -63,10 +63,14 @@ struct StatusIndicatorView: View {
     private var emoji: String {
         switch snapshot {
         case .idle: return "💗"
-        case .outgoingSent: return outgoing?.critical == true ? "🚨" : "📡"
+        // Critical Alerts UI commented out (Apple denied entitlement). The wire field
+        // stays so re-enabling is just restoring this branch.
+        // case .outgoingSent: return outgoing?.critical == true ? "🚨" : "📡"
+        case .outgoingSent: return "📡"
         case .outgoingSeen: return "👀"
         case .outgoingAcked(let e): return e ?? "✅"
-        case .incomingPending(let a): return a.critical ? "🚨" : "🔔"
+        // case .incomingPending(let a): return a.critical ? "🚨" : "🔔"
+        case .incomingPending: return "🔔"
         }
     }
 
@@ -76,7 +80,9 @@ struct StatusIndicatorView: View {
         case .outgoingSent: return "Sent"
         case .outgoingSeen: return "Seen"
         case .outgoingAcked: return "Acknowledged"
-        case .incomingPending(let a): return "\(a.senderName) needs you"
+        case .incomingPending(let a):
+            let body = a.message.trimmingCharacters(in: .whitespacesAndNewlines)
+            return body.isEmpty ? "\(a.senderName) needs you" : "\(a.senderName) \(body)"
         }
     }
 
