@@ -9,7 +9,6 @@ struct NounPickerSheet: View {
     @FocusState private var customFocused: Bool
 
     private let presets = NounPresets.all
-    private static let maxCustomLength = 30
 
     var body: some View {
         VStack(spacing: 0) {
@@ -74,9 +73,11 @@ struct NounPickerSheet: View {
                 .autocorrectionDisabled(false)
                 .textInputAutocapitalization(.never)
                 .onChange(of: customText) { _, new in
-                    var sanitized = new.replacingOccurrences(of: "\n", with: "")
-                    if sanitized.count > Self.maxCustomLength {
-                        sanitized = String(sanitized.prefix(Self.maxCustomLength))
+                    var sanitized = new
+                        .replacingOccurrences(of: "\n", with: " ")
+                        .replacingOccurrences(of: "\r", with: " ")
+                    if sanitized.count > NounPresets.maxLength {
+                        sanitized = String(sanitized.prefix(NounPresets.maxLength))
                     }
                     if sanitized != new {
                         customText = sanitized
@@ -89,7 +90,7 @@ struct NounPickerSheet: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(customText.count)/\(Self.maxCustomLength)")
+                Text("\(customText.count)/\(NounPresets.maxLength)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .monospacedDigit()
