@@ -582,6 +582,13 @@ enum EmojiCatalog {
         ("\u{1F468}\u{200D}\u{1F468}\u{200D}\u{1F466}", ["family", "men"]),
         ("\u{1F469}\u{200D}\u{1F469}\u{200D}\u{1F466}", ["family", "women"]),
         ("\u{1FAE7}", ["bubbles", "bubble", "soap"]),
+        ("\u{1FAF0}", ["hand", "hands"]),
+        ("\u{1FAF1}", ["rightwards", "hand"]),
+        ("\u{1FAF2}", ["leftwards", "hand"]),
+        ("\u{1FAF3}", ["palm", "down", "hand"]),
+        ("\u{1FAF4}", ["palm", "up", "hand"]),
+        ("\u{1FAF5}", ["index", "pointing", "you"]),
+        ("\u{1FAF6}", ["heart", "hands", "love"]),
         ("\u{231A}", ["watch"]),
         ("\u{1F4F1}", ["phone", "mobile", "iphone"]),
         ("\u{1F4BB}", ["laptop", "computer"]),
@@ -688,6 +695,13 @@ enum EmojiCatalog {
         "\u{270D}\u{FE0F}", "\u{1F485}", "\u{1F933}", "\u{1F4AA}",
         "\u{1F476}", "\u{1F9D2}", "\u{1F466}", "\u{1F467}",
         "\u{1F9D1}", "\u{1F468}", "\u{1F469}", "\u{1F9D3}", "\u{1F474}", "\u{1F475}",
+        "\u{1F90C}", "\u{1F90F}",
+        "\u{1FAF0}", "\u{1FAF1}", "\u{1FAF2}", "\u{1FAF3}", "\u{1FAF4}",
+        "\u{1FAF5}", "\u{1FAF6}",
+        "\u{1F468}\u{200D}\u{1F4BB}", "\u{1F469}\u{200D}\u{1F4BB}",
+        "\u{1F468}\u{200D}\u{1F3EB}", "\u{1F469}\u{200D}\u{1F3EB}",
+        "\u{1F468}\u{200D}\u{1F52C}", "\u{1F469}\u{200D}\u{1F52C}",
+        "\u{1F468}\u{200D}\u{1F3A8}", "\u{1F469}\u{200D}\u{1F3A8}",
     ]
 
     static func toned(_ base: String, _ tone: SkinTone) -> String {
@@ -720,6 +734,8 @@ enum EmojiCatalog {
                 results.append(emoji)
             }
         }
+
+        guard results.isEmpty else { return results }
 
         for (name, emojis) in categories {
             let cat = name.lowercased()

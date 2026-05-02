@@ -15,9 +15,9 @@ struct ToneStripSheet: View {
                 .font(.headline)
                 .padding(.top, 18)
             HStack(spacing: 8) {
-                button(emoji: base, accessibilityLabel: "Default")
+                button(emoji: base, toneLabel: "default")
                 ForEach(SkinTone.allCases) { tone in
-                    button(emoji: EmojiCatalog.toned(base, tone), accessibilityLabel: tone.accessibilityName)
+                    button(emoji: EmojiCatalog.toned(base, tone), toneLabel: tone.accessibilityName)
                 }
             }
             .padding(.horizontal, 12)
@@ -25,7 +25,7 @@ struct ToneStripSheet: View {
         }
     }
 
-    private func button(emoji: String, accessibilityLabel: String) -> some View {
+    private func button(emoji: String, toneLabel: String) -> some View {
         Button {
             Haptics.select()
             onPick(emoji)
@@ -36,6 +36,6 @@ struct ToneStripSheet: View {
                 .background(.ultraThinMaterial, in: Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text(accessibilityLabel))
+        .accessibilityLabel(Text("\(base), \(toneLabel)"))
     }
 }

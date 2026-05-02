@@ -1,6 +1,6 @@
 # Emoji Catalog Maintenance Plan
 
-Forward-looking reference for keeping `App/Resources/EmojiCatalog.swift` from going stale as Unicode adds new emoji.
+Forward-looking reference for keeping `App/Helpers/EmojiCatalog.swift` from going stale as Unicode adds new emoji.
 
 ## Why
 
@@ -27,7 +27,7 @@ Tools/generate_emoji_catalog.py
   ├── fetch emojibase JSON (or commit a vendored snapshot under Tools/data/)
   ├── filter to fully-qualified emoji
   ├── group by primary category, drop ones we don't want (e.g. country flags can stay or split into a Flags subcategory)
-  ├── write App/Resources/EmojiCatalog.swift with categories, keywords, fitzpatrickBase, and a deterministic header comment showing the upstream version
+  ├── write App/Helpers/EmojiCatalog.swift with categories, keywords, fitzpatrickBase, and a deterministic header comment showing the upstream version
 ```
 
 **Trade-offs:**
