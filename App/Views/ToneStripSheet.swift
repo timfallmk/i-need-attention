@@ -5,6 +5,22 @@ struct ToneSelection: Identifiable, Equatable {
     let base: String
 }
 
+struct ToneAccessibilityAction: ViewModifier {
+    let emoji: String
+    let enabled: Bool
+    let onPick: (String) -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.accessibilityAction(named: Text("Pick skin tone")) {
+                onPick(emoji)
+            }
+        } else {
+            content
+        }
+    }
+}
+
 struct ToneStripSheet: View {
     let base: String
     let onPick: (String) -> Void

@@ -253,6 +253,7 @@ private struct AckSheet: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel(Text(emoji))
             .accessibilityHint(supportsTones ? Text("Long-press for skin tones") : Text(""))
+            .modifier(ToneAccessibilityAction(emoji: emoji, enabled: supportsTones, onPick: { toneSelection = ToneSelection(base: $0) }))
     }
 
     private var moreButton: some View {

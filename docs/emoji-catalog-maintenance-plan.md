@@ -12,7 +12,7 @@ Acceptable as-is for a personal-use app — the existing entries keep working fo
 
 ## Option 1 — Generator script
 
-Mirror the pattern used by `Tools/generate_icons.py`: a one-shot Python script that reads an upstream emoji dataset and rewrites `App/Resources/EmojiCatalog.swift`. Run it once a year (or whenever Apple ships a new emoji set in iOS).
+Mirror the pattern used by `Tools/generate_icons.py`: a one-shot Python script that reads an upstream emoji dataset and rewrites `App/Helpers/EmojiCatalog.swift`. Run it once a year (or whenever Apple ships a new emoji set in iOS).
 
 **Source data:**
 
