@@ -188,6 +188,9 @@ private struct AckSheet: View {
     let onPick: (String?) -> Void
     private let emojis = ["❤️", "👍", "🤗", "🙏", "🚨", "⏳"]
 
+    @State private var showFullPicker = false
+    @State private var toneSelection: ToneSelection?
+
     var body: some View {
         VStack(spacing: 18) {
             Capsule()
@@ -196,22 +199,16 @@ private struct AckSheet: View {
                 .padding(.top, 10)
             Text("Acknowledge")
                 .font(.headline)
-            Text("Pick a quick reaction so they know you're on it.")
+            Text("Pick a quick reaction so they know you're on it. Long-press for skin tones, or tap + for any emoji.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
-            HStack(spacing: 12) {
+            HStack(spacing: 6) {
                 ForEach(emojis, id: \.self) { emoji in
-                    Button {
-                        onPick(emoji)
-                    } label: {
-                        Text(emoji)
-                            .font(.system(size: 30))
-                            .frame(width: 50, height: 50)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
+                    emojiButton(emoji)
                 }
+                moreButton
             }
             Button("Just acknowledge") {
                 onPick(nil)
@@ -219,6 +216,97 @@ private struct AckSheet: View {
             .font(.subheadline)
             .padding(.bottom, 12)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
+        .sheet(isPresented: $showFullPicker) {
+            EmojiPickerView { emoji in
+                onPick(emoji)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $toneSelection) { selection in
+            ToneStripSheet(base: selection.base) { toned in
+                toneSelection = nil
+                onPick(toned)
+            }
+            .presentationDetents([.height(180)])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    private func emojiButton(_ emoji: String) -> some View {
+        let supportsTones = EmojiCatalog.fitzpatrickBase.contains(emoji)
+        return Text(emoji)
+            .font(.system(size: 28))
+            .frame(width: 44, height: 44)
+            .background(.ultraThinMaterial, in: Circle())
+            .contentShape(Circle())
+            .onTapGesture {
+                Haptics.select()
+                onPick(emoji)
+            }
+            .onLongPressGesture(minimumDuration: 0.4) {
+                guard supportsTones else { return }
+                Haptics.tick()
+                toneSelection = ToneSelection(base: emoji)
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(Text(emoji))
+            .accessibilityHint(supportsTones ? Text("Long-press for skin tones") : Text(""))
+    }
+
+    private var moreButton: some View {
+        Button {
+            Haptics.select()
+            showFullPicker = true
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("More emoji")
+    }
+}
+
+private struct ToneSelection: Identifiable {
+    let id = UUID()
+    let base: String
+}
+
+private struct ToneStripSheet: View {
+    let base: String
+    let onPick: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Skin tone")
+                .font(.headline)
+                .padding(.top, 18)
+            HStack(spacing: 8) {
+                button(for: base, label: "default")
+                ForEach(SkinTone.allCases) { tone in
+                    button(for: EmojiCatalog.toned(base, tone), label: tone.rawValue)
+                }
+            }
+            .padding(.horizontal, 12)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func button(for emoji: String, label: String) -> some View {
+        Button {
+            Haptics.select()
+            onPick(emoji)
+        } label: {
+            Text(emoji)
+                .font(.system(size: 30))
+                .frame(width: 48, height: 48)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(label))
     }
 }
