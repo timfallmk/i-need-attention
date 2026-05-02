@@ -5,10 +5,11 @@ struct EmojiPickerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var query: String = ""
+    @State private var toneSelection: ToneSelection?
 
     private let columns: [GridItem] = Array(
         repeating: GridItem(.flexible(), spacing: 4, alignment: .center),
-        count: 8
+        count: 7
     )
 
     var body: some View {
@@ -30,6 +31,15 @@ struct EmojiPickerView: View {
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search emoji")
             .autocorrectionDisabled(true)
             .textInputAutocapitalization(.never)
+        }
+        .sheet(item: $toneSelection) { selection in
+            ToneStripSheet(base: selection.base) { toned in
+                toneSelection = nil
+                onPick(toned)
+                dismiss()
+            }
+            .presentationDetents([.height(180)])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -66,18 +76,29 @@ struct EmojiPickerView: View {
     private func grid(for emojis: [String]) -> some View {
         LazyVGrid(columns: columns, spacing: 6) {
             ForEach(Array(emojis.enumerated()), id: \.offset) { _, emoji in
-                Button {
-                    Haptics.select()
-                    onPick(emoji)
-                    dismiss()
-                } label: {
-                    Text(emoji)
-                        .font(.system(size: 30))
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                cell(for: emoji)
             }
         }
+    }
+
+    private func cell(for emoji: String) -> some View {
+        let supportsTones = EmojiCatalog.fitzpatrickBase.contains(emoji)
+        return Text(emoji)
+            .font(.system(size: 30))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                Haptics.select()
+                onPick(emoji)
+                dismiss()
+            }
+            .onLongPressGesture(minimumDuration: 0.4) {
+                guard supportsTones else { return }
+                Haptics.tick()
+                toneSelection = ToneSelection(base: emoji)
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(Text(emoji))
+            .accessibilityHint(supportsTones ? Text("Long-press for skin tones") : Text(""))
     }
 }
