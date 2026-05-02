@@ -53,6 +53,9 @@ enum EmojiCatalog {
             "\u{1F427}", "\u{1F426}", "\u{1F424}", "\u{1F423}", "\u{1F425}", "\u{1F986}",
             "\u{1F985}", "\u{1F989}", "\u{1F987}", "\u{1F43A}", "\u{1F417}", "\u{1F434}",
             "\u{1F993}", "\u{1F98C}", "\u{1F402}", "\u{1F403}", "\u{1F404}",
+            "\u{1F984}", "\u{1F409}", "\u{1F432}", "\u{1F998}", "\u{1F99D}", "\u{1F9A6}",
+            "\u{1F9A5}", "\u{1F9A8}", "\u{1F9A1}", "\u{1F43E}", "\u{1F983}", "\u{1F413}",
+            "\u{1F9A2}", "\u{1F99C}", "\u{1F9A9}",
             "\u{1F40E}", "\u{1F416}", "\u{1F40F}", "\u{1F411}", "\u{1F410}", "\u{1F42A}",
             "\u{1F42B}", "\u{1F999}", "\u{1F992}", "\u{1F418}", "\u{1F98F}", "\u{1F99B}",
             "\u{1F42C}", "\u{1F433}", "\u{1F40B}", "\u{1F41F}", "\u{1F420}",
@@ -204,7 +207,7 @@ enum EmojiCatalog {
         ]),
         ("Hearts & Sparkles", [
             "\u{2764}\u{FE0F}", "\u{1F9E1}", "\u{1F49B}", "\u{1F49A}", "\u{1F499}", "\u{1F49C}",
-            "\u{1F90E}", "\u{1F5A4}", "\u{1FA76}", "\u{1FA75}", "\u{1F90D}", "\u{1F90C}",
+            "\u{1F90E}", "\u{1F5A4}", "\u{1FA76}", "\u{1FA75}", "\u{1F90D}",
             "\u{2764}\u{FE0F}\u{200D}\u{1F525}", "\u{2764}\u{FE0F}\u{200D}\u{1FA79}", "\u{1F498}",
             "\u{1F495}", "\u{1F49E}", "\u{1F493}", "\u{1F497}", "\u{1F496}", "\u{1F49D}",
             "\u{1F49F}", "\u{2763}\u{FE0F}", "\u{1F494}", "\u{1F48C}", "\u{1F48B}", "\u{1F48D}",
@@ -366,6 +369,21 @@ enum EmojiCatalog {
         ("\u{1F999}", ["llama", "alpaca"]),
         ("\u{1F992}", ["giraffe"]),
         ("\u{1F98F}", ["rhino"]),
+        ("\u{1F984}", ["unicorn", "horse", "fantasy"]),
+        ("\u{1F409}", ["dragon"]),
+        ("\u{1F432}", ["dragon", "face"]),
+        ("\u{1F998}", ["kangaroo"]),
+        ("\u{1F99D}", ["raccoon"]),
+        ("\u{1F9A6}", ["otter"]),
+        ("\u{1F9A5}", ["sloth"]),
+        ("\u{1F9A8}", ["skunk"]),
+        ("\u{1F9A1}", ["badger"]),
+        ("\u{1F43E}", ["paw", "prints", "tracks"]),
+        ("\u{1F983}", ["turkey", "thanksgiving"]),
+        ("\u{1F413}", ["rooster"]),
+        ("\u{1F9A2}", ["swan"]),
+        ("\u{1F99C}", ["parrot"]),
+        ("\u{1F9A9}", ["flamingo", "pink"]),
         ("\u{1F42C}", ["dolphin"]),
         ("\u{1F433}", ["whale"]),
         ("\u{1F40B}", ["whale"]),
@@ -618,15 +636,31 @@ enum EmojiCatalog {
     }
 
     static func search(_ query: String) -> [String] {
-        let q = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return [] }
+        let normalized = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return [] }
+        let tokens = normalized.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        guard !tokens.isEmpty else { return [] }
+
         var seen = Set<String>()
         var results: [String] = []
+
         for (emoji, terms) in keywords {
-            if terms.contains(where: { $0.contains(q) }) && seen.insert(emoji).inserted {
+            let allMatch = tokens.allSatisfy { token in
+                terms.contains { $0.contains(token) }
+            }
+            if allMatch && seen.insert(emoji).inserted {
                 results.append(emoji)
             }
         }
+
+        for (name, emojis) in categories {
+            let cat = name.lowercased()
+            guard tokens.allSatisfy({ cat.contains($0) }) else { continue }
+            for emoji in emojis where seen.insert(emoji).inserted {
+                results.append(emoji)
+            }
+        }
+
         return results
     }
 }

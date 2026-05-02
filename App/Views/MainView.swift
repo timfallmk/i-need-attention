@@ -199,7 +199,7 @@ private struct AckSheet: View {
                 .padding(.top, 10)
             Text("Acknowledge")
                 .font(.headline)
-            Text("Pick a quick reaction so they know you're on it. Long-press for skin tones, or tap + for any emoji.")
+            Text("Pick a quick reaction so they know you're on it. Tap + for more emoji.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
