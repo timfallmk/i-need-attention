@@ -8,6 +8,16 @@ enum SkinTone: String, CaseIterable, Identifiable {
     case dark = "\u{1F3FF}"
 
     var id: String { rawValue }
+
+    var accessibilityName: String {
+        switch self {
+        case .light: return "Light skin tone"
+        case .mediumLight: return "Medium-light skin tone"
+        case .medium: return "Medium skin tone"
+        case .mediumDark: return "Medium-dark skin tone"
+        case .dark: return "Dark skin tone"
+        }
+    }
 }
 
 enum EmojiCatalog {
@@ -44,6 +54,16 @@ enum EmojiCatalog {
             "\u{1F9E0}", "\u{1FAC0}", "\u{1FAC1}", "\u{1F9B7}", "\u{1F9B4}", "\u{1F441}\u{FE0F}",
             "\u{1F445}", "\u{1F444}", "\u{1F476}", "\u{1F9D2}", "\u{1F466}", "\u{1F467}",
             "\u{1F9D1}", "\u{1F468}", "\u{1F469}", "\u{1F9D3}", "\u{1F474}", "\u{1F475}",
+            "\u{1F468}\u{200D}\u{1F4BB}", "\u{1F469}\u{200D}\u{1F4BB}",
+            "\u{1F468}\u{200D}\u{1F3EB}", "\u{1F469}\u{200D}\u{1F3EB}",
+            "\u{1F468}\u{200D}\u{1F52C}", "\u{1F469}\u{200D}\u{1F52C}",
+            "\u{1F468}\u{200D}\u{1F3A8}", "\u{1F469}\u{200D}\u{1F3A8}",
+            "\u{1F46B}", "\u{1F46C}", "\u{1F46D}", "\u{1F48F}", "\u{1F491}",
+            "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F466}",
+            "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}",
+            "\u{1F468}\u{200D}\u{1F468}\u{200D}\u{1F466}",
+            "\u{1F469}\u{200D}\u{1F469}\u{200D}\u{1F466}",
+            "\u{1FAE7}",
         ]),
         ("Animals & Nature", [
             "\u{1F436}", "\u{1F431}", "\u{1F42D}", "\u{1F439}", "\u{1F430}", "\u{1F98A}",
@@ -121,7 +141,15 @@ enum EmojiCatalog {
             "\u{1F3ED}", "\u{1F3EF}", "\u{1F3F0}", "\u{1F492}", "\u{1F5FC}", "\u{1F5FD}",
             "\u{26EA}", "\u{1F54B}", "\u{1F54C}", "\u{1F6D5}", "\u{1F54D}", "\u{26E9}\u{FE0F}",
             "\u{1F54A}\u{FE0F}", "\u{1F303}", "\u{1F3D9}\u{FE0F}", "\u{1F304}", "\u{1F305}",
-            "\u{1F306}", "\u{1F307}", "\u{1F309}", "\u{2668}\u{FE0F}", "\u{1F3A0}", "\u{1F6DD}",
+            "\u{1F306}", "\u{1F307}", "\u{1F309}", "\u{2668}\u{FE0F}",
+            "\u{2600}\u{FE0F}", "\u{1F31E}", "\u{1F324}\u{FE0F}", "\u{26C5}",
+            "\u{1F325}\u{FE0F}", "\u{2601}\u{FE0F}", "\u{1F326}\u{FE0F}", "\u{1F327}\u{FE0F}",
+            "\u{26C8}\u{FE0F}", "\u{1F329}\u{FE0F}", "\u{1F328}\u{FE0F}",
+            "\u{2744}\u{FE0F}", "\u{2603}\u{FE0F}", "\u{26C4}",
+            "\u{1F319}", "\u{1F31D}", "\u{1F31B}", "\u{1F31C}", "\u{1F311}",
+            "\u{1F312}", "\u{1F313}", "\u{1F314}", "\u{1F315}", "\u{1F316}",
+            "\u{1F317}", "\u{1F318}", "\u{2B50}", "\u{1F308}",
+            "\u{1F3A0}", "\u{1F6DD}",
             "\u{1F3A1}", "\u{1F3A2}", "\u{1F488}", "\u{1F3AA}",
         ]),
         ("Objects", [
@@ -514,6 +542,46 @@ enum EmojiCatalog {
         ("\u{1F306}", ["sunset", "city"]),
         ("\u{1F309}", ["bridge", "night"]),
         ("\u{2668}\u{FE0F}", ["hotsprings", "spa"]),
+        ("\u{2600}\u{FE0F}", ["sun", "sunny", "weather"]),
+        ("\u{1F31E}", ["sun", "face", "sunny"]),
+        ("\u{1F324}\u{FE0F}", ["sun", "cloud", "weather", "partly"]),
+        ("\u{26C5}", ["sun", "cloud", "partly", "weather"]),
+        ("\u{1F325}\u{FE0F}", ["cloud", "sun", "weather"]),
+        ("\u{2601}\u{FE0F}", ["cloud", "cloudy", "weather"]),
+        ("\u{1F326}\u{FE0F}", ["sun", "rain", "weather"]),
+        ("\u{1F327}\u{FE0F}", ["rain", "cloud", "weather"]),
+        ("\u{26C8}\u{FE0F}", ["thunder", "lightning", "rain", "storm"]),
+        ("\u{1F329}\u{FE0F}", ["lightning", "thunder", "storm"]),
+        ("\u{1F328}\u{FE0F}", ["snow", "cloud", "weather"]),
+        ("\u{2744}\u{FE0F}", ["snowflake", "snow", "cold"]),
+        ("\u{2603}\u{FE0F}", ["snowman", "snow", "winter"]),
+        ("\u{26C4}", ["snowman", "snow", "winter"]),
+        ("\u{1F319}", ["moon", "crescent", "night"]),
+        ("\u{1F31D}", ["moon", "full", "face"]),
+        ("\u{1F31B}", ["moon", "first", "quarter", "face"]),
+        ("\u{1F31C}", ["moon", "last", "quarter", "face"]),
+        ("\u{1F311}", ["moon", "new"]),
+        ("\u{1F315}", ["moon", "full"]),
+        ("\u{2B50}", ["star"]),
+        ("\u{1F308}", ["rainbow", "pride"]),
+        ("\u{1F468}\u{200D}\u{1F4BB}", ["man", "technologist", "developer", "coder"]),
+        ("\u{1F469}\u{200D}\u{1F4BB}", ["woman", "technologist", "developer", "coder"]),
+        ("\u{1F468}\u{200D}\u{1F3EB}", ["man", "teacher"]),
+        ("\u{1F469}\u{200D}\u{1F3EB}", ["woman", "teacher"]),
+        ("\u{1F468}\u{200D}\u{1F52C}", ["man", "scientist"]),
+        ("\u{1F469}\u{200D}\u{1F52C}", ["woman", "scientist"]),
+        ("\u{1F468}\u{200D}\u{1F3A8}", ["man", "artist"]),
+        ("\u{1F469}\u{200D}\u{1F3A8}", ["woman", "artist"]),
+        ("\u{1F46B}", ["couple", "man", "woman"]),
+        ("\u{1F46C}", ["couple", "men", "holding", "hands"]),
+        ("\u{1F46D}", ["couple", "women", "holding", "hands"]),
+        ("\u{1F48F}", ["kiss", "couple"]),
+        ("\u{1F491}", ["couple", "heart", "love"]),
+        ("\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F466}", ["family", "boy", "son"]),
+        ("\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}", ["family", "girl", "daughter"]),
+        ("\u{1F468}\u{200D}\u{1F468}\u{200D}\u{1F466}", ["family", "men"]),
+        ("\u{1F469}\u{200D}\u{1F469}\u{200D}\u{1F466}", ["family", "women"]),
+        ("\u{1FAE7}", ["bubbles", "bubble", "soap"]),
         ("\u{231A}", ["watch"]),
         ("\u{1F4F1}", ["phone", "mobile", "iphone"]),
         ("\u{1F4BB}", ["laptop", "computer"]),
