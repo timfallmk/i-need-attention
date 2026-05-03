@@ -8,18 +8,18 @@ Day-to-day verification of alert flows currently requires both phones and a will
 
 A signed macOS command-line tool can impersonate the second device of a pair, talking to the same CloudKit container as the iOS app. With it, a developer running a Debug build on one phone pairs with the CLI on their Mac and exercises the full alert + ack loop end-to-end — real APNs delivery, real NSE rendering, real lock-screen and watch behavior — with no second phone or partner.
 
-**Out of scope:** critical alerts. After Apple denied the Critical Alerts entitlement, the button's long-press affordance was repurposed from "Send as Critical" to the noun picker (see `SETUP.md:121` and `App/Views/AttentionButton.swift:111-119`). The receiver-side toggle and the critical branches in `StatusIndicatorView`/`WatchStatusPill` remain commented out so re-enabling is mechanical if the entitlement is ever granted (`App/Views/SettingsView.swift:49-53`, `App/Views/StatusIndicatorView.swift:66-72`). `AppState.sendAttention` is always called with `critical: false` (`App/AppState.swift:196`). The `critical` wire field is preserved on records for forward-compat but the phone never renders critical even when set. The CLI will not expose a `--critical` flag — there's nothing on the phone side to test against.
+**Out of scope:** critical alerts. After Apple denied the Critical Alerts entitlement, the button's long-press affordance was repurposed from "Send as Critical" to the noun picker (see `App/Views/AttentionButton.swift` and the SETUP.md note in "Common operations"). The receiver-side toggle in `App/Views/SettingsView.swift` and the critical branches in `App/Views/StatusIndicatorView.swift` / `Watch/Watch/WatchStatusPill.swift` remain commented out so re-enabling is mechanical if the entitlement is ever granted. `AppState.sendAttention` is always called with `critical: false`. The `critical` wire field is preserved on records for forward-compat but the phone never renders critical even when set. The CLI will not expose a `--critical` flag — there's nothing on the phone side to test against.
 
 **Security model:** The `pairKey` is the entire trust boundary in the existing app — anyone with it can read/write any pair record (sender/recipient device IDs are plaintext fields, no per-device signature). The CLI inherits that capability. Two layers protect against accidentally hitting the real production pair:
 
-1. **CloudKit environment pinning via build config.** The CLI's entitlement uses a `$(CLOUDKIT_ENV)` substitution; `project.yml` sets `CLOUDKIT_ENV: Development` for Debug builds and `Production` for Release builds. Default workflow (`xcodebuild -configuration Debug`) hits Development; Production is opt-in via `xcodebuild -configuration Release`. Source of truth is the versioned `project.yml`, so a Prod-flipped binary can't be committed by accident.
-2. **Apple's container ownership gating.** The container `iCloud.com.timfallmk.attention` is owned by the team specified at `project.yml:16` (`DEVELOPMENT_TEAM: T5VJ9JRCNB`). Only signed binaries from that team can claim the entitlement, so a stranger cannot snoop or impersonate.
+1. **CloudKit environment pinning via build config.** The CLI's entitlement uses a `$(CLOUDKIT_ENV)` substitution; `project.yml` sets `CLOUDKIT_ENV: Development` for Debug builds and `Production` for Release builds. The default workflow — `xcodebuild -scheme AttentionCLI -configuration Debug build` — resolves to Development with no extra flags, and Production requires switching the configuration explicitly (or, in a pinch, overriding the setting on the command line). The setting lives in the versioned `project.yml`, so the default-on-Development behavior is reproducible across machines without anyone needing to remember a flag.
+2. **Apple's container ownership gating.** The container `iCloud.com.timfallmk.attention` is owned by the team configured as `DEVELOPMENT_TEAM` in `project.yml` (`T5VJ9JRCNB`). Only signed binaries from that team can claim the entitlement, so a stranger cannot snoop or impersonate.
 
 ## Approach
 
 ### 1. New target in `project.yml`
 
-Add an `AttentionCLI` target alongside the four existing ones (after `AttentionWatchWidget` at `project.yml:138`):
+Add an `AttentionCLI` target alongside the four existing ones (after the existing `AttentionWatchWidget` target):
 
 ```yaml
 AttentionCLI:
@@ -46,7 +46,7 @@ AttentionCLI:
 
 `CLOUDKIT_ENV` is a custom build setting; Xcode substitutes `$(CLOUDKIT_ENV)` references in the entitlements file at build/sign time. The setting lives only on the AttentionCLI target so it doesn't affect the existing four targets.
 
-Add a separate scheme for the CLI so it has its own run/archive entry. The existing `Attention` scheme already enumerates its build targets explicitly (`project.yml:25-42`), so it won't pick up the new target on its own — the separate scheme is for convenience, not isolation:
+Add a separate scheme for the CLI so it has its own run/archive entry. The existing `Attention` scheme already enumerates its build targets explicitly, so it won't pick up the new target on its own — the separate scheme is for convenience, not isolation:
 
 ```yaml
 AttentionCLI:
@@ -82,12 +82,14 @@ AttentionCLI:
 
 The `$(CLOUDKIT_ENV)` placeholder is resolved by Xcode at build time from the per-config build setting in `project.yml` above. Debug → `Development`, Release → `Production`. The file itself never needs editing. No App Group — the CLI doesn't share state with an NSE.
 
+**App Sandbox is intentionally not enabled.** macOS CloudKit works for non-sandboxed binaries signed by the team that owns the container, which is what automatic signing produces here. Leaving the tool unsandboxed lets it write its state to `~/.attention-cli/` directly — inspectable from a regular shell rather than buried under `~/Library/Containers/...`. App Store distribution would force enabling `com.apple.security.app-sandbox` and relocating state into `applicationSupportDirectory`, but App Store distribution is explicitly out of scope per `CLAUDE.md`.
+
 ### 3. CLI implementation under `Tools/AttentionCLI/Sources/`
 
 Files:
 
 - `main.swift` — argv parsing + subcommand dispatch. Hand-rolled (matches: zero existing SwiftPM deps; project is XcodeGen-only).
-- `CLIState.swift` — JSON-backed state at `~/.attention-cli/state.json` storing `{pairKey, myDeviceID, myName, partnerDeviceID, partnerName}`. Same shape as `PairState` at `App/Models/PairState.swift:6-28` but persisted to a file rather than UserDefaults so it doesn't surprise the Mac.
+- `CLIState.swift` — JSON-backed state at `~/.attention-cli/state.json` storing `{pairKey, myDeviceID, myName, partnerDeviceID, partnerName}`. Same shape as `PairState` in `App/Models/PairState.swift` but persisted to a file rather than UserDefaults so it doesn't surprise the Mac. The path assumes the unsandboxed entitlements above; if the CLI is ever sandboxed for distribution, switch to `FileManager.default.url(for: .applicationSupportDirectory, ...)`.
 - `CLIClient.swift` — slim CloudKit wrapper. Mirrors the relevant methods of `App/Services/CloudKitService.swift` (which only imports CloudKit + Foundation + os.log — Mac-compatible) but cuts subscription registration. Methods:
   - `createPair(invite:)` — write Pair (mirror existing `CloudKitService.createPair`)
   - `fetchPair(pairKey:)` — query Pair (mirror existing)
@@ -103,8 +105,8 @@ Files:
 
 | Command | Behavior |
 |---|---|
-| `attention-cli pair invite [--name NAME]` | Generate pairKey via `PairingInvite.generate` (`App/Models/PairState.swift:67`), write Pair, render QR PNG using `CIFilter.qrCodeGenerator()` (built into CoreImage — no dep) to `~/.attention-cli/invite.png`, `open` it so the phone can scan, also print payload text to stdout. Poll `fetchPair` every 2s until `deviceB` fills (mirror `PairingService.waitForJoiner`'s 120s timeout). Save state. |
-| `attention-cli pair join --payload <attention://...> [--name NAME]` | Decode via `PairingInvite.from(qrPayload:)` (`App/Models/PairState.swift:49`), `fetchPair`, `joinPair`. Save state. |
+| `attention-cli pair invite [--name NAME]` | Generate pairKey via `PairingInvite.generate` (`App/Models/PairState.swift`), write Pair, render QR PNG using `CIFilter.qrCodeGenerator()` (built into CoreImage — no dep) to `~/.attention-cli/invite.png`, `open` it so the phone can scan, also print payload text to stdout. Poll `fetchPair` every 2s until `deviceB` fills (mirror `PairingService.waitForJoiner`'s 120s timeout). Save state. |
+| `attention-cli pair join --payload <attention://...> [--name NAME]` | Decode via `PairingInvite.from(qrPayload:)` (`App/Models/PairState.swift`), `fetchPair`, `joinPair`. Save state. |
 | `attention-cli pair status` | Pretty-print state. |
 | `attention-cli pair forget` | Delete state file. |
 | `attention-cli send [--message TEXT]` | `sendAlert` using state. (No `--critical` flag — the entitlement is denied and the phone always falls back to time-sensitive.) |
@@ -138,9 +140,9 @@ Files:
 
 ## Reused functions
 
-- `PairingInvite.generate(myDeviceID:myName:)`, `.from(qrPayload:)`, `.qrPayload` getter — `App/Models/PairState.swift:31-83`
-- `PairState` Codable conformance for in-memory shape — `App/Models/PairState.swift:6-28` (CLI uses the struct but persists to its own JSON file, not UserDefaults)
-- `AlertRecord.init?(record:)` for parsing fetched Alerts — `App/Models/AlertRecord.swift:18`
+- `PairingInvite.generate(myDeviceID:myName:)`, `.from(qrPayload:)`, `.qrPayload` getter — `App/Models/PairState.swift`
+- `PairState` Codable conformance for in-memory shape — `App/Models/PairState.swift` (CLI uses the struct but persists to its own JSON file, not UserDefaults)
+- `AlertRecord.init?(record:)` for parsing fetched Alerts — `App/Models/AlertRecord.swift`
 - All record types, field names, AlertState enum — `Shared/Constants.swift`
 - Predicate shapes — model on existing `CloudKitService.fetchMostRecentAlert` and the four subscription predicates registered by `CloudKitService.registerSubscriptions` (incoming-alerts-v1, outgoing-status-v1, outgoing-ack-v2, pair-updates-v1)
 
