@@ -151,7 +151,7 @@ xcodebuild -scheme AttentionCLI -configuration Debug build
 
 (`-configuration Debug` controls compiler optimizations and debug symbols only — it no longer affects the CloudKit environment, which is not pinned by the build.)
 
-The binary is built with ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`) — no provisioning profile or Developer Portal setup required. CloudKit access works via the Mac's signed-in iCloud account without entitlements. The CloudKit environment (Development vs Production) is not explicitly pinned; it is determined by macOS defaults for ad-hoc signed processes.
+The binary is built with ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`) — no provisioning profile or Developer Portal setup required. The CLI uses the **public** CloudKit database (same as the iOS app), so reads and writes are keyed by `pairKey` and do not require per-user iCloud authentication or container-identifier entitlements. The CloudKit environment (Development vs Production) is not explicitly pinned and can vary — confirm it using the steps below before sending alerts.
 
 **Verify the environment before use** — Production writes trigger real push notifications to paired phones:
 

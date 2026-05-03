@@ -1,6 +1,6 @@
 # AttentionCLI — Mac dev tool for solo testing
 
-> **Note:** This document describes the original planned signing approach (provisioning profile + `CLOUDKIT_ENV` entitlement). The implementation was changed: macOS `tool` targets cannot embed provisioning profiles, so the CLI uses ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`) with no entitlements instead. CloudKit environment is no longer pinned by build config. See `SETUP.md` §12 for the actual build and verification steps.
+> **Note:** This document describes the original planned signing approach (provisioning profile + entitlements with `$(CLOUDKIT_ENV)` substitution). The implementation was changed: macOS `tool` targets cannot embed provisioning profiles, so the CLI uses ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`) with no entitlements instead. CloudKit environment is no longer pinned by build config. See `SETUP.md` §12 for the actual build and verification steps.
 
 Future reference for a signed macOS command-line tool that impersonates the second device of a pair so the alert + ack flow can be exercised solo, without a partner.
 
