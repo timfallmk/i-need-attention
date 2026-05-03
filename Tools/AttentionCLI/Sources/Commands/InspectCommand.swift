@@ -32,9 +32,11 @@ enum InspectCommand {
         }
     }
 
-    private static func ts(_ date: Date) -> String {
+    private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return f.string(from: date)
-    }
+        return f
+    }()
+
+    private static func ts(_ date: Date) -> String { timeFormatter.string(from: date) }
 }

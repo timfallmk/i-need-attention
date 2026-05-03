@@ -21,9 +21,17 @@ struct CLIState: Codable {
     }
 
     func save() throws {
-        try FileManager.default.createDirectory(at: Self.stateDirectory, withIntermediateDirectories: true)
+        // 0700 on the directory so other local users can't list or read its contents.
+        try FileManager.default.createDirectory(
+            at: Self.stateDirectory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+        let url = Self.stateURL
         let data = try JSONEncoder().encode(self)
-        try data.write(to: Self.stateURL, options: .atomic)
+        try data.write(to: url, options: .atomic)
+        // 0600: pairKey is the shared secret; restrict to owner read/write only.
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
     static func clear() throws {

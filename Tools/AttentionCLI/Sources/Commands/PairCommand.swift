@@ -116,8 +116,11 @@ enum PairCommand {
         do {
             try CLIState.clear()
             print("State file deleted.")
-        } catch {
+        } catch let error as CocoaError where error.code == .fileNoSuchFile {
             print("No state file found.")
+        } catch {
+            fputs("error: \(error.localizedDescription)\n", stderr)
+            exit(1)
         }
     }
 
