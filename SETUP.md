@@ -149,7 +149,7 @@ xcodegen generate
 xcodebuild -scheme AttentionCLI -configuration Debug build
 ```
 
-The binary is built with ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`) — no provisioning profile or Developer Portal setup required. CloudKit access works via the Mac's signed-in iCloud account without entitlements. The binary targets the **Development** CloudKit environment, so pair it with a `Cmd-R` debug build of the phone, not a TestFlight build.
+The binary is built with ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`) — no provisioning profile or Developer Portal setup required. CloudKit access works via the Mac's signed-in iCloud account without entitlements. The CloudKit environment (Development vs Production) is not explicitly pinned; it is determined by macOS defaults for ad-hoc signed processes. Verify which environment the CLI is hitting before pairing with a phone build.
 
 The binary lands in DerivedData. To find and symlink it:
 
