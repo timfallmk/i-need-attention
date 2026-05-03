@@ -140,7 +140,7 @@ See `docs/xcode-cloud-build-plan.md` for the full rationale and trade-offs.
 
 ## 12. Solo testing with AttentionCLI
 
-`AttentionCLI` is a signed macOS command-line tool that impersonates the second device of a pair. It talks to the same CloudKit container as the iOS app so the full alert → APNs → NSE → ack → status-flip loop is end-to-end real — no second phone or partner needed.
+`AttentionCLI` is a macOS command-line tool that impersonates the second device of a pair. It talks to the same CloudKit container as the iOS app so the full alert → APNs → NSE → ack → status-flip loop is end-to-end real — no second phone or partner needed.
 
 ### Build
 
@@ -149,6 +149,8 @@ xcodegen generate
 xcodebuild -scheme AttentionCLI -configuration Debug build
 ```
 
+The binary is built with ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`) — no provisioning profile or Developer Portal setup required. CloudKit access works via the Mac's signed-in iCloud account without entitlements. The binary targets the **Development** CloudKit environment, so pair it with a `Cmd-R` debug build of the phone, not a TestFlight build.
+
 The binary lands in DerivedData. To find and symlink it:
 
 ```sh
@@ -156,15 +158,6 @@ sudo ln -s "$(find ~/Library/Developer/Xcode/DerivedData -name AttentionCLI -typ
 # or without sudo into a user-writable directory:
 # mkdir -p ~/bin && ln -s "$(find ...)" ~/bin/attention-cli  # add ~/bin to PATH if needed
 ```
-
-### Dev vs Production
-
-| `-configuration` | CloudKit environment | Use when |
-|---|---|---|
-| `Debug` (default) | Development | Testing against a `Cmd-R` debug build of the phone |
-| `Release` | Production | Testing against a TestFlight build |
-
-The default workflow always hits Development. **Warning:** a `Release`-config CLI binary with a real `pairKey` delivers pushes to your real partner's phone. Only do this intentionally.
 
 ### Pairing directions
 
