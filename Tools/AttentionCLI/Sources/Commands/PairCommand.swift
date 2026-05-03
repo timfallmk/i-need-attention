@@ -34,9 +34,15 @@ enum PairCommand {
         _ = try await client.createPair(invite: invite)
 
         let stateDir = CLIState.stateDirectory
-        try FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: stateDir,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
         let pngURL = stateDir.appendingPathComponent("invite.png")
         try generateQRCode(from: invite.qrPayload, to: pngURL)
+        // invite.png encodes the pairKey; restrict to owner read/write only.
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: pngURL.path)
 
         let openProc = Process()
         openProc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
