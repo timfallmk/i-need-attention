@@ -21,12 +21,11 @@ struct CLIState: Codable {
     }
 
     func save() throws {
-        // 0700 on the directory so other local users can't list or read its contents.
-        try FileManager.default.createDirectory(
-            at: Self.stateDirectory,
-            withIntermediateDirectories: true,
-            attributes: [.posixPermissions: 0o700]
-        )
+        let dir = Self.stateDirectory
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        // attributes: on createDirectory only applies when the dir is newly created.
+        // Unconditionally enforce 0700 so existing dirs with looser perms are tightened.
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)
         let url = Self.stateURL
         let data = try JSONEncoder().encode(self)
         try data.write(to: url, options: .atomic)

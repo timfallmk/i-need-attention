@@ -31,22 +31,24 @@ enum WatchCommand {
             let alerts = try await client.pollIncomingAlerts(pairKey: state.pairKey, myDeviceID: state.myDeviceID, since: alertSince)
             let acks   = try await client.pollIncomingAcks(  pairKey: state.pairKey, myDeviceID: state.myDeviceID, since: ackSince)
 
-            var latestAlert = alertSince
+            // Compute high-water marks from ALL results before filtering for printing.
+            // If we only advanced inside the "not a duplicate" branch, boundary records
+            // that reappear in the 1 s overlap would stall alertSince/ackSince forever.
+            let latestAlert = alerts.map(\.createdAt).max() ?? alertSince
+            let latestAck   = acks.map(\.2).max() ?? ackSince
+
             for alert in alerts.reversed() {
                 guard !prevAlertIDs.contains(alert.id.recordName) else { continue }
                 print("[\(ts(alert.createdAt))] ALERT  \(alert.senderName): \(alert.message)  [\(alert.id.recordName)]")
-                if alert.createdAt > latestAlert { latestAlert = alert.createdAt }
             }
             // Advance with a 1 s overlap so records at the boundary aren't skipped.
             if latestAlert > alertSince { alertSince = latestAlert.addingTimeInterval(-1) }
             prevAlertIDs = Set(alerts.map(\.id.recordName))
 
-            var latestAck = ackSince
             for (recordID, emoji, createdAt) in acks.reversed() {
                 guard !prevAckIDs.contains(recordID.recordName) else { continue }
                 let emojiStr = emoji.map { " \($0)" } ?? ""
                 print("[\(ts(createdAt))] ACK\(emojiStr)  [\(recordID.recordName)]")
-                if createdAt > latestAck { latestAck = createdAt }
             }
             if latestAck > ackSince { ackSince = latestAck.addingTimeInterval(-1) }
             prevAckIDs = Set(acks.map(\.0.recordName))
