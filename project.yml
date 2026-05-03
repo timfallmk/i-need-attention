@@ -179,11 +179,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.timfallmk.attention.cli
-        CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_ENTITLEMENTS: Tools/AttentionCLI/AttentionCLI.entitlements
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
-      configs:
-        Debug:
-          CLOUDKIT_ENV: Development
-        Release:
-          CLOUDKIT_ENV: Production
