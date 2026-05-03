@@ -152,7 +152,7 @@ enum EmojiCatalog {
             "\u{1F3A1}", "\u{1F3A2}", "\u{1F488}", "\u{1F3AA}",
         ]),
         ("Objects", [
-            "\u{231A}", "\u{1F4F1}", "\u{1F4F2}", "\u{1F4BB}", "\u{2328}\u{FE0F}",
+            "\u{231A}", "\u{231B}", "\u{23F3}", "\u{1F4F1}", "\u{1F4F2}", "\u{1F4BB}", "\u{2328}\u{FE0F}",
             "\u{1F5A5}\u{FE0F}", "\u{1F5A8}\u{FE0F}", "\u{1F5B1}\u{FE0F}", "\u{1F5B2}\u{FE0F}",
             "\u{1F579}\u{FE0F}", "\u{1F5DC}\u{FE0F}", "\u{1F4BD}", "\u{1F4BE}", "\u{1F4BF}",
             "\u{1F4C0}", "\u{1F4FC}", "\u{1F4F7}", "\u{1F4F8}", "\u{1F4F9}", "\u{1F3A5}",
@@ -190,7 +190,7 @@ enum EmojiCatalog {
         ("Symbols", [
             "\u{1F3E7}", "\u{1F6AE}", "\u{1F6B0}", "\u{267F}", "\u{1F6B9}", "\u{1F6BA}",
             "\u{1F6BB}", "\u{1F6BC}", "\u{1F6BE}", "\u{1F6C2}", "\u{1F6C3}", "\u{1F6C4}",
-            "\u{1F6C5}", "\u{26A0}\u{FE0F}", "\u{1F6B8}", "\u{26D4}", "\u{1F6AB}", "\u{1F6B3}",
+            "\u{1F6C5}", "\u{26A0}\u{FE0F}", "\u{1F6B8}", "\u{26D4}", "\u{1F6A8}", "\u{1F6AB}", "\u{1F6B3}",
             "\u{1F6AD}", "\u{1F6AF}", "\u{1F51E}", "\u{2622}\u{FE0F}", "\u{2623}\u{FE0F}",
             "\u{2B06}\u{FE0F}", "\u{2197}\u{FE0F}", "\u{27A1}\u{FE0F}", "\u{2198}\u{FE0F}",
             "\u{2B07}\u{FE0F}", "\u{2199}\u{FE0F}", "\u{2B05}\u{FE0F}", "\u{2196}\u{FE0F}",
@@ -390,6 +390,7 @@ enum EmojiCatalog {
         ("\u{1F42D}", ["mouse", "rat"]),
         ("\u{1F430}", ["rabbit", "bunny"]),
         ("\u{1F43B}", ["bear"]),
+        ("\u{1F43C}", ["panda"]),
         ("\u{1F428}", ["koala"]),
         ("\u{1F42F}", ["tiger"]),
         ("\u{1F981}", ["lion"]),
@@ -534,6 +535,7 @@ enum EmojiCatalog {
         ("\u{1F69A}", ["truck"]),
         ("\u{1F699}", ["suv"]),
         ("\u{1F68C}", ["bus"]),
+        ("\u{1F68E}", ["trolleybus", "bus"]),
         ("\u{1F6F4}", ["scooter"]),
         ("\u{1F6B2}", ["bike", "bicycle"]),
         ("\u{2693}", ["anchor"]),
@@ -689,6 +691,9 @@ enum EmojiCatalog {
         ("\u{2622}\u{FE0F}", ["radioactive", "danger"]),
         ("\u{1F6AB}", ["prohibited", "no"]),
         ("\u{26A0}\u{FE0F}", ["warning", "caution"]),
+        ("\u{1F6A8}", ["police", "siren", "light", "alert", "emergency"]),
+        ("\u{231B}", ["hourglass", "done", "wait"]),
+        ("\u{23F3}", ["hourglass", "wait", "time", "loading"]),
         ("\u{1F4A4}", ["zzz", "sleep"]),
         ("\u{1F3C1}", ["checkered", "flag", "race"]),
         ("\u{1F6A9}", ["triangular", "flag"]),
@@ -700,7 +705,7 @@ enum EmojiCatalog {
     ]
 
     static let fitzpatrickBase: Set<String> = [
-        "\u{1F44B}", "\u{1F91A}", "\u{270B}", "\u{1F596}", "\u{1F44C}",
+        "\u{1F44B}", "\u{1F91A}", "\u{1F590}\u{FE0F}", "\u{270B}", "\u{1F596}", "\u{1F44C}",
         "\u{270C}\u{FE0F}", "\u{1F91E}", "\u{1F91F}", "\u{1F918}", "\u{1F919}",
         "\u{1F448}", "\u{1F449}", "\u{1F446}", "\u{1F595}", "\u{1F447}", "\u{261D}\u{FE0F}",
         "\u{1F44D}", "\u{1F44E}", "\u{270A}", "\u{1F44A}", "\u{1F91B}", "\u{1F91C}",
@@ -742,7 +747,7 @@ enum EmojiCatalog {
 
         for (emoji, terms) in keywords {
             let allMatch = tokens.allSatisfy { token in
-                terms.contains { $0.contains(token) }
+                terms.contains { $0.hasPrefix(token) }
             }
             if allMatch && seen.insert(emoji).inserted {
                 results.append(emoji)
