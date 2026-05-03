@@ -98,6 +98,10 @@ final class CLIClient {
             _ = try await publicDB.save(ack)
         } catch let error as CKError where error.code == .serverRecordChanged {
             // Already exists from a previous ack attempt — no-op.
+        } catch {
+            // Alert state is already updated; Ack save failure means the sender-side
+            // banner won't fire, but the CLI can report success and continue.
+            fputs("warning: ack record save failed (sender banner may not appear): \(error.localizedDescription)\n", stderr)
         }
     }
 

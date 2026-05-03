@@ -41,7 +41,8 @@ enum PairCommand {
         let openProc = Process()
         openProc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         openProc.arguments = [pngURL.path]
-        try openProc.run()
+        // Non-fatal: headless / SSH sessions have no GUI. The payload and path are printed below.
+        try? openProc.run()
 
         print("Payload:  \(invite.qrPayload)")
         print("QR image: \(pngURL.path)")
