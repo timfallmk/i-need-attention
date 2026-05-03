@@ -41,6 +41,15 @@ schemes:
     archive:
       config: Release
 
+  AttentionCLI:
+    build:
+      targets:
+        AttentionCLI: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
 targets:
   Attention:
     type: application
@@ -157,3 +166,24 @@ targets:
         SKIP_INSTALL: YES
         WATCHOS_DEPLOYMENT_TARGET: "10.0"
         TARGETED_DEVICE_FAMILY: "4"
+
+  AttentionCLI:
+    type: tool
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tools/AttentionCLI/Sources
+      - path: Shared
+      - path: App/Models/PairState.swift
+      - path: App/Models/AlertRecord.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.timfallmk.attention.cli
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Tools/AttentionCLI/AttentionCLI.entitlements
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+      configs:
+        Debug:
+          CLOUDKIT_ENV: Development
+        Release:
+          CLOUDKIT_ENV: Production

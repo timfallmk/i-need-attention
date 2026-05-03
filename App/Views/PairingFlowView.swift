@@ -141,6 +141,24 @@ private struct ShowCodeView: View {
             case .starting, .waiting:
                 qrPanel
                 statusFooter
+                #if DEBUG
+                if let invite {
+                    VStack(spacing: 6) {
+                        Text(invite.qrPayload)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                            .textSelection(.enabled)
+                        Button("Copy payload") {
+                            UIPasteboard.general.string = invite.qrPayload
+                        }
+                        .font(.caption)
+                        .tint(.secondary)
+                    }
+                    .padding(.top, 4)
+                }
+                #endif
             case .failed(let message):
                 failurePanel(message: message)
             }
