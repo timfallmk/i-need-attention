@@ -9,7 +9,16 @@ enum WatchCommand {
 
     static func run(_ args: [String]) async throws {
         let parsed = Args(args)
-        let rawInterval = Int(parsed["interval"] ?? "3") ?? 3
+        let rawInterval: Int
+        if let intervalStr = parsed["interval"] {
+            guard let n = Int(intervalStr) else {
+                fputs("error: --interval must be a whole number, got '\(intervalStr)'\n", stderr)
+                exit(1)
+            }
+            rawInterval = n
+        } else {
+            rawInterval = 3
+        }
         guard rawInterval >= 1 else {
             fputs("error: --interval must be at least 1 second\n", stderr)
             exit(1)
@@ -53,7 +62,7 @@ enum WatchCommand {
             if latestAck > ackSince { ackSince = latestAck.addingTimeInterval(-1) }
             prevAckIDs = Set(acks.map(\.0.recordName))
 
-            try await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
+            try await Task.sleep(for: .seconds(interval))
         }
     }
 
