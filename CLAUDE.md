@@ -44,6 +44,7 @@ Shared/                  Swift sources compiled into iOS, NSE, watchOS, widget
 project.yml              XcodeGen project spec (single source of truth for targets)
 SETUP.md                 Step-by-step user-facing setup checklist
 Tools/generate_icons.py  Pillow-based 1024×1024 icon generator
+Tools/AttentionCLI/      macOS dev tool impersonating the second pair device for solo testing
 ```
 
 ## Architecture

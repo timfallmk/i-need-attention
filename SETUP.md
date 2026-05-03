@@ -138,6 +138,69 @@ To enable:
 
 See `docs/xcode-cloud-build-plan.md` for the full rationale and trade-offs.
 
+## 12. Solo testing with AttentionCLI
+
+`AttentionCLI` is a signed macOS command-line tool that impersonates the second device of a pair. It talks to the same CloudKit container as the iOS app so the full alert → APNs → NSE → ack → status-flip loop is end-to-end real — no second phone or partner needed.
+
+### Build
+
+```sh
+xcodegen generate
+xcodebuild -scheme AttentionCLI -configuration Debug build
+```
+
+The binary lands in DerivedData. To find and symlink it:
+
+```sh
+ln -s "$(find ~/Library/Developer/Xcode/DerivedData -name AttentionCLI -perm +111 -not -path '*/Build/Intermediates*' | head -1)" /usr/local/bin/attention-cli
+```
+
+### Dev vs Production
+
+| `-configuration` | CloudKit environment | Use when |
+|---|---|---|
+| `Debug` (default) | Development | Testing against a `Cmd-R` debug build of the phone |
+| `Release` | Production | Testing against a TestFlight build |
+
+The default workflow always hits Development. **Warning:** a `Release`-config CLI binary with a real `pairKey` delivers pushes to your real partner's phone. Only do this intentionally.
+
+### Pairing directions
+
+**CLI as inviter, phone as joiner:**
+```sh
+attention-cli pair invite --name "MacPartner"
+```
+The CLI writes a Pair record, opens a QR PNG at `~/.attention-cli/invite.png`, and prints the payload URL. On the Debug-build phone tap **Scan Code** and point the camera at the QR. The CLI prints `Joined by <name>` within ~2 s and writes `~/.attention-cli/state.json`.
+
+**Phone as inviter, CLI as joiner:**
+
+On a Debug build of the app tap **Show Code**. Below the QR image a `#if DEBUG` "Copy payload" button appears. Tap it, then paste:
+```sh
+attention-cli pair join --payload "attention://pair?k=…"
+```
+
+### Common workflows
+
+```sh
+# Show current pair state
+attention-cli pair status
+
+# Watch for incoming alerts and acks (Ctrl+C to stop)
+attention-cli watch
+
+# Send an alert from the Mac to the phone
+attention-cli send --message "needs attention"
+
+# Acknowledge the most recent incoming alert
+attention-cli ack --emoji ❤️
+
+# Dump pair record + last 10 alerts + last 10 acks
+attention-cli inspect
+
+# Tear down the pair
+attention-cli pair forget
+```
+
 ---
 
 ## Common gotchas
