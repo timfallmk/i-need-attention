@@ -8,7 +8,7 @@ Day-to-day verification of alert flows currently requires both phones and a will
 
 A signed macOS command-line tool can impersonate the second device of a pair, talking to the same CloudKit container as the iOS app. With it, a developer running a Debug build on one phone pairs with the CLI on their Mac and exercises the full alert + ack loop end-to-end — real APNs delivery, real NSE rendering, real lock-screen and watch behavior — with no second phone or partner.
 
-**Out of scope:** critical alerts. The Critical Alerts entitlement was denied by Apple; the long-press "Send as Critical" menu and the receiver-side toggle are commented out (`App/Views/SettingsView.swift:49-53`, `App/Views/StatusIndicatorView.swift:66-72`), and `AppState.sendAttention` is always called with `critical: false` (`App/AppState.swift:196`). The `critical` wire field is preserved on records for forward-compat but the phone never renders critical even when set. The CLI will not expose a `--critical` flag — there's nothing on the phone side to test against.
+**Out of scope:** critical alerts. After Apple denied the Critical Alerts entitlement, the button's long-press affordance was repurposed from "Send as Critical" to the noun picker (see `SETUP.md:121` and `App/Views/AttentionButton.swift:111-119`). The receiver-side toggle and the critical branches in `StatusIndicatorView`/`WatchStatusPill` remain commented out so re-enabling is mechanical if the entitlement is ever granted (`App/Views/SettingsView.swift:49-53`, `App/Views/StatusIndicatorView.swift:66-72`). `AppState.sendAttention` is always called with `critical: false` (`App/AppState.swift:196`). The `critical` wire field is preserved on records for forward-compat but the phone never renders critical even when set. The CLI will not expose a `--critical` flag — there's nothing on the phone side to test against.
 
 **Security model:** The `pairKey` is the entire trust boundary in the existing app — anyone with it can read/write any pair record (sender/recipient device IDs are plaintext fields, no per-device signature). The CLI inherits that capability. Two layers protect against accidentally hitting the real production pair:
 
@@ -37,7 +37,6 @@ AttentionCLI:
       CODE_SIGN_STYLE: Automatic
       CODE_SIGN_ENTITLEMENTS: Tools/AttentionCLI/AttentionCLI.entitlements
       MACOSX_DEPLOYMENT_TARGET: "14.0"
-      SKIP_INSTALL: YES
     configs:
       Debug:
         CLOUDKIT_ENV: Development
@@ -47,7 +46,7 @@ AttentionCLI:
 
 `CLOUDKIT_ENV` is a custom build setting; Xcode substitutes `$(CLOUDKIT_ENV)` references in the entitlements file at build/sign time. The setting lives only on the AttentionCLI target so it doesn't affect the existing four targets.
 
-Add a separate scheme so the existing `Attention` scheme (which builds the four iOS/watchOS targets per `project.yml:25-42`) doesn't try to build the Mac tool:
+Add a separate scheme for the CLI so it has its own run/archive entry. The existing `Attention` scheme already enumerates its build targets explicitly (`project.yml:25-42`), so it won't pick up the new target on its own — the separate scheme is for convenience, not isolation:
 
 ```yaml
 AttentionCLI:
