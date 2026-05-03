@@ -149,7 +149,13 @@ xcodegen generate
 xcodebuild -scheme AttentionCLI -configuration Debug build
 ```
 
-The binary is built with ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`) — no provisioning profile or Developer Portal setup required. CloudKit access works via the Mac's signed-in iCloud account without entitlements. The CloudKit environment (Development vs Production) is not explicitly pinned; it is determined by macOS defaults for ad-hoc signed processes. Verify which environment the CLI is hitting before pairing with a phone build.
+The binary is built with ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`) — no provisioning profile or Developer Portal setup required. CloudKit access works via the Mac's signed-in iCloud account without entitlements. The CloudKit environment (Development vs Production) is not explicitly pinned; it is determined by macOS defaults for ad-hoc signed processes.
+
+**Verify the environment before use** — Production writes trigger real push notifications to paired phones:
+
+1. Run `attention-cli pair invite` (or `attention-cli pair status` if already paired)
+2. Open [CloudKit Dashboard](https://icloud.developer.apple.com/dashboard) → your container
+3. Check **Development** first: if the Pair record appears there, the CLI is using Development. If it only appears under **Production**, it is hitting Production and any alerts will reach real devices.
 
 The binary lands in DerivedData. To find and symlink it:
 
