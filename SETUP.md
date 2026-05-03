@@ -152,7 +152,9 @@ xcodebuild -scheme AttentionCLI -configuration Debug build
 The binary lands in DerivedData. To find and symlink it:
 
 ```sh
-ln -s "$(find ~/Library/Developer/Xcode/DerivedData -name AttentionCLI -type f -not -path '*/Build/Intermediates*' | head -1)" /usr/local/bin/attention-cli
+sudo ln -s "$(find ~/Library/Developer/Xcode/DerivedData -name AttentionCLI -type f -not -path '*/Build/Intermediates*' | head -1)" /usr/local/bin/attention-cli
+# or without sudo into a user-writable directory:
+# mkdir -p ~/bin && ln -s "$(find ...)" ~/bin/attention-cli  # add ~/bin to PATH if needed
 ```
 
 ### Dev vs Production
