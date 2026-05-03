@@ -25,7 +25,13 @@ struct Args {
         }
     }
 
-    subscript(_ key: String) -> String? { flags[key] }
+    // A flag present without a value (e.g. `--emoji` with nothing after it) stores
+    // an empty string internally. Treat that as absent so callers get nil rather
+    // than silently writing an empty emoji/message.
+    subscript(_ key: String) -> String? {
+        guard let value = flags[key] else { return nil }
+        return value.isEmpty ? nil : value
+    }
 }
 
 // MARK: - Entry point

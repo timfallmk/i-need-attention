@@ -1,5 +1,8 @@
 import CloudKit
 import SwiftUI
+#if DEBUG
+import UIKit
+#endif
 
 struct PairingFlowView: View {
     @Environment(AppState.self) private var appState
