@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import unicodedata
 import urllib.request
 from pathlib import Path
 
@@ -181,12 +182,19 @@ def hexlist_to_swift(parts: list[str]) -> str:
     return '"' + "".join(f"\\u{{{p}}}" for p in parts) + '"'
 
 
+def _ascii_fold(s: str) -> str:
+    """NFD-normalize and strip combining marks so 'Côte' → 'cote', 'Åland' → 'aland'."""
+    return "".join(c for c in unicodedata.normalize("NFD", s)
+                   if unicodedata.category(c) != "Mn")
+
+
 def name_to_keywords(name: str) -> list[str]:
     """'grinning face with smiling eyes' -> ['grinning', 'face', 'smiling', 'eyes', ...]"""
-    # Split on any run of non-alphanumeric characters so internal punctuation
-    # (periods in "U.S.", colons in "flag: Japan") is treated as a separator,
-    # not left as part of a token.
-    words = re.split(r"[^a-z0-9]+", name.lower())
+    # casefold + ASCII-fold so diacritics don't break keyword matching
+    # (e.g. "Côte d'Ivoire" → ["cote", "ivoire"] — searchable without accents).
+    # Split on any non-alphanumeric run to handle internal punctuation too.
+    folded = _ascii_fold(name.casefold())
+    words = re.split(r"[^a-z0-9]+", folded)
     seen: set[str] = set()
     out: list[str] = []
     for w in words:
