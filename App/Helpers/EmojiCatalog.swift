@@ -2359,9 +2359,14 @@ enum EmojiCatalog {
     }
 
     static func search(_ query: String) -> [String] {
-        let normalized = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return [] }
-        let tokens = normalized.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        // Mirror the Python keyword-generation pipeline: strip diacritics,
+        // lowercase, split on non-alphanumeric runs so queries like
+        // "côte" and "d'ivoire" match stored terms "cote" / "ivoire".
+        let stripped = query.applyingTransform(.stripDiacritics, reverse: false) ?? query
+        let folded = stripped.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !folded.isEmpty else { return [] }
+        let tokens = folded.components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count > 1 }
         guard !tokens.isEmpty else { return [] }
 
         var seen = Set<String>()

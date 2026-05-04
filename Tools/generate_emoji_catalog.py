@@ -386,9 +386,14 @@ def render_swift(
     out.append("    }")
     out.append("")
     out.append("    static func search(_ query: String) -> [String] {")
-    out.append("        let normalized = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)")
-    out.append("        guard !normalized.isEmpty else { return [] }")
-    out.append("        let tokens = normalized.split(whereSeparator: { $0.isWhitespace }).map(String.init)")
+    out.append("        // Mirror the Python keyword-generation pipeline: strip diacritics,")
+    out.append("        // lowercase, split on non-alphanumeric runs so queries like")
+    out.append("        // \"côte\" and \"d'ivoire\" match stored terms \"cote\" / \"ivoire\".")
+    out.append("        let stripped = query.applyingTransform(.stripDiacritics, reverse: false) ?? query")
+    out.append("        let folded = stripped.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)")
+    out.append("        guard !folded.isEmpty else { return [] }")
+    out.append("        let tokens = folded.components(separatedBy: CharacterSet.alphanumerics.inverted)")
+    out.append('            .filter { $0.count > 1 }')
     out.append("        guard !tokens.isEmpty else { return [] }")
     out.append("")
     out.append("        var seen = Set<String>()")
@@ -446,9 +451,9 @@ def main() -> None:
     entries = parse_emoji_test(text)
     print(f"Parsed {len(entries)} fully-qualified emoji (Unicode Emoji {version})\n")
 
-    # Deduplicate: same hexparts sequence may appear under multiple subgroups
-    # (e.g. minimally-qualified variants share the same sequence). Track by
-    # the frozen tuple of hexparts.
+    # Deduplicate by hexparts tuple: the same fully-qualified sequence can
+    # theoretically appear under more than one subgroup in future Unicode
+    # versions (emoji-test.txt is subgroup-order, not codepoint-unique).
     seen_seq: set[tuple[str, ...]] = set()
     fitz = build_fitzpatrick(entries)
 
