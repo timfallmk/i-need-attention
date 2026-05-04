@@ -259,7 +259,14 @@ def build_fitzpatrick(entries: list[dict]) -> set[str]:
 
     Multi-person ZWJ sequences (e.g. people holding hands) require two modifiers
     and are excluded because toned() can only apply one modifier.
+
+    Unicode's toned sequences often omit VS16 (FE0F) even though the canonical
+    base in emoji-test.txt is fully-qualified (e.g. base is '261D FE0F' but
+    toned variant is '261D 1F3FB'). We resolve each stripped base against the
+    known fully-qualified entries so the literals here match those in categories.
     """
+    fq_keys: set[tuple[str, ...]] = {tuple(e["hexparts"]) for e in entries}
+
     bases: set[str] = set()
     for e in entries:
         parts = e["hexparts"]
@@ -267,8 +274,16 @@ def build_fitzpatrick(entries: list[dict]) -> set[str]:
         if len(skin) != 1:
             continue
         base_parts = [p for p in parts if p not in SKIN_TONES]
-        if base_parts:
-            bases.add(hexlist_to_swift(base_parts))
+        if not base_parts:
+            continue
+        # Try the stripped base as-is; if not in the FQ set, try inserting FE0F
+        # after the first codepoint (the common omission in toned sequences).
+        key = tuple(base_parts)
+        if key not in fq_keys:
+            candidate = (base_parts[0], "FE0F") + tuple(base_parts[1:])
+            if candidate in fq_keys:
+                key = candidate
+        bases.add(hexlist_to_swift(list(key)))
     return bases
 
 
