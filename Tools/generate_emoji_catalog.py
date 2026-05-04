@@ -183,11 +183,13 @@ def hexlist_to_swift(parts: list[str]) -> str:
 
 def name_to_keywords(name: str) -> list[str]:
     """'grinning face with smiling eyes' -> ['grinning', 'face', 'smiling', 'eyes', ...]"""
-    words = re.split(r"[\s\-&]+", name.lower())
+    # Split on any run of non-alphanumeric characters so internal punctuation
+    # (periods in "U.S.", colons in "flag: Japan") is treated as a separator,
+    # not left as part of a token.
+    words = re.split(r"[^a-z0-9]+", name.lower())
     seen: set[str] = set()
     out: list[str] = []
     for w in words:
-        w = w.strip(".,:")
         if w and len(w) > 1 and w not in seen:
             seen.add(w)
             out.append(w)
@@ -363,12 +365,13 @@ def render_swift(
     out.append("        let head = String(scalar)")
     out.append("        let tail = base.unicodeScalars.dropFirst()")
     out.append("        var rebuilt = head + modifier")
-    out.append("        var droppedLeadFE0F = false")
+    out.append("        var isFirstScalar = true")
     out.append("        for s in tail {")
-    out.append('            if !droppedLeadFE0F && s == "\\u{FE0F}" {')
-    out.append("                droppedLeadFE0F = true")
+    out.append('            if isFirstScalar && s == "\\u{FE0F}" {')
+    out.append("                isFirstScalar = false")
     out.append("                continue")
     out.append("            }")
+    out.append("            isFirstScalar = false")
     out.append("            rebuilt.unicodeScalars.append(s)")
     out.append("        }")
     out.append("        return rebuilt")
