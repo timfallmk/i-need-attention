@@ -204,7 +204,7 @@ def fetch_text(url: str) -> str:
 def load_emoji_test(data_path: str | None) -> tuple[str, str]:
     if data_path:
         text = Path(data_path).read_text(encoding="utf-8")
-        # Version from the date comment e.g. "# Date: 2025-08-04"
+        # Version from the header comment e.g. "# Version: 17.0"
         m = re.search(r"# Version:\s+(\S+)", text)
         version = m.group(1) if m else "local"
         return text, version
@@ -254,13 +254,17 @@ def classify(entry: dict) -> str | None:
 
 
 def build_fitzpatrick(entries: list[dict]) -> set[str]:
-    """Emoji that support skin tones: find all fully-qualified entries that
-    contain a skin-tone modifier, strip the modifier, and return the base literals."""
+    """Emoji that support a single skin tone: find fully-qualified entries that
+    contain exactly one skin-tone modifier, strip it, and return the base literals.
+
+    Multi-person ZWJ sequences (e.g. people holding hands) require two modifiers
+    and are excluded because toned() can only apply one modifier.
+    """
     bases: set[str] = set()
     for e in entries:
         parts = e["hexparts"]
         skin = [p for p in parts if p in SKIN_TONES]
-        if not skin:
+        if len(skin) != 1:
             continue
         base_parts = [p for p in parts if p not in SKIN_TONES]
         if base_parts:
@@ -344,8 +348,12 @@ def render_swift(
     out.append("        let head = String(scalar)")
     out.append("        let tail = base.unicodeScalars.dropFirst()")
     out.append("        var rebuilt = head + modifier")
+    out.append("        var droppedLeadFE0F = false")
     out.append("        for s in tail {")
-    out.append('            if s == "\\u{FE0F}" { continue }')
+    out.append('            if !droppedLeadFE0F && s == "\\u{FE0F}" {')
+    out.append("                droppedLeadFE0F = true")
+    out.append("                continue")
+    out.append("            }")
     out.append("            rebuilt.unicodeScalars.append(s)")
     out.append("        }")
     out.append("        return rebuilt")
