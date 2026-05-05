@@ -31,14 +31,14 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build Attention (iOS Simulator)
+      - name: Test Attention (iOS Simulator)
         run: |
           set -o pipefail
-          xcodebuild build \
+          xcodebuild test \
             -project Attention.xcodeproj \
             -scheme Attention \
             -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY= \
@@ -54,5 +54,5 @@ jobs:
             -destination 'generic/platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_IDENTITY= \
             DEVELOPMENT_TEAM=
