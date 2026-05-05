@@ -2,15 +2,13 @@ import XCTest
 
 final class PairStateTests: XCTestCase {
 
-    private let storageKey = "attention.pair.v1"
-
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.removeObject(forKey: storageKey)
+        UserDefaults.standard.removeObject(forKey: PairState.storageKey)
     }
 
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: storageKey)
+        UserDefaults.standard.removeObject(forKey: PairState.storageKey)
         super.tearDown()
     }
 

@@ -2,31 +2,40 @@ import XCTest
 
 final class PairingInviteTests: XCTestCase {
 
-    // MARK: - qrPayload format
+    // MARK: - qrPayload structure (parsed via URLComponents)
+
+    private func components(for invite: PairingInvite) -> URLComponents? {
+        guard let url = URL(string: invite.qrPayload) else { return nil }
+        return URLComponents(url: url, resolvingAgainstBaseURL: false)
+    }
+
+    private func queryValue(_ name: String, in invite: PairingInvite) -> String? {
+        components(for: invite)?.queryItems?.first(where: { $0.name == name })?.value
+    }
 
     func testQRPayloadUsesAttentionScheme() {
         let invite = PairingInvite(pairKey: "key123", inviterDeviceID: "dev456", inviterName: "Alice")
-        XCTAssertTrue(invite.qrPayload.hasPrefix("attention://"))
+        XCTAssertEqual(components(for: invite)?.scheme, "attention")
     }
 
     func testQRPayloadUsesHostPair() {
         let invite = PairingInvite(pairKey: "key123", inviterDeviceID: "dev456", inviterName: "Alice")
-        XCTAssertTrue(invite.qrPayload.contains("attention://pair"))
+        XCTAssertEqual(components(for: invite)?.host, "pair")
     }
 
     func testQRPayloadContainsPairKey() {
         let invite = PairingInvite(pairKey: "abc-key", inviterDeviceID: "dev", inviterName: "Me")
-        XCTAssertTrue(invite.qrPayload.contains("k=abc-key"))
+        XCTAssertEqual(queryValue("k", in: invite), "abc-key")
     }
 
     func testQRPayloadContainsDeviceID() {
         let invite = PairingInvite(pairKey: "k", inviterDeviceID: "device-99", inviterName: "Me")
-        XCTAssertTrue(invite.qrPayload.contains("id=device-99"))
+        XCTAssertEqual(queryValue("id", in: invite), "device-99")
     }
 
     func testQRPayloadContainsName() {
         let invite = PairingInvite(pairKey: "k", inviterDeviceID: "d", inviterName: "Charlie")
-        XCTAssertTrue(invite.qrPayload.contains("n=Charlie"))
+        XCTAssertEqual(queryValue("n", in: invite), "Charlie")
     }
 
     // MARK: - from(qrPayload:) — happy path

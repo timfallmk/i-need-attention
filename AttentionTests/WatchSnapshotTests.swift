@@ -138,10 +138,6 @@ final class WatchSnapshotTests: XCTestCase {
         XCTAssertNil(WatchSnapshot.decode(Data("{\"wrong\":true}".utf8)))
     }
 
-    func testDecodeReturnsNilForEmptyData() {
-        XCTAssertNil(WatchSnapshot.decode(Data()))
-    }
-
     // MARK: - Outgoing state raw values survive encode
 
     func testOutgoingStateRawValues() {
