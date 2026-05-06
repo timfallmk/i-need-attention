@@ -116,7 +116,7 @@ If you hit "couldn't find provisioning profile" — go back to Signing & Capabil
 ## 9. Optional polish (any time)
 
 - [ ] **App icon**: drop a 1024×1024 PNG named `AppIcon-1024.png` into `App/Assets.xcassets/AppIcon.appiconset/` and update `Contents.json` to reference it (and the same for the watch asset catalog)
-- [ ] **Custom sound**: drop a `needs-attention.caf` (≤30s) into `App/Resources/` and add it to the Attention target. See `App/Resources/SOUND_PLACEHOLDER.md` for `afconvert` usage.
+- [ ] **Custom sound**: drop a `needs-attention.caf` (≤30s) into `App/Resources/` and add it to the Attention target. The sound used in this repo is derived from *Chord2_Rev.wav* by Aarni Koskela (akx), <https://github.com/akx/Notifications>, CC BY 3.0 Unported. See `App/Resources/SOUND_PLACEHOLDER.md` for `afconvert` usage and re-derivation steps.
 - [ ] **Noun presets**: edit `App/Resources/nouns.json` to change the list shown in the long-press noun picker. Format: `{ "presets": ["Hugs", "Kisses", "Some of your time"] }`. The picker also offers a **Custom…** row that takes free-form text up to 30 characters. The notification body is always `"needs <noun>"`. Title-cased presets are first-letter-lowercased before being spliced into the body so the message reads naturally.
 - [ ] **Critical Alerts entitlement** *(currently disabled)*: the long-press → "Send as Critical" path was replaced with the noun picker after Apple denied the entitlement request. The wire format and `acceptCriticalAlerts` setting are kept in source (commented out in the views) so re-enabling takes only restoring those blocks. To request the entitlement again: email Apple via <https://developer.apple.com/contact/request/notifications-critical-alerts-entitlement/>.
 
