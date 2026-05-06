@@ -79,6 +79,8 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         UIBackgroundModes:
           - remote-notification
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
         UIRequiresFullScreen: true
         NSCameraUsageDescription: "Used once during pairing so you can scan the other phone's QR code."
         ITSAppUsesNonExemptEncryption: false
