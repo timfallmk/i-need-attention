@@ -12,8 +12,10 @@ or `.wav` format. Convert any source file with:
 afconvert input.wav needs-attention.caf -d ima4 -f caff -v
 ```
 
-If the file is removed, CloudKit pushes will fall back to the default
-notification sound.
+If the file is removed while the Custom sound setting is enabled (Settings →
+Custom sound), notifications will be silent rather than falling back to the
+system default. To restore the system default sound, turn Custom sound off in
+Settings.
 
 ## Source and attribution
 
