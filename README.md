@@ -81,7 +81,7 @@ Critical Alerts require a one-time entitlement from Apple — request it under *
 
 ## Custom sound
 
-Drop a `needs-attention.caf` (≤30s) into `App/Resources/` and add it to the app target. CloudKit will reference it by filename. See `App/Resources/SOUND_PLACEHOLDER.md`.
+A `needs-attention.caf` is already bundled in `App/Resources/`. To replace it, drop a new file (≤30s) there and re-run `xcodegen generate` — XcodeGen includes the whole `App/Resources/` folder automatically, so no manual "Add to target" step is needed. See `App/Resources/SOUND_PLACEHOLDER.md` for source attribution and `afconvert` re-derivation steps.
 
 ## Watch app
 
