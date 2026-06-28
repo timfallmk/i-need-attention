@@ -84,6 +84,14 @@ struct SettingsView: View {
                     Text("Diagnostics")
                 }
 
+                Section("About") {
+                    NavigationLink {
+                        AcknowledgementsView()
+                    } label: {
+                        Label("Open Source", systemImage: "doc.text")
+                    }
+                }
+
                 if appState.pair != nil {
                     Section {
                         Button(role: .destructive) {
