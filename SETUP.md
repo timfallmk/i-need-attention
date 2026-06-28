@@ -126,7 +126,7 @@ Releases are automated via Xcode Cloud (set up in §11) — shipping is a tag pu
 
 - [ ] Make changes, merge to `main`
 - [ ] Bump `MARKETING_VERSION` in `project.yml` if this is a user-visible version bump (leave `CURRENT_PROJECT_VERSION` alone — see §11)
-- [ ] `gh release create 1.2.3 --notes "what changed"` → Xcode Cloud archives and ships to TestFlight, which auto-notifies your testers within minutes
+- [ ] `gh release create 1.2.3 --generate-notes` → Xcode Cloud archives and ships to TestFlight, which auto-notifies your testers within minutes
 
 The manual fallback (for when Xcode Cloud is unavailable) is the §7 flow: bump the build number yourself, Xcode device picker → **Any iOS Device**, **Product → Archive**, then **Distribute App → App Store Connect → Upload**.
 
@@ -138,9 +138,11 @@ To ship a release:
 
 - [ ] Merge your changes to `main`
 - [ ] Bump `MARKETING_VERSION` in `project.yml` if this is a user-visible version bump
-- [ ] `gh release create <version> --notes "what changed"` (e.g. `gh release create 1.2.3 …`). This creates the tag and pushes it, which fires the Xcode Cloud trigger and leaves a changelog entry on the Releases page.
+- [ ] `gh release create <version> --generate-notes` (e.g. `gh release create 1.2.3 --generate-notes`). This creates the tag and pushes it, which fires the Xcode Cloud trigger and leaves an auto-generated changelog entry on the Releases page.
 
 Notes:
+
+- **Release notes are auto-generated** with `--generate-notes` — the "What's Changed" PR list, as used by every release since 1.0.0. No hand-written notes needed; pass `--notes "…"` instead only for a custom one-liner. The notes are just the GitHub changelog — Xcode Cloud triggers on the tag and ignores them. TestFlight's "What to Test" is a separate, optional field in App Store Connect.
 
 - **You do not need to run `xcodegen generate` locally for a release.** The build runner regenerates the project from `project.yml` on every build via the post-clone hook. Local `xcodegen` is only for building in Xcode yourself.
 - **You do not bump `CURRENT_PROJECT_VERSION` (the build number).** Xcode Cloud assigns the build number at archive time; the value in `project.yml` is ignored at distribution. It sat at `1` across 1.1.0–1.2.2 without issue.
