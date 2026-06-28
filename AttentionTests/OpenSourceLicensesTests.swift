@@ -25,7 +25,11 @@ final class OpenSourceLicensesTests: XCTestCase {
         XCTAssertTrue(OpenSourceLicenses.all.contains { $0.id == unicode.id })
         // The Unicode License requires the copyright + permission notice to
         // travel with the data; assert the load-bearing fragments survive edits.
-        XCTAssertTrue(unicode.licenseText.contains("Copyright © 1991-2025 Unicode, Inc."))
+        // Match the copyright line without pinning the end year (Unicode bumps it
+        // yearly) so the test guards the notice without churning every January.
+        XCTAssertTrue(unicode.licenseText.contains("UNICODE LICENSE V3"))
+        XCTAssertTrue(unicode.licenseText.contains("Copyright © 1991-"))
+        XCTAssertTrue(unicode.licenseText.contains("Unicode, Inc."))
         XCTAssertTrue(unicode.licenseText.contains("Permission is hereby granted"))
         XCTAssertTrue(unicode.licenseText.contains("this copyright and permission notice appear"))
     }
