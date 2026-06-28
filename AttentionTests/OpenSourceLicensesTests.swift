@@ -23,14 +23,32 @@ final class OpenSourceLicensesTests: XCTestCase {
     func testUnicodeEmojiAttributionIsPresentAndIntact() {
         let unicode = OpenSourceLicenses.unicodeEmojiData
         XCTAssertTrue(OpenSourceLicenses.all.contains { $0.id == unicode.id })
-        // The Unicode License requires the copyright + permission notice to
-        // travel with the data; assert the load-bearing fragments survive edits.
-        // Match the copyright line without pinning the end year (Unicode bumps it
-        // yearly) so the test guards the notice without churning every January.
-        XCTAssertTrue(unicode.licenseText.contains("UNICODE LICENSE V3"))
-        XCTAssertTrue(unicode.licenseText.contains("Copyright © 1991-"))
-        XCTAssertTrue(unicode.licenseText.contains("Unicode, Inc."))
-        XCTAssertTrue(unicode.licenseText.contains("Permission is hereby granted"))
-        XCTAssertTrue(unicode.licenseText.contains("this copyright and permission notice appear"))
+
+        // The Unicode License requires the full copyright + permission notice to
+        // travel with the data. Assert a key phrase from every paragraph of the
+        // notice so dropping or mangling any whole block (heading, copyright,
+        // NOTICE TO USER, permission grant, the (a)/(b) condition, the warranty
+        // disclaimer, the liability block, or the trademark clause) fails the
+        // test. The copyright line is matched without pinning the end year, which
+        // Unicode bumps annually, so the guard doesn't churn every January.
+        let requiredFragments = [
+            "UNICODE LICENSE V3",
+            "COPYRIGHT AND PERMISSION NOTICE",
+            "Copyright © 1991-",
+            "Unicode, Inc.",
+            "NOTICE TO USER: Carefully read the following legal agreement.",
+            "Permission is hereby granted, free of charge",
+            "this copyright and permission notice appear with all copies",
+            "THE DATA FILES AND SOFTWARE ARE PROVIDED \"AS IS\"",
+            "NONINFRINGEMENT OF",
+            "IN NO EVENT SHALL THE COPYRIGHT HOLDER",
+            "Except as contained in this notice, the name of a copyright holder",
+        ]
+        for fragment in requiredFragments {
+            XCTAssertTrue(
+                unicode.licenseText.contains(fragment),
+                "Unicode notice is missing required text: \(fragment)"
+            )
+        }
     }
 }
