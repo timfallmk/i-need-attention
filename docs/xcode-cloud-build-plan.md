@@ -1,6 +1,6 @@
 # Xcode Cloud Build Plan
 
-The repo-side prerequisites are in place (`ci_scripts/ci_post_clone.sh`). The remaining work is creating the workflow in App Store Connect — see "What to configure" below.
+**Status: live.** The **Release** workflow exists in App Store Connect → Xcode Cloud and is the active release mechanism — every release since 1.0.0 has shipped through it. This doc is the rationale and the reference for the workflow's configuration; the day-to-day release steps live in `SETUP.md` §10–11. The repo-side prerequisite (`ci_scripts/ci_post_clone.sh`) is in place.
 
 ## Why bother
 
@@ -80,6 +80,6 @@ Xcode Cloud builds the watch app automatically when it is a dependency of the `A
 - **Provisioning** — Xcode Cloud manages its own signing; the `DEVELOPMENT_TEAM` in `project.yml` must match, but profiles are created automatically
 - **Simulator tests** — there are no tests in this project yet; if added, they can run as a separate Test action before Archive
 
-## When to flip the switch
+## History
 
-When the app is stable and releases happen more than once a month. The post-clone script is harmless until then — it only runs when Xcode Cloud actually builds.
+Enabled at 1.0.0 (May 2026) — the 1.0.0 release notes read "First automated release via Xcode Cloud," and PR #8 ("Use GitHub Releases as canonical release gesture for Xcode Cloud") settled on tags/Releases as the trigger. The "Release" workflow in App Store Connect was last modified Apr 30, 2026. Build numbers have been left to Xcode Cloud throughout (the `CURRENT_PROJECT_VERSION` in `project.yml` stayed at `1` from 1.1.0 onward).

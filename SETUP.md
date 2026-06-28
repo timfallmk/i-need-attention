@@ -122,21 +122,31 @@ If you hit "couldn't find provisioning profile" — go back to Signing & Capabil
 
 ## 10. Updating the app later
 
-- [ ] Make changes
-- [ ] Bump build number
-- [ ] Archive → upload → TestFlight auto-notifies your testers within minutes
+Releases are automated via Xcode Cloud (set up in §11) — shipping is a tag push, not a manual Archive:
 
-## 11. Optional: automate releases with Xcode Cloud
+- [ ] Make changes, merge to `main`
+- [ ] Bump `MARKETING_VERSION` in `project.yml` if this is a user-visible version bump (leave `CURRENT_PROJECT_VERSION` alone — see §11)
+- [ ] `gh release create 1.2.3 --notes "what changed"` → Xcode Cloud archives and ships to TestFlight, which auto-notifies your testers within minutes
 
-Once releases happen more than monthly, replace the manual Archive → Upload with a tag push. The repo already ships the post-clone hook (`ci_scripts/ci_post_clone.sh`) that runs `xcodegen generate` on the build runner — without it Xcode Cloud has no project to open, since `*.xcodeproj/` is gitignored.
+The manual fallback (for when Xcode Cloud is unavailable) is the §7 flow: bump the build number yourself, Xcode device picker → **Any iOS Device**, **Product → Archive**, then **Distribute App → App Store Connect → Upload**.
 
-To enable:
+## 11. Releasing via Xcode Cloud (active)
 
-- [ ] App Store Connect → **Xcode Cloud** → **Grant Access** → authorize on `timfallmk/i-need-attention`
-- [ ] Create workflow **Release to TestFlight**: start condition Tag Changes → `*.*.*`; Build action scheme `Attention`, platform iOS; Archive & Export action with Export method **TestFlight (Internal Only)**; Post-action: notify on failure
-- [ ] To ship: update `MARKETING_VERSION` in `project.yml` if needed, `xcodegen generate`, commit and push, then `gh release create 1.0.3 --notes "what changed"` (this creates the tag and fires the Xcode Cloud trigger). Xcode Cloud manages the build number automatically — do not bump `CURRENT_PROJECT_VERSION` manually.
+**This is the live release mechanism** — every release since 1.0.0 has shipped this way. Pushing a tag fires the **Release** workflow in App Store Connect → Xcode Cloud, which regenerates the project, archives, and distributes to TestFlight. The repo ships the post-clone hook (`ci_scripts/ci_post_clone.sh`) that runs `xcodegen generate` on the build runner — without it Xcode Cloud has no project to open, since `*.xcodeproj/` is gitignored.
 
-See `docs/xcode-cloud-build-plan.md` for the full rationale and trade-offs.
+To ship a release:
+
+- [ ] Merge your changes to `main`
+- [ ] Bump `MARKETING_VERSION` in `project.yml` if this is a user-visible version bump
+- [ ] `gh release create <version> --notes "what changed"` (e.g. `gh release create 1.2.3 …`). This creates the tag and pushes it, which fires the Xcode Cloud trigger and leaves a changelog entry on the Releases page.
+
+Notes:
+
+- **You do not need to run `xcodegen generate` locally for a release.** The build runner regenerates the project from `project.yml` on every build via the post-clone hook. Local `xcodegen` is only for building in Xcode yourself.
+- **You do not bump `CURRENT_PROJECT_VERSION` (the build number).** Xcode Cloud assigns the build number at archive time; the value in `project.yml` is ignored at distribution. It sat at `1` across 1.1.0–1.2.2 without issue.
+- The workflow's start condition is **Any Tags**, so any tag push triggers a build — keep tags semver (`1.2.3`) by convention.
+
+See `docs/xcode-cloud-build-plan.md` for the full rationale and the App Store Connect workflow configuration.
 
 ## 12. Solo testing with AttentionCLI
 

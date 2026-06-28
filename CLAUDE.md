@@ -164,7 +164,16 @@ When opening a PR:
 
 1. **Assign** it to the PR author.
 2. **Add the `claude` label.** If the label doesn't exist, create it first with color `#E07B39` (Claude orange), then apply it.
-3. If the changes required a new release, increment the build number and remind the user to regenerate locally.
+3. If the changes warrant a user-visible release, bump `MARKETING_VERSION` in `project.yml` (see Releasing below). Do **not** bump `CURRENT_PROJECT_VERSION`.
+
+## Releasing
+
+**Releases are automated through Xcode Cloud and have been since 1.0.0.** Shipping is a tag push, not a manual Xcode Archive. `SETUP.md` §10–11 is the canonical reference; `docs/xcode-cloud-build-plan.md` has the rationale and the App Store Connect workflow config. The essentials, so we don't relearn them every time:
+
+- **To ship:** merge to `main`, bump `MARKETING_VERSION` in `project.yml` if user-visible, then `gh release create <version> --notes "…"`. Creating the GitHub Release (or any tag) fires the **Release** workflow in App Store Connect → Xcode Cloud, which archives and distributes to TestFlight. The trigger is **Any Tags**; keep tags semver.
+- **Build number is auto-managed.** Xcode Cloud assigns `CFBundleVersion` at archive time. **Never bump `CURRENT_PROJECT_VERSION` manually** — it's been `1` since 1.1.0 and the value in `project.yml` is ignored at distribution. (Past confusion came from an empty local tag list — run `git fetch --tags` before concluding anything about release history.)
+- **No local `xcodegen generate` needed for a release.** `ci_scripts/ci_post_clone.sh` regenerates the project on the build runner from `project.yml` (`*.xcodeproj/` is gitignored). Local `xcodegen` is only for building in Xcode yourself.
+- **Manual fallback only if Xcode Cloud is down:** `SETUP.md` §7 (Archive → Distribute → Upload), where you *do* bump the build number by hand.
 
 ## Things that look weird but are deliberate
 
