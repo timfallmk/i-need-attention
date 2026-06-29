@@ -4,6 +4,7 @@ import UIKit
 struct MainView: View {
     @Environment(AppState.self) private var appState
     @State private var showSettings = false
+    @State private var showHistory = false
     @State private var showAckSheet = false
     @State private var showNounPicker = false
     @State private var now = Date()
@@ -72,6 +73,10 @@ struct MainView: View {
             SettingsView()
                 .environment(appState)
         }
+        .sheet(isPresented: $showHistory) {
+            HistoryView()
+                .environment(appState)
+        }
         .sheet(isPresented: $showAckSheet) {
             AckSheet { emoji in
                 Task { await appState.acknowledgeIncoming(emoji: emoji) }
@@ -96,10 +101,18 @@ struct MainView: View {
     }
 
     private var topBar: some View {
-        HStack {
+        HStack(spacing: 18) {
             Text("Attention")
                 .font(.system(size: 20, weight: .bold, design: .rounded))
             Spacer()
+            Button {
+                showHistory = true
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 22))
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityLabel("History")
             Button {
                 showSettings = true
             } label: {
@@ -107,6 +120,7 @@ struct MainView: View {
                     .font(.system(size: 22))
                     .foregroundStyle(.secondary)
             }
+            .accessibilityLabel("Settings")
         }
         .padding(.horizontal, 24)
     }
