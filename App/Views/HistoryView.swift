@@ -52,9 +52,11 @@ struct HistoryView: View {
         }
     }
 
+    @MainActor
     private func load() async {
         guard let pair = appState.pair else {
             alerts = []
+            loadFailed = false
             isLoading = false
             return
         }
@@ -65,7 +67,9 @@ struct HistoryView: View {
         do {
             alerts = try await CloudKitService.shared.fetchRecentAlerts(pairKey: pair.pairKey)
         } catch {
-            loadFailed = true
+            // Don't wipe an already-loaded list on a refresh failure; only surface
+            // the full-screen error state when there's nothing to show.
+            loadFailed = alerts.isEmpty
         }
         isLoading = false
     }
