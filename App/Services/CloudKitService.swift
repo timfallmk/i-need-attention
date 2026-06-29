@@ -203,6 +203,19 @@ final class CloudKitService: @unchecked Sendable {
         return nil
     }
 
+    /// Recent alerts in a pair, newest first, both directions. Used by the history view.
+    /// Read-only; malformed records are skipped rather than failing the whole fetch.
+    func fetchRecentAlerts(pairKey: String, limit: Int = 30) async throws -> [AlertRecord] {
+        let predicate = NSPredicate(format: "%K == %@", Constants.AlertField.pairKey, pairKey)
+        let query = CKQuery(recordType: Constants.RecordType.alert, predicate: predicate)
+        query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        let (results, _) = try await publicDB.records(matching: query, resultsLimit: limit)
+        return results.compactMap { _, result in
+            guard case .success(let record) = result else { return nil }
+            return AlertRecord(record: record)
+        }
+    }
+
     // MARK: - Subscriptions
 
     /// Registers (idempotently) the four query subscriptions this app needs:
