@@ -317,8 +317,10 @@ final class AppState {
 
     func cancelPendingInvite() async {
         guard let pending = pendingInvite else { return }
-        pendingInvite = nil
         await PairingService.shared.cancelInvite(pending)
+        // On success the service cleared the persisted copy; on a failed cleanup it
+        // survives as the retry handle and the waiting card stays visible.
+        pendingInvite = PendingInvite.load()
     }
 
     /// Entry point for tapped `attention://pair` links. The payload is untrusted — exactly

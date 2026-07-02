@@ -18,8 +18,18 @@ final class PairingService {
     /// pending invite is cancelled first, so "renew" is just starting a new invite.
     func startInviting(myName: String) async throws -> (invite: PairingInvite, record: CKRecord) {
         if let previous = PendingInvite.load() {
-            await cancelInvite(previous)
+            // The old invite's subscriptions must be gone before registering the new
+            // pairKey under the same subscription IDs — fail fast rather than mint an
+            // invite whose pushes would be swallowed by the old predicates.
+            guard await cancelInvite(previous) else {
+                throw AttentionError.inviteCleanupFailed
+            }
         }
+        #if DEBUG
+        // Unpaired Dev installs may carry schema-seed placeholders under the same IDs;
+        // they'd shadow the invite's real predicates (registration skips existing IDs).
+        try? await cloud.purgeSeededSubscriptions()
+        #endif
         let invite = PairingInvite.generate(myDeviceID: DeviceIdentity.id, myName: myName)
         let record = try await cloud.createPair(invite: invite)
         PendingInvite(
@@ -77,22 +87,32 @@ final class PairingService {
         return state
     }
 
-    /// Inviter side: abandon a pending invite. Clears local state, purges the subscriptions
-    /// registered under the invite's pairKey (so they can't squat on the subscription IDs a
-    /// later pair needs), and deletes the half-empty Pair record. Cloud steps are
-    /// best-effort — an orphaned record is unreachable without its pairKey.
-    func cancelInvite(_ pending: PendingInvite) async {
-        PendingInvite.clear()
+    /// Inviter side: abandon a pending invite. Removes the subscriptions registered under
+    /// the invite's pairKey (so they can't squat on the subscription IDs a later pair
+    /// needs — registration is idempotent by ID and would skip them), deletes the
+    /// half-empty Pair record, and only then clears local state. Ordering matters: the
+    /// persisted invite is the retry handle, so it survives a failed cleanup.
+    ///
+    /// Cancel only ever runs unpaired, where this app has no subscriptions worth keeping,
+    /// so the blunt `removeAllSubscriptions` (the same call unpair uses) is exactly right —
+    /// no predicate inspection needed. Returns false when cleanup failed and the invite
+    /// was kept for retry. The record delete stays best-effort: an orphaned record is
+    /// unreachable without its pairKey.
+    @discardableResult
+    func cancelInvite(_ pending: PendingInvite) async -> Bool {
         do {
-            try await cloud.purgeSubscriptions(pairKey: pending.pairKey)
+            try await cloud.removeAllSubscriptions()
         } catch {
-            log.error("invite subscription purge failed: \(error.localizedDescription)")
+            log.error("invite subscription cleanup failed: \(error.localizedDescription)")
+            return false
         }
         do {
             try await cloud.deletePair(recordName: pending.recordName)
         } catch {
             log.error("invite record delete failed: \(error.localizedDescription)")
         }
+        PendingInvite.clear()
+        return true
     }
 
     /// Joiner side: take a scanned QR payload (or tapped invite link — same wire format,
@@ -100,6 +120,15 @@ final class PairingService {
     func completePairing(payload: String, myName: String) async throws -> PairState {
         guard let invite = PairingInvite.from(qrPayload: payload) else {
             throw AttentionError.pairNotFound
+        }
+        // Joining someone else's pair abandons any invite we were offering ourselves.
+        // Its subscriptions were registered under our invite's pairKey at invite time
+        // and would shadow this pair's registration (idempotent-by-ID), silently
+        // breaking pushes — so clean up first, and fail fast if we can't.
+        if let ownPending = PendingInvite.load() {
+            guard await cancelInvite(ownPending) else {
+                throw AttentionError.inviteCleanupFailed
+            }
         }
         guard let record = try await cloud.fetchPair(pairKey: invite.pairKey) else {
             throw AttentionError.pairNotFound

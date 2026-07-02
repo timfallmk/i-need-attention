@@ -332,40 +332,6 @@ final class CloudKitService: @unchecked Sendable {
         }
     }
 
-    /// Deletes any subscriptions whose predicate references the given pairKey. Used when
-    /// the inviter cancels a pending invite: `startInviting` registers subscriptions under
-    /// the invite's pairKey before the pair completes, and `registerSubscriptions` is
-    /// idempotent by subscription ID — so without this purge an abandoned invite's
-    /// subscriptions would squat on the real IDs and silently swallow a later pair's
-    /// registration. Same predicate-content matching technique as the DEBUG-only
-    /// `purgeSeededSubscriptions`, but compiled into Release because invite cancel is a
-    /// user-facing flow.
-    func purgeSubscriptions(pairKey: String) async throws {
-        let existing = try await publicDB.allSubscriptions()
-        let matchingIDs: [String] = existing.compactMap { sub in
-            guard let qsub = sub as? CKQuerySubscription else { return nil }
-            return qsub.predicate.predicateFormat.contains("\"\(pairKey)\"")
-                ? sub.subscriptionID
-                : nil
-        }
-        guard !matchingIDs.isEmpty else { return }
-        log.info("purging invite subs: \(matchingIDs.joined(separator: ", "), privacy: .public)")
-        let op = CKModifySubscriptionsOperation(
-            subscriptionsToSave: nil,
-            subscriptionIDsToDelete: matchingIDs
-        )
-        op.qualityOfService = .userInitiated
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            op.modifySubscriptionsResultBlock = { result in
-                switch result {
-                case .success: cont.resume()
-                case .failure(let error): cont.resume(throwing: error)
-                }
-            }
-            publicDB.add(op)
-        }
-    }
-
     #if DEBUG
     /// Deletes any subscriptions left over from `AppState.bootstrap`'s unpaired
     /// schema seeder — i.e. those whose predicate references the placeholder
@@ -507,6 +473,7 @@ enum AttentionError: LocalizedError {
     case malformedRecord
     case noPair
     case iCloudUnavailable
+    case inviteCleanupFailed
 
     var errorDescription: String? {
         switch self {
@@ -515,6 +482,7 @@ enum AttentionError: LocalizedError {
         case .malformedRecord:   return "Got an unexpected response from iCloud."
         case .noPair:            return "This phone isn't paired yet."
         case .iCloudUnavailable: return "Sign in to iCloud in Settings to use Attention."
+        case .inviteCleanupFailed: return "Couldn't clean up the previous invite. Check your connection and try again."
         }
     }
 }
