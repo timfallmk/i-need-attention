@@ -51,7 +51,7 @@ Registering *all four* subscriptions early is simpler than special-casing `pair-
 
 Net effect: the inviter's phone gets a silent push when `deviceB` is filled, without polling.
 
-**Cleanup obligation this creates:** if the user cancels or regenerates an invite, the subscriptions registered under the abandoned pairKey linger and would shadow a later registration under the same IDs. Purge them on cancel. This needs a **new** `CloudKitService` API — e.g. `purgeSubscriptions(pairKey:)`, deleting any subscription whose predicate references the abandoned key. The existing `purgeSeededSubscriptions()` shows the technique (match on predicate content, batch-delete by ID) but can't be used directly: it's `#if DEBUG`-only, so it's compiled out of Release, and it hard-codes the `"schema-seed"` placeholder predicate.
+**Cleanup obligation this creates:** if the user cancels or regenerates an invite — or joins someone *else's* pair while offering their own invite — the subscriptions registered under the abandoned pairKey linger and would shadow a later registration under the same IDs. Clean them up first, and fail fast (don't proceed with the new registration) if cleanup fails. As built, cleanup only ever runs **unpaired**, where this app has no subscriptions worth keeping — so the existing `removeAllSubscriptions()` (the same call unpair uses) is exactly right, and no predicate-inspecting purge API is needed. (An earlier revision of this plan proposed a `purgeSubscriptions(pairKey:)` that matched on `predicateFormat`; that string is a debugging representation and unreliable to parse, so the blunt remove-all won.) The persisted `PendingInvite` is cleared only **after** cloud cleanup succeeds — it's the retry handle.
 
 ### 3. Completion delivery: push is the fast path, reconcile is the reliable one
 
@@ -94,5 +94,5 @@ Registering the URL scheme also means *any* app or webpage can attempt to open `
 
 ## Touch points
 
-`App/Services/PairingService.swift` (invite persistence, early registration, reconcile), `App/Services/PushNotifications.swift` (completion via push), `App/AppState.swift` (`bootstrap` reconcile, pending-invite state), `App/Views/PairingFlowView.swift` (ShareLink, waiting banner), a new joiner confirmation sheet, `App/Services/CloudKitService.swift` (generalized subscription purge), `project.yml` (CFBundleURLTypes). No CloudKit schema changes.
+`App/Services/PairingService.swift` (invite persistence, early registration, reconcile), `App/Services/PushNotifications.swift` (completion via push), `App/AppState.swift` (`bootstrap` reconcile, pending-invite state), `App/Views/PairingFlowView.swift` (ShareLink, waiting banner), a new joiner confirmation sheet, `App/Services/CloudKitService.swift` (`deletePair` for invite cancel), `project.yml` (CFBundleURLTypes). No CloudKit schema changes.
 
