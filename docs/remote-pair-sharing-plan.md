@@ -45,13 +45,13 @@ Persist to UserDefaults (key e.g. `attention.pendingInvite.v1`). Clear on succes
 
 ### 2. Install subscriptions when the invite is created
 
-Right now `registerSubscriptions(...)` is called from `PairingService.waitForJoiner` and `completePairing`, both of which run after the pair is fully established. Move the registration to invite-creation time instead.
+Within the pairing flow, `registerSubscriptions(...)` runs only in `PairingService.waitForJoiner` and `completePairing` — i.e. after the pair is fully established. (`AppState.bootstrap` also calls it: a re-register on every paired launch, and a placeholder schema-seed in unpaired DEBUG builds — but neither covers an in-flight invite.) Move the pairing-flow registration to invite-creation time instead.
 
 Registering *all four* subscriptions early is simpler than special-casing `pair-updates-v1`: `registerSubscriptions` is idempotent by subscription ID, and both inputs it needs (the pairKey and the inviter's own deviceID) are known the moment the invite is generated. The alert-related subscriptions are inert until alerts exist, so early registration is harmless.
 
 Net effect: the inviter's phone gets a silent push when `deviceB` is filled, without polling.
 
-**Cleanup obligation this creates:** if the user cancels or regenerates an invite, the subscriptions registered under the abandoned pairKey linger and would shadow a later registration under the same IDs. Purge them on cancel — `CloudKitService.purgeSeededSubscriptions()` (the DEBUG schema-seed purge, which deletes subscriptions by predicate content) is the existing pattern to generalize.
+**Cleanup obligation this creates:** if the user cancels or regenerates an invite, the subscriptions registered under the abandoned pairKey linger and would shadow a later registration under the same IDs. Purge them on cancel. This needs a **new** `CloudKitService` API — e.g. `purgeSubscriptions(pairKey:)`, deleting any subscription whose predicate references the abandoned key. The existing `purgeSeededSubscriptions()` shows the technique (match on predicate content, batch-delete by ID) but can't be used directly: it's `#if DEBUG`-only, so it's compiled out of Release, and it hard-codes the `"schema-seed"` placeholder predicate.
 
 ### 3. Completion delivery: push is the fast path, reconcile is the reliable one
 
