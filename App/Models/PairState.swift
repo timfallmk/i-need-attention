@@ -27,8 +27,9 @@ struct PairState: Codable, Equatable {
     }
 }
 
-/// Encoded into the QR code shown by the inviting device.
-struct PairingInvite: Codable {
+/// Encoded into the QR code shown by the inviting device (and, identically, into the
+/// shareable `attention://pair` link).
+struct PairingInvite: Codable, Identifiable {
     let pairKey: String
     let inviterDeviceID: String
     let inviterName: String
@@ -63,6 +64,9 @@ struct PairingInvite: Codable {
         guard let key = map["k"], let id = map["id"] else { return nil }
         return PairingInvite(pairKey: key, inviterDeviceID: id, inviterName: map["n"] ?? "Friend")
     }
+
+    /// Identity for SwiftUI sheet presentation: one invite per pairKey.
+    var id: String { pairKey }
 
     static func generate(myDeviceID: String, myName: String) -> PairingInvite {
         var bytes = [UInt8](repeating: 0, count: 16)

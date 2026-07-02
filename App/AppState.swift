@@ -12,6 +12,14 @@ final class AppState {
     // Pairing
     var pair: PairState?
 
+    /// Invite this device created that the partner hasn't accepted yet (remote sharing).
+    /// Mirrors the UserDefaults-persisted `PendingInvite` so SwiftUI can observe it.
+    var pendingInvite: PendingInvite?
+
+    /// Parsed `attention://pair` link awaiting the user's confirmation (joiner side).
+    /// Set by the URL handler; drives the join confirmation sheet in RootView.
+    var incomingJoinInvite: PairingInvite?
+
     // Settings (persisted via @Observable hooks)
     let settings: UserSettings
 
@@ -43,6 +51,7 @@ final class AppState {
     init() {
         self.settings = UserSettings()
         self.pair = PairState.load()
+        self.pendingInvite = PendingInvite.load()
         self.outgoingAckSubscriptionUnavailable = SharedSettings.outgoingAckSubscriptionUnavailable
         self.outgoingAckSubscriptionFailureReason = SharedSettings.outgoingAckSubscriptionFailureReason
     }
@@ -59,8 +68,10 @@ final class AppState {
         // exist in Dev before "Deploy Schema Changes…" can promote them — without
         // this, every newly-introduced subscription ID is rejected in Production
         // with BAD_REQUEST. Gated on `pair == nil` so it never shadows a real Dev
-        // pair's predicates (registerSubscriptions is idempotent on subscription ID).
-        if pair == nil {
+        // pair's predicates (registerSubscriptions is idempotent on subscription ID) —
+        // and on `pendingInvite == nil`, because an in-flight remote invite registers
+        // real-predicate subscriptions under the same IDs before the pair completes.
+        if pair == nil && pendingInvite == nil {
             try? await CloudKitService.shared.registerSubscriptions(
                 pairKey: "schema-seed",
                 myDeviceID: "schema-seed-device"
@@ -86,10 +97,17 @@ final class AppState {
             // Pick up any partner-name change that happened while we were killed
             await refreshPairFromCloud()
         } else {
-            // No pair = no subscription = no useful diagnostic. Clear any stale flag.
-            SharedSettings.outgoingAckSubscriptionUnavailable = false
-            SharedSettings.outgoingAckSubscriptionFailureReason = nil
-            refreshSubscriptionDiagnostics()
+            // A pending remote invite may have been accepted while this app was gone —
+            // the silent push never reaches a force-quit app, so reconcile on launch.
+            await reconcilePendingInvite()
+            if pair == nil && pendingInvite == nil {
+                // No pair and no in-flight invite = no subscriptions = no useful
+                // diagnostic. Clear any stale flag. (A pending invite's registrations
+                // are real, so their diagnostics stay.)
+                SharedSettings.outgoingAckSubscriptionUnavailable = false
+                SharedSettings.outgoingAckSubscriptionFailureReason = nil
+                refreshSubscriptionDiagnostics()
+            }
         }
         // Run after the pair branch so unpaired users still get the badge swept,
         // and so paired users get an initial sync without depending on a later
@@ -271,10 +289,53 @@ final class AppState {
         pushWatchSnapshot()
     }
 
+    // MARK: - Remote invite lifecycle
+
+    /// One-shot inviter-side completion check. The pair-update silent push is the fast
+    /// path; this is the reliable one — called from bootstrap, foreground, and the push
+    /// handler itself. Also re-syncs the observable mirror with the persisted invite
+    /// (PairingService writes it directly).
+    func reconcilePendingInvite() async {
+        pendingInvite = PendingInvite.load()
+        guard pair == nil, let pending = pendingInvite else { return }
+        do {
+            guard let record = try await CloudKitService.shared.fetchPair(pairKey: pending.pairKey),
+                  let state = try await PairingService.shared.completeInviterPairing(from: record)
+            else { return }
+            Haptics.success()
+            pendingInvite = nil
+            applyPair(state)
+        } catch {
+            log.error("pending invite reconcile: \(error.localizedDescription)")
+        }
+    }
+
+    /// Called by ShowCodeView after PairingService persists a fresh invite.
+    func refreshPendingInvite() {
+        pendingInvite = PendingInvite.load()
+    }
+
+    func cancelPendingInvite() async {
+        guard let pending = pendingInvite else { return }
+        pendingInvite = nil
+        await PairingService.shared.cancelInvite(pending)
+    }
+
+    /// Entry point for tapped `attention://pair` links. The payload is untrusted — exactly
+    /// as untrusted as a scanned QR — so it goes through the same defensive parser, and
+    /// nothing happens without the user confirming in the join sheet.
+    func handleIncomingURL(_ url: URL) {
+        guard let invite = PairingInvite.from(qrPayload: url.absoluteString) else { return }
+        incomingJoinInvite = invite
+    }
+
     // MARK: - Pairing wrapper
 
     func applyPair(_ state: PairState) {
         self.pair = state
+        // Completing a pair consumes any pending invite (the service layer clears the
+        // persisted copy); re-sync the observable mirror.
+        self.pendingInvite = PendingInvite.load()
         SharedSettings.partnerName = state.partnerName
         // PairingService.{waitForJoiner,completePairing} runs registerSubscriptions
         // immediately before returning the PairState that lands here; pull the latest

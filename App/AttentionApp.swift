@@ -12,6 +12,9 @@ struct AttentionApp: App {
         WindowGroup {
             RootView()
                 .environment(appState)
+                .onOpenURL { url in
+                    appState.handleIncomingURL(url)
+                }
                 .task {
                     appDelegate.appState = appState
                     Haptics.prepare()
@@ -58,6 +61,7 @@ struct AttentionApp: App {
                 Task {
                     await appState.refreshICloudStatus()
                     await appState.refreshNotificationStatus()
+                    await appState.reconcilePendingInvite()
                     await appState.reconcileLatestAlert()
                 }
             }

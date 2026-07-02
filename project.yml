@@ -83,6 +83,10 @@ targets:
           - UIInterfaceOrientationPortrait
         UIRequiresFullScreen: true
         NSCameraUsageDescription: "Used once during pairing so you can scan the other phone's QR code."
+        CFBundleURLTypes:
+          - CFBundleURLName: com.timfallmk.attention.pair
+            CFBundleURLSchemes:
+              - attention
         ITSAppUsesNonExemptEncryption: false
         NSUserActivityTypes: []
     settings:
@@ -197,6 +201,7 @@ targets:
       - path: Shared/WatchSnapshot.swift
       - path: Shared/SharedSettings.swift
       - path: App/Models/PairState.swift
+      - path: App/Models/PendingInvite.swift
       - path: App/Models/NounPresets.swift
       - path: App/Models/OpenSourceLicenses.swift
       - path: App/Helpers/DeviceIdentity.swift

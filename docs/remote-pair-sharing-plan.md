@@ -1,6 +1,6 @@
 # Remote Pair Sharing Plan
 
-Future enhancement: let the inviter share the pair link out-of-band (iMessage, AirDrop, etc.) instead of requiring the partner to physically scan a QR. Tracked as issue #44.
+**Status: implemented** (issue #44). The inviter can share the pair link out-of-band (iMessage, AirDrop, etc.) instead of requiring the partner to physically scan a QR. This doc is the design record; the sections below describe the pre-implementation state and the plan as built. One addition beyond the plan: a "Got an invite link? Paste it" fallback on the pairing chooser, because some transports don't render custom-scheme URLs as tappable links.
 
 ## Why
 
@@ -96,6 +96,3 @@ Registering the URL scheme also means *any* app or webpage can attempt to open `
 
 `App/Services/PairingService.swift` (invite persistence, early registration, reconcile), `App/Services/PushNotifications.swift` (completion via push), `App/AppState.swift` (`bootstrap` reconcile, pending-invite state), `App/Views/PairingFlowView.swift` (ShareLink, waiting banner), a new joiner confirmation sheet, `App/Services/CloudKitService.swift` (generalized subscription purge), `project.yml` (CFBundleURLTypes). No CloudKit schema changes.
 
-## When to do this
-
-When in-person pairing becomes a recurring annoyance, or when adding a third user / re-pairing flow that doesn't require physical proximity.

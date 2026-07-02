@@ -6,6 +6,8 @@ struct RootView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
+        @Bindable var bindable = appState
+
         Group {
             if needsICloudGate {
                 ICloudGateView()
@@ -17,6 +19,11 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: appState.pair?.pairKey)
         .animation(.easeInOut(duration: 0.25), value: appState.iCloudStatus)
+        .sheet(item: $bindable.incomingJoinInvite) { invite in
+            JoinInviteSheet(invite: invite)
+                .environment(appState)
+                .presentationDetents([.medium])
+        }
     }
 
     private var needsICloudGate: Bool {

@@ -63,6 +63,12 @@ final class CloudKitService: @unchecked Sendable {
         _ = try await publicDB.save(record)
     }
 
+    /// Deletes a Pair record by name. Used when the inviter cancels a pending invite —
+    /// best-effort; an orphaned record is harmless (nobody else knows its pairKey).
+    func deletePair(recordName: String) async throws {
+        _ = try await publicDB.deleteRecord(withID: CKRecord.ID(recordName: recordName))
+    }
+
     /// Fills in the joiner's slot on an existing Pair record. Fails if `deviceB` is already set.
     func joinPair(record: CKRecord, joinerDeviceID: String, joinerName: String) async throws -> CKRecord {
         let existingB = (record[Constants.PairField.deviceB] as? String) ?? ""
@@ -315,6 +321,40 @@ final class CloudKitService: @unchecked Sendable {
         guard !existing.isEmpty else { return }
         let ids = existing.map(\.subscriptionID)
         let op = CKModifySubscriptionsOperation(subscriptionsToSave: nil, subscriptionIDsToDelete: ids)
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            op.modifySubscriptionsResultBlock = { result in
+                switch result {
+                case .success: cont.resume()
+                case .failure(let error): cont.resume(throwing: error)
+                }
+            }
+            publicDB.add(op)
+        }
+    }
+
+    /// Deletes any subscriptions whose predicate references the given pairKey. Used when
+    /// the inviter cancels a pending invite: `startInviting` registers subscriptions under
+    /// the invite's pairKey before the pair completes, and `registerSubscriptions` is
+    /// idempotent by subscription ID — so without this purge an abandoned invite's
+    /// subscriptions would squat on the real IDs and silently swallow a later pair's
+    /// registration. Same predicate-content matching technique as the DEBUG-only
+    /// `purgeSeededSubscriptions`, but compiled into Release because invite cancel is a
+    /// user-facing flow.
+    func purgeSubscriptions(pairKey: String) async throws {
+        let existing = try await publicDB.allSubscriptions()
+        let matchingIDs: [String] = existing.compactMap { sub in
+            guard let qsub = sub as? CKQuerySubscription else { return nil }
+            return qsub.predicate.predicateFormat.contains("\"\(pairKey)\"")
+                ? sub.subscriptionID
+                : nil
+        }
+        guard !matchingIDs.isEmpty else { return }
+        log.info("purging invite subs: \(matchingIDs.joined(separator: ", "), privacy: .public)")
+        let op = CKModifySubscriptionsOperation(
+            subscriptionsToSave: nil,
+            subscriptionIDsToDelete: matchingIDs
+        )
+        op.qualityOfService = .userInitiated
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             op.modifySubscriptionsResultBlock = { result in
                 switch result {

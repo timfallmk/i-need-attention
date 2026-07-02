@@ -84,10 +84,16 @@ If you hit "couldn't find provisioning profile" — go back to Signing & Capabil
 
 ## 6. Pair the two phones
 
+**In person (QR):**
+
 - [ ] On phone A: tap **Show Code**, leave it on screen
 - [ ] On phone B: tap **Scan Code**, point camera at phone A
 - [ ] Both phones flip to the main button screen with "paired with \<name\>" at the bottom
 - [ ] Smoke test: tap the button on A — B should buzz and show the alert; tap acknowledge on B; A's status pill should flip to ✅
+
+**Remotely (shared link):** on phone A tap **Show Code** → **Or share the link** and send it via iMessage or AirDrop. Phone B taps the link (or copies it and uses **Got an invite link? Paste it** on the pairing screen) and confirms in the "Pair with…" sheet. Phone A completes automatically — via silent push if the app is alive, or the next time it's opened. The invite survives closing the app; an unaccepted one can be re-shared or cancelled from the pairing screen.
+
+> Transport note: the link *is* the pairing secret. iMessage and AirDrop are end-to-end/peer encrypted — effectively as safe as the in-person QR. Plain SMS is cleartext over carrier infrastructure; avoid it.
 
 ## 6a. (Optional) Add the watch complication
 
