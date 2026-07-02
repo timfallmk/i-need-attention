@@ -1,8 +1,6 @@
 import CloudKit
 import SwiftUI
-#if DEBUG
 import UIKit
-#endif
 
 struct PairingFlowView: View {
     @Environment(AppState.self) private var appState
@@ -52,6 +50,15 @@ struct PairingFlowView: View {
                     .padding(.horizontal, 32)
             }
 
+            if let pending = appState.pendingInvite {
+                PendingInviteCard(
+                    pending: pending,
+                    onShow: { mode = .showCode },
+                    onCancel: { Task { await appState.cancelPendingInvite() } }
+                )
+                .padding(.horizontal, 24)
+            }
+
             NameField(displayName: $displayName)
                 .padding(.horizontal, 24)
 
@@ -83,11 +90,87 @@ struct PairingFlowView: View {
                 .buttonStyle(.bordered)
                 .tint(.red)
                 .disabled(trimmedName.isEmpty)
+
+                // Fallback intake for shared invite links: some transports don't make
+                // custom-scheme URLs tappable, so the joiner can copy the link and land
+                // in the same confirmation sheet a tapped link produces.
+                Button {
+                    Haptics.select()
+                    DeviceIdentity.name = trimmedName
+                    if let text = UIPasteboard.general.string,
+                       let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                        appState.handleIncomingURL(url)
+                    }
+                } label: {
+                    Text("Got an invite link? Paste it")
+                        .font(.footnote.weight(.medium))
+                }
+                .tint(.secondary)
+                .padding(.top, 2)
             }
             .padding(.horizontal, 28)
 
             Spacer()
         }
+    }
+}
+
+// MARK: - Pending invite card
+
+private struct PendingInviteCard: View {
+    let pending: PendingInvite
+    var onShow: () -> Void
+    var onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: pending.isExpired ? "clock.badge.exclamationmark" : "paperplane.circle.fill")
+                    .foregroundStyle(pending.isExpired ? Color.orange : Color.red)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(pending.isExpired ? "Invite is getting stale" : "Waiting for your partner to accept")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Started \(relativeTime(from: pending.createdAt))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            HStack(spacing: 10) {
+                Button {
+                    Haptics.select()
+                    onShow()
+                } label: {
+                    Text(pending.isExpired ? "Start a fresh one" : "Show or share again")
+                        .font(.footnote.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(.red)
+
+                Button(role: .destructive) {
+                    Haptics.select()
+                    onCancel()
+                } label: {
+                    Text("Cancel invite")
+                        .font(.footnote.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder((pending.isExpired ? Color.orange : Color.red).opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    private func relativeTime(from date: Date) -> String {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .short
+        return f.localizedString(for: date, relativeTo: Date())
     }
 }
 
@@ -144,6 +227,14 @@ private struct ShowCodeView: View {
             case .starting, .waiting:
                 qrPanel
                 statusFooter
+                if phase == .waiting, let invite, let url = URL(string: invite.qrPayload) {
+                    ShareLink(item: url) {
+                        Label("Or share the link", systemImage: "square.and.arrow.up")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .tint(.red)
+                    .padding(.top, 2)
+                }
                 #if DEBUG
                 if let invite {
                     VStack(spacing: 6) {
@@ -168,10 +259,26 @@ private struct ShowCodeView: View {
 
             Spacer()
 
-            Button("Cancel", role: .cancel) {
-                Haptics.select()
-                pollingTask?.cancel()
-                onCancel()
+            VStack(spacing: 10) {
+                Text("You can close this screen after sharing — pairing completes when they accept.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+
+                HStack(spacing: 18) {
+                    Button("Close") {
+                        Haptics.select()
+                        pollingTask?.cancel()
+                        onCancel()
+                    }
+                    Button("Cancel invite", role: .destructive) {
+                        Haptics.select()
+                        pollingTask?.cancel()
+                        Task { await appState.cancelPendingInvite() }
+                        onCancel()
+                    }
+                }
             }
             .padding(.bottom, 16)
         }
@@ -258,30 +365,51 @@ private struct ShowCodeView: View {
         pollingTask?.cancel()
         phase = .starting
         DeviceIdentity.name = displayName
+
+        // Resume a live pending invite instead of minting a new pairKey — the shared
+        // link and the on-screen QR must stay interchangeable. Expired invites fall
+        // through to a fresh start (startInviting cancels the old one server-side).
+        if let pending = PendingInvite.load(), !pending.isExpired {
+            self.invite = pending.invite
+            self.qrImage = QRCode.image(from: pending.invite.qrPayload)
+            self.phase = .waiting
+            startPolling(pairKey: pending.pairKey)
+            return
+        }
+
         do {
             let result = try await PairingService.shared.startInviting(myName: displayName)
+            appState.refreshPendingInvite()
             self.invite = result.invite
             self.qrImage = QRCode.image(from: result.invite.qrPayload)
             self.phase = .waiting
-            pollingTask = Task {
-                do {
-                    let state = try await PairingService.shared.waitForJoiner(record: result.record)
-                    await MainActor.run {
-                        Haptics.success()
-                        appState.applyPair(state)
-                    }
-                } catch is CancellationError {
-                    // expected on view dismissal
-                } catch {
-                    await MainActor.run {
-                        Haptics.warning()
-                        phase = .failed(error.localizedDescription)
-                    }
-                }
-            }
+            startPolling(pairKey: result.invite.pairKey)
         } catch {
             Haptics.warning()
             phase = .failed(error.localizedDescription)
+        }
+    }
+
+    @MainActor
+    private func startPolling(pairKey: String) {
+        pollingTask = Task {
+            do {
+                // Effectively screen-lifetime: the task is cancelled on dismissal, and a
+                // remote invite that outlives this screen completes via push/reconcile —
+                // so a short timeout would surface a spurious failure.
+                let state = try await PairingService.shared.waitForJoiner(pairKey: pairKey, timeout: 3600)
+                await MainActor.run {
+                    Haptics.success()
+                    appState.applyPair(state)
+                }
+            } catch is CancellationError {
+                // expected on view dismissal
+            } catch {
+                await MainActor.run {
+                    Haptics.warning()
+                    phase = .failed(error.localizedDescription)
+                }
+            }
         }
     }
 }

@@ -111,7 +111,13 @@ final class PushNotifications: NSObject {
         }
 
         if queryNotification.subscriptionID == Constants.SubscriptionID.pairUpdates {
-            await appState.refreshPairFromCloud()
+            if appState.pair == nil {
+                // Unpaired but subscribed = a pending remote invite; this push is the
+                // joiner filling their slot. Complete the pairing.
+                await appState.reconcilePendingInvite()
+            } else {
+                await appState.refreshPairFromCloud()
+            }
             return .newData
         }
 
