@@ -6,6 +6,40 @@ import XCTest
 /// values) so they don't need the type's private `Keys`.
 final class UserSettingsTests: XCTestCase {
 
+    private struct Baseline {
+        var name: String
+        var cooldown: Int
+        var customSound: Bool
+        var timeSensitive: Bool
+        var ackBanners: Bool
+        var acceptCritical: Bool
+    }
+    private var baseline: Baseline!
+
+    override func setUp() {
+        super.setUp()
+        let s = UserSettings()
+        baseline = Baseline(
+            name: s.displayName, cooldown: s.cooldownSeconds,
+            customSound: s.customSoundEnabled, timeSensitive: s.timeSensitiveEnabled,
+            ackBanners: s.ackBannersEnabled, acceptCritical: s.acceptCriticalAlerts
+        )
+    }
+
+    override func tearDown() {
+        // Restore the pre-test values so these tests don't leak into UserDefaults.standard
+        // or the App Group mirror (setting through UserSettings re-persists + re-mirrors).
+        let s = UserSettings()
+        s.displayName = baseline.name
+        s.cooldownSeconds = baseline.cooldown
+        s.customSoundEnabled = baseline.customSound
+        s.timeSensitiveEnabled = baseline.timeSensitive
+        s.ackBannersEnabled = baseline.ackBanners
+        s.acceptCriticalAlerts = baseline.acceptCritical
+        baseline = nil
+        super.tearDown()
+    }
+
     func testDisplayNamePersistsAcrossInstances() {
         let name = "Zephyr-\(UUID().uuidString.prefix(6))"
         let a = UserSettings()
