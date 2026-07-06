@@ -32,21 +32,23 @@ struct BannerView: View {
         HStack(spacing: 10) {
             Image(systemName: tone.icon)
                 .foregroundStyle(tone.tint)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.headline)
+                .accessibilityHidden(true)
             Text(message)
-                .font(.system(size: 14, weight: .medium))
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(.primary)
                 .lineLimit(3)
                 .multilineTextAlignment(.leading)
             Spacer(minLength: 4)
             if let action, let actionLabel {
                 Button(actionLabel, action: action)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.footnote.weight(.semibold))
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .tint(tone.tint)
             }
         }
+        .accessibilityElement(children: .combine)
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
