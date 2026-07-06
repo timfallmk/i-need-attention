@@ -99,10 +99,13 @@ struct WatchContentView: View {
             }
             .padding(.vertical, 4)
         }
-        .task(id: session.snapshot?.cooldownEnds) {
-            // Only tick while a cooldown is actively winding down — outside that
-            // window the 1Hz timer would just burn watch battery for no UI change.
-            guard let end = session.snapshot?.cooldownEnds, end > Date() else {
+        .task(id: tickDeadline) {
+            // Tick only while something time-based is winding down — a cooldown or an
+            // active snooze — until whichever ends later. Outside that window the 1Hz
+            // timer would just burn watch battery for no UI change. Without including the
+            // snooze deadline the pill would stay stuck on "Snoozed" after it expires,
+            // since no fresh snapshot necessarily arrives when the local reminder fires.
+            guard let end = tickDeadline, end > Date() else {
                 now = Date()
                 return
             }
@@ -135,6 +138,15 @@ struct WatchContentView: View {
             startPoint: .top,
             endPoint: .bottom
         )
+    }
+
+    /// The latest of the cooldown end and an active snooze end — the point past which the
+    /// 1Hz `now` ticker no longer needs to run. Drives `.task(id:)` so it restarts whenever
+    /// either deadline changes.
+    private var tickDeadline: Date? {
+        [session.snapshot?.cooldownEnds, session.snapshot?.incoming?.snoozedUntil]
+            .compactMap { $0 }
+            .max()
     }
 
     private var isCoolingDown: Bool {
