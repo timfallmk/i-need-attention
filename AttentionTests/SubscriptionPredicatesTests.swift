@@ -1,38 +1,64 @@
 import XCTest
 
 /// The subscription predicates decide which pushes each device receives — a wrong operator
-/// here silently breaks delivery, so pin the distinguishing properties.
+/// or field here silently breaks delivery. Each builder is pinned against a fully-specified
+/// expected predicate (field names + operators + values, via `predicateFormat`) so a swapped
+/// clause, operator, or field can't slip through.
 final class SubscriptionPredicatesTests: XCTestCase {
 
-    func testIncomingExcludesOwnDeviceAndScopesToPair() {
-        let f = SubscriptionPredicates.incomingAlerts(pairKey: "PK", myDeviceID: "ME").predicateFormat
-        XCTAssertTrue(f.contains("!="), "incoming must EXCLUDE the wearer's own alerts")
-        XCTAssertTrue(f.contains("\"PK\""))
-        XCTAssertTrue(f.contains("\"ME\""))
+    private func assertStructure(
+        _ actual: NSPredicate, matches expected: NSPredicate,
+        _ message: String = "", file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertEqual(actual.predicateFormat, expected.predicateFormat, message, file: file, line: line)
     }
 
-    func testOutgoingStatusIncludesOnlyOwnDevice() {
-        let f = SubscriptionPredicates.outgoingStatus(pairKey: "PK", myDeviceID: "ME").predicateFormat
-        XCTAssertFalse(f.contains("!="), "outgoing status must only match my own alerts")
-        XCTAssertTrue(f.contains("=="))
+    func testIncomingAlertsExcludesOwnDeviceInThisPair() {
+        assertStructure(
+            SubscriptionPredicates.incomingAlerts(pairKey: "PK", myDeviceID: "ME"),
+            matches: NSPredicate(
+                format: "%K == %@ AND %K != %@",
+                Constants.AlertField.pairKey, "PK",
+                Constants.AlertField.senderDeviceID, "ME"
+            )
+        )
     }
 
-    /// The classic bug is swapping these two — they must never render identically.
-    func testIncomingAndOutgoingStatusDiffer() {
-        let incoming = SubscriptionPredicates.incomingAlerts(pairKey: "PK", myDeviceID: "ME")
-        let outgoing = SubscriptionPredicates.outgoingStatus(pairKey: "PK", myDeviceID: "ME")
-        XCTAssertNotEqual(incoming.predicateFormat, outgoing.predicateFormat)
+    func testOutgoingStatusMatchesOnlyOwnAlerts() {
+        assertStructure(
+            SubscriptionPredicates.outgoingStatus(pairKey: "PK", myDeviceID: "ME"),
+            matches: NSPredicate(
+                format: "%K == %@ AND %K == %@",
+                Constants.AlertField.pairKey, "PK",
+                Constants.AlertField.senderDeviceID, "ME"
+            )
+        )
     }
 
-    func testOutgoingAckMatchesAckRecipientField() {
-        let f = SubscriptionPredicates.outgoingAck(pairKey: "PK", myDeviceID: "ME").predicateFormat
-        XCTAssertTrue(f.contains(Constants.AckField.recipientDeviceID))
-        XCTAssertTrue(f.contains("\"ME\""))
+    func testOutgoingAckMatchesAckRecipient() {
+        assertStructure(
+            SubscriptionPredicates.outgoingAck(pairKey: "PK", myDeviceID: "ME"),
+            matches: NSPredicate(
+                format: "%K == %@ AND %K == %@",
+                Constants.AckField.pairKey, "PK",
+                Constants.AckField.recipientDeviceID, "ME"
+            )
+        )
     }
 
     func testPairUpdatesScopedToPairKeyOnly() {
-        let f = SubscriptionPredicates.pairUpdates(pairKey: "PK").predicateFormat
-        XCTAssertTrue(f.contains("\"PK\""))
-        XCTAssertFalse(f.contains("AND"), "pair updates should not filter on any second field")
+        assertStructure(
+            SubscriptionPredicates.pairUpdates(pairKey: "PK"),
+            matches: NSPredicate(format: "%K == %@", Constants.PairField.pairKey, "PK")
+        )
+    }
+
+    /// The classic bug is swapping incoming (`!=`) and outgoing-status (`==`) — pin that the
+    /// two never render identically, independent of the exact-structure tests above.
+    func testIncomingAndOutgoingStatusDiffer() {
+        XCTAssertNotEqual(
+            SubscriptionPredicates.incomingAlerts(pairKey: "PK", myDeviceID: "ME").predicateFormat,
+            SubscriptionPredicates.outgoingStatus(pairKey: "PK", myDeviceID: "ME").predicateFormat
+        )
     }
 }
