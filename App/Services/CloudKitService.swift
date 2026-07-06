@@ -369,11 +369,7 @@ final class CloudKitService: @unchecked Sendable {
     // MARK: - Subscription factories
 
     private func makeIncomingSubscription(pairKey: String, myDeviceID: String) -> CKQuerySubscription {
-        let predicate = NSPredicate(
-            format: "%K == %@ AND %K != %@",
-            Constants.AlertField.pairKey, pairKey,
-            Constants.AlertField.senderDeviceID, myDeviceID
-        )
+        let predicate = SubscriptionPredicates.incomingAlerts(pairKey: pairKey, myDeviceID: myDeviceID)
         let sub = CKQuerySubscription(
             recordType: Constants.RecordType.alert,
             predicate: predicate,
@@ -392,7 +388,7 @@ final class CloudKitService: @unchecked Sendable {
     }
 
     private func makePairUpdateSubscription(pairKey: String) -> CKQuerySubscription {
-        let predicate = NSPredicate(format: "%K == %@", Constants.PairField.pairKey, pairKey)
+        let predicate = SubscriptionPredicates.pairUpdates(pairKey: pairKey)
         let sub = CKQuerySubscription(
             recordType: Constants.RecordType.pair,
             predicate: predicate,
@@ -407,11 +403,7 @@ final class CloudKitService: @unchecked Sendable {
 
     private func makeOutgoingStatusSubscription(pairKey: String, myDeviceID: String) -> CKQuerySubscription {
         // Updates to alerts I sent — used to refresh the "Sent / Seen / Acknowledged" indicator.
-        let predicate = NSPredicate(
-            format: "%K == %@ AND %K == %@",
-            Constants.AlertField.pairKey, pairKey,
-            Constants.AlertField.senderDeviceID, myDeviceID
-        )
+        let predicate = SubscriptionPredicates.outgoingStatus(pairKey: pairKey, myDeviceID: myDeviceID)
         let sub = CKQuerySubscription(
             recordType: Constants.RecordType.alert,
             predicate: predicate,
@@ -435,11 +427,7 @@ final class CloudKitService: @unchecked Sendable {
     /// records they didn't create, so visible-push-on-update would be a spam vector).
     /// `firesOnRecordCreation` on a dedicated Ack record sidesteps the restriction.
     private func makeOutgoingAckSubscription(pairKey: String, myDeviceID: String) -> CKQuerySubscription {
-        let predicate = NSPredicate(
-            format: "%K == %@ AND %K == %@",
-            Constants.AckField.pairKey, pairKey,
-            Constants.AckField.recipientDeviceID, myDeviceID
-        )
+        let predicate = SubscriptionPredicates.outgoingAck(pairKey: pairKey, myDeviceID: myDeviceID)
         let sub = CKQuerySubscription(
             recordType: Constants.RecordType.ack,
             predicate: predicate,

@@ -200,9 +200,12 @@ targets:
       - path: Shared/Constants.swift
       - path: Shared/WatchSnapshot.swift
       - path: Shared/SharedSettings.swift
+      - path: Shared/SubscriptionPredicates.swift
       - path: App/Models/PairState.swift
       - path: App/Models/PendingInvite.swift
       - path: App/Models/SnoozeState.swift
+      - path: App/Models/AlertRecord.swift
+      - path: App/Models/UserSettings.swift
       - path: App/Models/NounPresets.swift
       - path: App/Models/OpenSourceLicenses.swift
       - path: App/Helpers/DeviceIdentity.swift
