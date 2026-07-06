@@ -102,9 +102,12 @@ private struct HistoryRow: View {
     }
 
     private var title: String {
-        let who = isMine ? "You" : (alert.senderName.isEmpty ? "Partner" : alert.senderName)
+        let who = isMine
+            ? String(localized: "You")
+            : (alert.senderName.isEmpty ? String(localized: "Partner") : alert.senderName)
         let body = alert.message.trimmingCharacters(in: .whitespacesAndNewlines)
-        return "\(who) · \(body.isEmpty ? "needs attention" : body)"
+        let bodyText = body.isEmpty ? String(localized: "needs attention") : body
+        return "\(who) · \(bodyText)"
     }
 
     private func relativeTime(from date: Date) -> String {

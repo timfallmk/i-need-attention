@@ -12,10 +12,11 @@ struct StatusIndicatorView: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(emoji)
-                .font(.system(size: 22))
+                .font(.title2)
+                .accessibilityHidden(true)   // decorative — state is carried by the text below
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .foregroundStyle(.primary)
                 if let subtitle {
                     Text(subtitle)
@@ -23,6 +24,7 @@ struct StatusIndicatorView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
             if case .outgoingAcked = snapshot, let onClear {
                 Button(action: onClear) {
@@ -80,7 +82,7 @@ struct StatusIndicatorView: View {
         }
     }
 
-    private var title: String {
+    private var title: LocalizedStringKey {
         switch snapshot {
         case .idle: return "All quiet"
         case .outgoingSent: return "Sent"
@@ -93,13 +95,13 @@ struct StatusIndicatorView: View {
         }
     }
 
-    private var subtitle: String? {
+    private var subtitle: LocalizedStringKey? {
         switch snapshot {
         case .idle: return isOnCooldown ? "Cooling down" : nil
         case .outgoingSent: return "Waiting for them to look"
         case .outgoingSeen: return "They saw it"
         case .outgoingAcked: return "They got back to you"
-        case .incomingPending(let a): return relativeTime(from: a.createdAt)
+        case .incomingPending(let a): return "\(relativeTime(from: a.createdAt))"
         case .incomingSnoozed(let until): return "until \(until.formatted(date: .omitted, time: .shortened))"
         }
     }

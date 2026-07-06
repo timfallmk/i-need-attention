@@ -1,5 +1,105 @@
+/* ==========================================================================
+   Localizable.strings — base (English).
+
+   Every user-facing SwiftUI string flows through LocalizedStringKey, so it
+   resolves against this table; a missing key falls back to the literal, so
+   this file is the translator source rather than a correctness dependency.
+   Interpolated keys use the SwiftUI-generated format specifiers (%@, %lld).
+   ========================================================================== */
+
+/* --- Push notifications (consumed by CloudKit's localized push + the NSE) --- */
 /* Notification title shown by CloudKit's localized push. %@ = sender name. */
 "ATTENTION_NOTIFICATION_TITLE" = "%@";
-
 /* Notification body. %1$@ = sender name, %2$@ = message. */
 "ATTENTION_NOTIFICATION_BODY" = "%1$@ %2$@";
+
+/* --- Main screen --- */
+"Attention" = "Attention";
+"Long-press to choose" = "Long-press to choose";
+"paired with %@" = "paired with %@";
+"Let them know you're here" = "Let them know you're here";
+"Remind me later" = "Remind me later";
+"Notifications are off" = "Notifications are off";
+"You won't see incoming alerts until you turn them on." = "You won't see incoming alerts until you turn them on.";
+"Turn On" = "Turn On";
+
+/* --- Attention button --- */
+"I need\nattention" = "I need\nattention";
+"wait %llds" = "wait %llds";
+"Cooling down" = "Cooling down";
+"I need attention" = "I need attention";
+"Sends an attention request to your partner" = "Sends an attention request to your partner";
+"Choose what you need" = "Choose what you need";
+
+/* --- Status pill (iOS + watch share these keys) --- */
+"All quiet" = "All quiet";
+"Sent" = "Sent";
+"Seen" = "Seen";
+"Acknowledged" = "Acknowledged";
+"Snoozed" = "Snoozed";
+"%@ needs you" = "%@ needs you";
+"%@ %@" = "%@ %@";
+"Waiting for them to look" = "Waiting for them to look";
+"They saw it" = "They saw it";
+"They got back to you" = "They got back to you";
+"until %@" = "until %@";
+"Clear" = "Clear";
+
+/* --- Snooze --- */
+"Remind me in…" = "Remind me in…";
+"%lld minutes" = "%lld minutes";
+"Cancel" = "Cancel";
+"Cancel snooze" = "Cancel snooze";
+
+/* --- History --- */
+"History" = "History";
+"Done" = "Done";
+"Couldn't load history" = "Couldn't load history";
+"Check your connection and try again." = "Check your connection and try again.";
+"Retry" = "Retry";
+"No history yet" = "No history yet";
+"Alerts you send and receive will show up here." = "Alerts you send and receive will show up here.";
+"You" = "You";
+"Partner" = "Partner";
+"needs attention" = "needs attention";
+
+/* --- Acknowledge sheet --- */
+"Acknowledge" = "Acknowledge";
+"Pick a quick reaction so they know you're on it. Tap + for more emoji." = "Pick a quick reaction so they know you're on it. Tap + for more emoji.";
+"Just acknowledge" = "Just acknowledge";
+"More emoji" = "More emoji";
+
+/* --- Pairing --- */
+"Pair your phones" = "Pair your phones";
+"Two phones, one button" = "Two phones, one button";
+"One of you taps Show Code; the other taps Scan Code. After that, either of you can press the button." = "One of you taps Show Code; the other taps Scan Code. After that, either of you can press the button.";
+"Your name" = "Your name";
+"How your partner sees you" = "How your partner sees you";
+"Show Code" = "Show Code";
+"Scan Code" = "Scan Code";
+"Got an invite link? Paste it" = "Got an invite link? Paste it";
+"Or share the link" = "Or share the link";
+"Waiting for your partner to accept" = "Waiting for your partner to accept";
+"Invite is getting stale" = "Invite is getting stale";
+"Show or share again" = "Show or share again";
+"Start a fresh one" = "Start a fresh one";
+"Cancel invite" = "Cancel invite";
+"Close" = "Close";
+
+/* --- Join-invite sheet --- */
+"Already paired" = "Already paired";
+"Pair with %@?" = "Pair with %@?";
+"They'll be able to send you attention requests, and you them." = "They'll be able to send you attention requests, and you them.";
+"Pair" = "Pair";
+"Pairing…" = "Pairing…";
+"OK" = "OK";
+
+/* --- Watch --- */
+"Connecting…" = "Connecting…";
+"Not paired" = "Not paired";
+"Pair on iPhone" = "Pair on iPhone";
+"Waiting" = "Waiting";
+"Got back to you" = "Got back to you";
+"Ack" = "Ack";
+"Snooze" = "Snooze";
+"Need\nattention" = "Need\nattention";

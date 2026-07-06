@@ -82,7 +82,7 @@ struct WatchStatusPill: View {
         }
     }
 
-    private var title: String {
+    private var title: LocalizedStringKey {
         switch state {
         case .loading: return "Connecting…"
         case .unpaired: return "Not paired"
@@ -97,7 +97,7 @@ struct WatchStatusPill: View {
         }
     }
 
-    private var subtitle: String? {
+    private var subtitle: LocalizedStringKey? {
         switch state {
         case .loading: return nil
         case .unpaired: return "Pair on iPhone"

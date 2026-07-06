@@ -13,6 +13,10 @@ struct AttentionButton: View {
 
     @State private var pressed = false
     @State private var pulse = false
+    // Scale with Dynamic Type but relative to a base, so the text respects the user's size
+    // setting without blowing out the fixed-diameter button (paired with minimumScaleFactor).
+    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 44
+    @ScaledMetric(relativeTo: .title2) private var centerTextSize: CGFloat = 22
 
     private var cooldownProgress: Double {
         guard cooldownTotal > 0, isCoolingDown else { return 0 }
@@ -93,11 +97,12 @@ struct AttentionButton: View {
 
                     VStack(spacing: 6) {
                         Image(systemName: isCoolingDown ? "hourglass" : "hand.raised.fill")
-                            .font(.system(size: 44, weight: .bold))
+                            .font(.system(size: iconSize, weight: .bold))
                         Text(centerText)
-                            .font(.system(size: 22, weight: .heavy, design: .rounded))
+                            .font(.system(size: centerTextSize, weight: .heavy, design: .rounded))
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
+                            .minimumScaleFactor(0.7)
                             .padding(.horizontal, 32)
                     }
                     .foregroundStyle(.white)
@@ -119,6 +124,15 @@ struct AttentionButton: View {
                         onLongPress()
                     }
             )
+            // Stable label — deliberately excludes the live countdown so VoiceOver doesn't
+            // re-announce the button every second while it cools down.
+            .accessibilityLabel(isCoolingDown ? Text("Cooling down") : Text("I need attention"))
+            .accessibilityHint(isCoolingDown ? Text("") : Text("Sends an attention request to your partner"))
+            // Long-press has no VoiceOver equivalent, so expose the noun picker as a custom action.
+            .accessibilityAction(named: Text("Choose what you need")) {
+                guard !isCoolingDown else { return }
+                onLongPress()
+            }
         }
         .frame(width: 280, height: 280)
         .onChange(of: isSending) { _, sending in
@@ -126,7 +140,7 @@ struct AttentionButton: View {
         }
     }
 
-    private var centerText: String {
+    private var centerText: LocalizedStringKey {
         if isCoolingDown {
             return "wait \(Int(cooldownRemaining))s"
         }
