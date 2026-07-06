@@ -5,6 +5,7 @@ struct WatchContentView: View {
     @EnvironmentObject var session: WatchSession
     @State private var pulse = false
     @State private var showAckSheet = false
+    @State private var showSnoozeSheet = false
     @State private var now = Date()
 
     var body: some View {
@@ -46,17 +47,41 @@ struct WatchContentView: View {
                 .scaleEffect(pulse ? 0.94 : 1.0)
                 .animation(.spring(response: 0.25, dampingFraction: 0.55), value: pulse)
 
-                if showsAckButton {
+                if showsSnoozed {
                     Button {
-                        showAckSheet = true
+                        session.sendCancelSnooze()
                     } label: {
-                        Label("Acknowledge", systemImage: "checkmark.circle.fill")
+                        Label("Cancel snooze", systemImage: "clock.badge.xmark")
                             .font(.system(size: 12, weight: .semibold))
                             .padding(.vertical, 4)
                             .padding(.horizontal, 10)
                     }
                     .buttonStyle(.plain)
                     .background(.ultraThinMaterial, in: Capsule())
+                } else if showsAckButton {
+                    HStack(spacing: 6) {
+                        Button {
+                            showAckSheet = true
+                        } label: {
+                            Label("Ack", systemImage: "checkmark.circle.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 8)
+                        }
+                        .buttonStyle(.plain)
+                        .background(.ultraThinMaterial, in: Capsule())
+
+                        Button {
+                            showSnoozeSheet = true
+                        } label: {
+                            Label("Snooze", systemImage: "clock")
+                                .font(.system(size: 12, weight: .semibold))
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 8)
+                        }
+                        .buttonStyle(.plain)
+                        .background(.ultraThinMaterial, in: Capsule())
+                    }
                 }
 
                 if showsClearButton {
@@ -93,6 +118,12 @@ struct WatchContentView: View {
                 showAckSheet = false
             }
         }
+        .sheet(isPresented: $showSnoozeSheet) {
+            WatchSnoozeSheet { minutes in
+                session.sendSnooze(minutes: minutes)
+                showSnoozeSheet = false
+            }
+        }
     }
 
     private var buttonGradient: LinearGradient {
@@ -114,6 +145,12 @@ struct WatchContentView: View {
     private var showsAckButton: Bool {
         guard let incoming = session.snapshot?.incoming else { return false }
         return !incoming.acknowledged
+    }
+
+    private var showsSnoozed: Bool {
+        guard let incoming = session.snapshot?.incoming, !incoming.acknowledged,
+              let until = incoming.snoozedUntil else { return false }
+        return until > now
     }
 
     private var showsClearButton: Bool {

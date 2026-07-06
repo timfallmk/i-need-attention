@@ -36,3 +36,31 @@ struct AlertRecord: Identifiable, Equatable {
         self.critical = (record[Constants.AlertField.critical] as? Int ?? 0) == 1
     }
 }
+
+#if DEBUG
+extension AlertRecord {
+    /// Sample record for SwiftUI previews. Built through a real `CKRecord` so it exercises
+    /// the same parser production uses — no preview-only second initializer to drift.
+    static func preview(
+        state: Constants.AlertState = .sent,
+        senderName: String = "Sam",
+        message: String = "needs coffee",
+        ackEmoji: String? = nil
+    ) -> AlertRecord {
+        let record = CKRecord(
+            recordType: Constants.RecordType.alert,
+            recordID: CKRecord.ID(recordName: "preview-\(UUID().uuidString)")
+        )
+        record[Constants.AlertField.pairKey] = "preview" as CKRecordValue
+        record[Constants.AlertField.senderDeviceID] = "sender" as CKRecordValue
+        record[Constants.AlertField.senderName] = senderName as CKRecordValue
+        record[Constants.AlertField.message] = message as CKRecordValue
+        record[Constants.AlertField.state] = state.rawValue as CKRecordValue
+        record[Constants.AlertField.critical] = 0 as CKRecordValue
+        if let ackEmoji {
+            record[Constants.AlertField.ackEmoji] = ackEmoji as CKRecordValue
+        }
+        return AlertRecord(record: record)!
+    }
+}
+#endif

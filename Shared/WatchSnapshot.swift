@@ -30,6 +30,9 @@ struct WatchSnapshot: Codable, Equatable {
         /// Full body string ("needs hugs"). Optional for backward compatibility with
         /// snapshots encoded by older app versions.
         var message: String?
+        /// When set (and in the future), this incoming alert is snoozed until this time.
+        /// Optional for backward compatibility with snapshots encoded by older versions.
+        var snoozedUntil: Date?
     }
 
     var paired: Bool

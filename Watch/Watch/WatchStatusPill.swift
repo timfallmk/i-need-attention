@@ -41,12 +41,16 @@ struct WatchStatusPill: View {
         case outgoingSeen
         case outgoingAcked(String?)
         case incomingPending(senderName: String, message: String?)
+        case incomingSnoozed(Date)
     }
 
     private var state: State {
         guard let snap = snapshot else { return .loading }
         guard snap.paired else { return .unpaired }
         if let incoming = snap.incoming, !incoming.acknowledged {
+            if let until = incoming.snoozedUntil, until > now {
+                return .incomingSnoozed(until)
+            }
             return .incomingPending(senderName: incoming.senderName, message: incoming.message)
         }
         if let outgoing = snap.outgoing {
@@ -74,6 +78,7 @@ struct WatchStatusPill: View {
         case .outgoingAcked(let e): return e ?? "✅"
         // case .incomingPending(_, let c): return c ? "🚨" : "🔔"
         case .incomingPending: return "🔔"
+        case .incomingSnoozed: return "⏰"
         }
     }
 
@@ -88,6 +93,7 @@ struct WatchStatusPill: View {
         case .incomingPending(let name, let message):
             let body = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             return body.isEmpty ? "\(name) needs you" : "\(name) \(body)"
+        case .incomingSnoozed: return "Snoozed"
         }
     }
 
@@ -100,6 +106,7 @@ struct WatchStatusPill: View {
         case .outgoingSeen: return "They saw it"
         case .outgoingAcked: return "Got back to you"
         case .incomingPending: return nil
+        case .incomingSnoozed(let until): return "until \(until.formatted(date: .omitted, time: .shortened))"
         }
     }
 
@@ -112,6 +119,22 @@ struct WatchStatusPill: View {
         case .outgoingSeen: return .indigo
         case .outgoingAcked: return .green
         case .incomingPending: return .red
+        case .incomingSnoozed: return .orange
         }
     }
 }
+
+#if DEBUG
+#Preview {
+    let incoming = WatchSnapshot.IncomingInfo(
+        recordName: "x", senderName: "Sam", critical: false,
+        createdAt: Date(), acknowledged: false, message: "needs coffee", snoozedUntil: nil
+    )
+    var snoozed = incoming
+    snoozed.snoozedUntil = Date().addingTimeInterval(15 * 60)
+    return VStack(spacing: 8) {
+        WatchStatusPill(snapshot: WatchSnapshot(paired: true, outgoing: nil, incoming: incoming, cooldownEnds: nil), now: Date())
+        WatchStatusPill(snapshot: WatchSnapshot(paired: true, outgoing: nil, incoming: snoozed, cooldownEnds: nil), now: Date())
+    }
+}
+#endif

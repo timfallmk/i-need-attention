@@ -33,6 +33,9 @@ struct AttentionApp: App {
                         onClear: { @MainActor recordName in
                             appState.clearOutgoing(recordName: recordName)
                         },
+                        onSnooze: { @MainActor recordName, minutes in
+                            appState.snoozeIncomingFromWatch(recordName: recordName, minutes: minutes)
+                        },
                         onActivated: { @MainActor in
                             appState.pushWatchSnapshot()
                         }

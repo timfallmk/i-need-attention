@@ -85,6 +85,13 @@ enum Constants {
         /// alert being cleared so the phone can ignore stale transferUserInfo clears.
         static let clearKind = "clear"
         static let clearRecordNameKey = "clearRecordName"
+
+        /// Watch → phone: snooze (or, with `snoozeMinutesKey` == 0, cancel the snooze on)
+        /// the latest incoming alert. `snoozeRecordNameKey` guards against a stale
+        /// userInfo-queued message the same way `ackRecordNameKey` does.
+        static let snoozeKind = "snooze"
+        static let snoozeRecordNameKey = "snoozeRecordName"
+        static let snoozeMinutesKey = "snoozeMinutes"
     }
 
     enum AppGroup {
@@ -106,6 +113,14 @@ enum Constants {
         static let hug = "ack.hug"
         static let urgent = "ack.urgent"
         static let plain = "ack.plain"
+
+        /// Defer an incoming alert and re-surface it locally after a delay. Distinct from
+        /// the ack actions — it does not acknowledge, so it never appears in
+        /// `allAckActionIdentifiers` or `emoji(for:)`.
+        static let snooze = "action.snooze"
+        /// Interval for the one-tap notification-action snooze (the in-app / watch sheet
+        /// offers finer choices). Local re-notification only — no server involvement.
+        static let defaultSnoozeMinutes = 15
 
         /// Maps an action identifier back to the emoji we'd persist on the alert. `plain`
         /// returns nil so the sender sees a generic ✅ instead of an emoji.

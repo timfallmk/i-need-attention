@@ -102,6 +102,47 @@ final class WatchSession: NSObject, ObservableObject, WCSessionDelegate {
         snapshot = snap
     }
 
+    /// Snooze the current incoming alert for `minutes`. Optimistically stamps the local
+    /// snapshot so the pill flips to "Snoozed" immediately; the phone reconciles.
+    func sendSnooze(minutes: Int) {
+        guard let recordName = snapshot?.incoming?.recordName else { return }
+        sendSnoozeMessage(recordName: recordName, minutes: minutes)
+        WKInterfaceDevice.current().play(.success)
+        applyOptimisticSnooze(until: Date().addingTimeInterval(TimeInterval(minutes * 60)))
+    }
+
+    /// Cancel the snooze on the current incoming alert (minutes == 0 tells the phone).
+    func sendCancelSnooze() {
+        guard let recordName = snapshot?.incoming?.recordName else { return }
+        sendSnoozeMessage(recordName: recordName, minutes: 0)
+        applyOptimisticSnooze(until: nil)
+    }
+
+    private func sendSnoozeMessage(recordName: String, minutes: Int) {
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        let payload: [String: Any] = [
+            Constants.WatchMessage.kindKey: Constants.WatchMessage.snoozeKind,
+            Constants.WatchMessage.snoozeRecordNameKey: recordName,
+            Constants.WatchMessage.snoozeMinutesKey: minutes
+        ]
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil, errorHandler: { [weak self] _ in
+                session.transferUserInfo(payload)
+                self?.log.debug("snooze: queued via userInfo (sendMessage failed)")
+            })
+        } else {
+            session.transferUserInfo(payload)
+        }
+    }
+
+    private func applyOptimisticSnooze(until: Date?) {
+        guard var snap = snapshot, var incoming = snap.incoming else { return }
+        incoming.snoozedUntil = until
+        snap.incoming = incoming
+        snapshot = snap
+    }
+
     // MARK: - WCSessionDelegate
 
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {

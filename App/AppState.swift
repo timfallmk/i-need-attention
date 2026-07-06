@@ -20,6 +20,10 @@ final class AppState {
     /// Set by the URL handler; drives the join confirmation sheet in RootView.
     var incomingJoinInvite: PairingInvite?
 
+    /// Locally-snoozed incoming alert (#49). Observable mirror of the persisted `SnoozeState`.
+    /// Only meaningful while it matches `lastIncoming` and `isActive`.
+    var snooze: SnoozeState?
+
     // Settings (persisted via @Observable hooks)
     let settings: UserSettings
 
@@ -52,6 +56,7 @@ final class AppState {
         self.settings = UserSettings()
         self.pair = PairState.load()
         self.pendingInvite = PendingInvite.load()
+        self.snooze = SnoozeState.load()
         self.outgoingAckSubscriptionUnavailable = SharedSettings.outgoingAckSubscriptionUnavailable
         self.outgoingAckSubscriptionFailureReason = SharedSettings.outgoingAckSubscriptionFailureReason
     }
@@ -136,6 +141,7 @@ final class AppState {
             // otherwise persist with no way to clear it.
             pendingOutgoing = nil
             lastIncoming = nil
+            reconcileSnoozeState()
             try? await UNUserNotificationCenter.current().setBadgeCount(0)
             pushWatchSnapshot()
             return
@@ -152,6 +158,7 @@ final class AppState {
             let wasDismissed = outgoing?.state == .acknowledged && outgoing?.id.recordName == dismissedName
             pendingOutgoing = wasDismissed ? nil : outgoing
             lastIncoming = incoming
+            reconcileSnoozeState()
             if incoming == nil || incoming?.state == .acknowledged {
                 try? await UNUserNotificationCenter.current().setBadgeCount(0)
             }
@@ -240,7 +247,12 @@ final class AppState {
                 if alert.state == .acknowledged { Haptics.success() }
             }
         } else if alert.senderDeviceID == pair.partnerDeviceID {
-            // The partner sent something new — record it and mark seen.
+            // The partner sent something new — a snooze on a *previous* incoming no longer
+            // applies, so cancel its pending re-notification before it can fire.
+            if let current = snooze, current.recordName != alert.id.recordName {
+                cancelSnooze()
+            }
+            // Record it and mark seen.
             lastIncoming = alert
             do {
                 let updated = try await CloudKitService.shared.markAlertSeen(recordID: alert.id)
@@ -254,6 +266,10 @@ final class AppState {
 
     func acknowledgeIncoming(emoji: String?) async {
         guard let alert = lastIncoming else { return }
+        // Acknowledging supersedes any snooze — cancel the pending re-notification so it
+        // can't fire after the user has already responded. (removeAllDeliveredNotifications
+        // below only clears *delivered* ones; the scheduled request needs explicit cancel.)
+        cancelSnooze()
         do {
             let updated = try await CloudKitService.shared.acknowledgeAlert(recordID: alert.id, emoji: emoji)
             lastIncoming = updated
@@ -276,6 +292,79 @@ final class AppState {
         }
         guard alert.state != .acknowledged else { return }
         await acknowledgeIncoming(emoji: emoji)
+    }
+
+    // MARK: - Snooze (#49)
+
+    /// Defer the current incoming alert: schedule a local re-notification `minutes` out and
+    /// dismiss the delivered banner. Local-only — the sender isn't told.
+    func snoozeIncoming(minutes: Int) {
+        guard let alert = lastIncoming, alert.state != .acknowledged else { return }
+        let until = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        let recordName = alert.id.recordName
+        LocalNotifications.scheduleSnooze(
+            recordName: recordName,
+            title: alert.senderName.isEmpty ? "Attention" : alert.senderName,
+            body: alert.message,
+            until: until
+        )
+        // Clear the currently-showing banner for this alert (the reminder replaces it).
+        Task { await LocalNotifications.removeDelivered(matchingRecordName: recordName) }
+        let state = SnoozeState(recordName: recordName, until: until)
+        state.save()
+        snooze = state
+        Haptics.light()
+        pushWatchSnapshot()
+    }
+
+    func cancelSnooze() {
+        guard let current = snooze else { return }
+        LocalNotifications.cancelSnooze(recordName: current.recordName)
+        SnoozeState.clear()
+        snooze = nil
+        pushWatchSnapshot()
+    }
+
+    /// Forwarded from the watch. `minutes == 0` means cancel; otherwise snooze. Guarded
+    /// against a stale `recordName` like `acknowledgeIncomingFromWatch`.
+    func snoozeIncomingFromWatch(recordName: String, minutes: Int) {
+        guard let alert = lastIncoming, alert.id.recordName == recordName else {
+            log.debug("dropping stale watch snooze for record \(recordName, privacy: .public)")
+            return
+        }
+        if minutes <= 0 {
+            cancelSnooze()
+        } else {
+            snoozeIncoming(minutes: minutes)
+        }
+    }
+
+    /// Reconciles the persisted snooze against `lastIncoming`. Called from
+    /// `reconcileLatestAlert`. Drops the state when it no longer applies; cancels the
+    /// pending re-notification only when the alert was handled or replaced (not when the
+    /// snooze simply fired — that delivered reminder should stay).
+    private func reconcileSnoozeState() {
+        snooze = SnoozeState.load()
+        guard let current = snooze else { return }
+        let matchesIncoming = lastIncoming?.id.recordName == current.recordName
+        let incomingAcked = lastIncoming?.state == .acknowledged
+        if !matchesIncoming || incomingAcked {
+            LocalNotifications.cancelSnooze(recordName: current.recordName)
+            SnoozeState.clear()
+            snooze = nil
+        } else if !current.isActive {
+            // Fired already — leave the delivered reminder, just drop the state so the
+            // pill reverts from "Snoozed" to "pending".
+            SnoozeState.clear()
+            snooze = nil
+        }
+    }
+
+    /// True when `lastIncoming` is currently snoozed (state matches and hasn't fired).
+    var incomingIsSnoozed: Bool {
+        guard let current = snooze, current.isActive,
+              current.recordName == lastIncoming?.id.recordName else { return false }
+        return true
     }
 
     func clearOutgoing(recordName: String? = nil) {
@@ -392,13 +481,17 @@ final class AppState {
             // or a non-nil acknowledgedAt timestamp counts. Guards against records that
             // somehow have one signal but not the other.
             let acked = alert.state == .acknowledged || alert.acknowledgedAt != nil
+            let snoozedUntil: Date? = (snooze?.recordName == alert.id.recordName && snooze?.isActive == true)
+                ? snooze?.until
+                : nil
             return WatchSnapshot.IncomingInfo(
                 recordName: alert.id.recordName,
                 senderName: alert.senderName,
                 critical: alert.critical,
                 createdAt: alert.createdAt,
                 acknowledged: acked,
-                message: alert.message
+                message: alert.message,
+                snoozedUntil: snoozedUntil
             )
         }
         return WatchSnapshot(
