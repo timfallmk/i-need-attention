@@ -15,17 +15,20 @@ final class WatchBridge: NSObject {
     private var pressHandler: (@MainActor () async -> Void)?
     private var ackHandler: (@MainActor (_ recordName: String, _ emoji: String?) async -> Void)?
     private var clearHandler: (@MainActor (_ recordName: String) -> Void)?
+    private var snoozeHandler: (@MainActor (_ recordName: String, _ minutes: Int) -> Void)?
     private var activatedHandler: (@MainActor () -> Void)?
 
     func activate(
         onPress: @escaping @MainActor () async -> Void,
         onAck: @escaping @MainActor (_ recordName: String, _ emoji: String?) async -> Void,
         onClear: @escaping @MainActor (_ recordName: String) -> Void,
+        onSnooze: @escaping @MainActor (_ recordName: String, _ minutes: Int) -> Void,
         onActivated: @escaping @MainActor () -> Void = {}
     ) {
         self.pressHandler = onPress
         self.ackHandler = onAck
         self.clearHandler = onClear
+        self.snoozeHandler = onSnooze
         self.activatedHandler = onActivated
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
@@ -107,6 +110,15 @@ extension WatchBridge: WCSessionDelegate {
                 }
                 replyHandler(["ok": clearRecordName != nil])
             }
+        case Constants.WatchMessage.snoozeKind:
+            let recordName = message[Constants.WatchMessage.snoozeRecordNameKey] as? String
+            let minutes = message[Constants.WatchMessage.snoozeMinutesKey] as? Int ?? 0
+            Task { @MainActor in
+                if let recordName {
+                    self.snoozeHandler?(recordName, minutes)
+                }
+                replyHandler(["ok": recordName != nil])
+            }
         default:
             replyHandler(["ok": false])
         }
@@ -146,6 +158,14 @@ extension WatchBridge: WCSessionDelegate {
             Task { @MainActor in
                 if let clearRecordName {
                     self.clearHandler?(clearRecordName)
+                }
+            }
+        case Constants.WatchMessage.snoozeKind:
+            let recordName = payload[Constants.WatchMessage.snoozeRecordNameKey] as? String
+            let minutes = payload[Constants.WatchMessage.snoozeMinutesKey] as? Int ?? 0
+            Task { @MainActor in
+                if let recordName {
+                    self.snoozeHandler?(recordName, minutes)
                 }
             }
         default:

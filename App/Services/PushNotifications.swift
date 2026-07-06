@@ -49,6 +49,11 @@ final class PushNotifications: NSObject {
             UNNotificationAction(
                 identifier: Constants.NotificationAction.plain,
                 title: "Acknowledge", options: []
+            ),
+            UNNotificationAction(
+                identifier: Constants.NotificationAction.snooze,
+                title: "⏰ Remind me in \(Constants.NotificationAction.defaultSnoozeMinutes)m",
+                options: []
             )
         ]
         return UNNotificationCategory(
@@ -174,6 +179,26 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
         // — recordName here is the sender's own outgoing alert, and "seen" would overwrite
         // the acknowledged state.
         if categoryID == Constants.NotificationAction.ackCategory {
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [notificationID])
+            completionHandler()
+            return
+        }
+
+        // Snooze from the banner: schedule a local re-notification and persist the state,
+        // all without CloudKit or AppState (which may not exist in the background — the app
+        // reconciles the persisted SnoozeState on next foreground). Title/body are copied
+        // from the delivered notification, so the reminder reads identically.
+        if actionID == Constants.NotificationAction.snooze {
+            let minutes = Constants.NotificationAction.defaultSnoozeMinutes
+            let until = Date().addingTimeInterval(TimeInterval(minutes * 60))
+            let content = response.notification.request.content
+            LocalNotifications.scheduleSnooze(
+                recordName: recordName,
+                title: content.title,
+                body: content.body,
+                until: until
+            )
+            SnoozeState(recordName: recordName, until: until).save()
             UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [notificationID])
             completionHandler()
             return

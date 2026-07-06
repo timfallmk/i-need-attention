@@ -5,6 +5,8 @@ struct StatusIndicatorView: View {
     let outgoing: AlertRecord?
     let incoming: AlertRecord?
     let isOnCooldown: Bool
+    /// When set (and in the future), the incoming alert is snoozed until this time.
+    var snoozedUntil: Date? = nil
     var onClear: (() -> Void)? = nil
 
     var body: some View {
@@ -48,6 +50,9 @@ struct StatusIndicatorView: View {
     // Decide which state to surface — incoming-unacked beats outgoing-pending beats idle.
     private var snapshot: Snapshot {
         if let incoming, incoming.state != .acknowledged, incoming.acknowledgedAt == nil {
+            if let until = snoozedUntil, until > Date() {
+                return .incomingSnoozed(until)
+            }
             return .incomingPending(incoming)
         }
         if let outgoing {
@@ -71,6 +76,7 @@ struct StatusIndicatorView: View {
         case .outgoingAcked(let e): return e ?? "✅"
         // case .incomingPending(let a): return a.critical ? "🚨" : "🔔"
         case .incomingPending: return "🔔"
+        case .incomingSnoozed: return "⏰"
         }
     }
 
@@ -83,6 +89,7 @@ struct StatusIndicatorView: View {
         case .incomingPending(let a):
             let body = a.message.trimmingCharacters(in: .whitespacesAndNewlines)
             return body.isEmpty ? "\(a.senderName) needs you" : "\(a.senderName) \(body)"
+        case .incomingSnoozed: return "Snoozed"
         }
     }
 
@@ -93,6 +100,7 @@ struct StatusIndicatorView: View {
         case .outgoingSeen: return "They saw it"
         case .outgoingAcked: return "They got back to you"
         case .incomingPending(let a): return relativeTime(from: a.createdAt)
+        case .incomingSnoozed(let until): return "until \(until.formatted(date: .omitted, time: .shortened))"
         }
     }
 
@@ -103,6 +111,7 @@ struct StatusIndicatorView: View {
         case .outgoingSeen: return .indigo
         case .outgoingAcked: return .green
         case .incomingPending: return .red
+        case .incomingSnoozed: return .orange
         }
     }
 
@@ -118,5 +127,24 @@ struct StatusIndicatorView: View {
         case outgoingSeen
         case outgoingAcked(String?)
         case incomingPending(AlertRecord)
+        case incomingSnoozed(Date)
     }
 }
+
+#if DEBUG
+#Preview("Status states") {
+    VStack(spacing: 12) {
+        StatusIndicatorView(outgoing: nil, incoming: nil, isOnCooldown: false)
+        StatusIndicatorView(outgoing: .preview(state: .sent), incoming: nil, isOnCooldown: false)
+        StatusIndicatorView(outgoing: .preview(state: .acknowledged, ackEmoji: "❤️"), incoming: nil, isOnCooldown: false, onClear: {})
+        StatusIndicatorView(outgoing: nil, incoming: .preview(state: .seen, senderName: "Sam", message: "needs coffee"), isOnCooldown: false)
+        StatusIndicatorView(
+            outgoing: nil,
+            incoming: .preview(state: .seen, senderName: "Sam", message: "needs coffee"),
+            isOnCooldown: false,
+            snoozedUntil: Date().addingTimeInterval(15 * 60)
+        )
+    }
+    .padding(.vertical)
+}
+#endif

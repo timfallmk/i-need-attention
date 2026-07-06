@@ -7,7 +7,10 @@ struct MainView: View {
     @State private var showHistory = false
     @State private var showAckSheet = false
     @State private var showNounPicker = false
+    @State private var showSnoozeOptions = false
     @State private var now = Date()
+
+    private let snoozeMinuteOptions = [5, 15, 30]
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -29,6 +32,7 @@ struct MainView: View {
                     outgoing: appState.pendingOutgoing,
                     incoming: appState.lastIncoming,
                     isOnCooldown: appState.isOnCooldown,
+                    snoozedUntil: appState.incomingIsSnoozed ? appState.snooze?.until : nil,
                     onClear: { appState.clearOutgoing() }
                 )
                 .padding(.top, 8)
@@ -51,17 +55,9 @@ struct MainView: View {
                 Spacer(minLength: 0)
 
                 if let incoming = appState.lastIncoming, shouldShowAckButton(for: incoming) {
-                    Button {
-                        showAckSheet = true
-                    } label: {
-                        Label("Let them know you're here", systemImage: "checkmark.circle.fill")
-                            .font(.headline)
-                            .padding(.vertical, 14)
-                            .padding(.horizontal, 22)
-                            .background(.ultraThinMaterial, in: Capsule())
-                    }
-                    .padding(.bottom, 24)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    incomingActions
+                        .padding(.bottom, 24)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
                 partnerBadge
@@ -98,6 +94,54 @@ struct MainView: View {
         .onReceive(timer) { now = $0 }
         .banner($bindable.bannerMessage, tone: .error)
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appState.notificationsDenied)
+    }
+
+    @ViewBuilder
+    private var incomingActions: some View {
+        if appState.incomingIsSnoozed {
+            HStack(spacing: 12) {
+                Label("Snoozed", systemImage: "clock.badge.checkmark")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Button("Cancel") {
+                    Haptics.select()
+                    appState.cancelSnooze()
+                }
+                .font(.subheadline.weight(.semibold))
+                .tint(.red)
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 20)
+            .background(.ultraThinMaterial, in: Capsule())
+        } else {
+            VStack(spacing: 10) {
+                Button {
+                    showAckSheet = true
+                } label: {
+                    Label("Let them know you're here", systemImage: "checkmark.circle.fill")
+                        .font(.headline)
+                        .padding(.vertical, 14)
+                        .padding(.horizontal, 22)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+
+                Button {
+                    Haptics.select()
+                    showSnoozeOptions = true
+                } label: {
+                    Label("Remind me later", systemImage: "clock.arrow.circlepath")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                .confirmationDialog("Remind me in…", isPresented: $showSnoozeOptions, titleVisibility: .visible) {
+                    ForEach(snoozeMinuteOptions, id: \.self) { minutes in
+                        Button("\(minutes) minutes") {
+                            appState.snoozeIncoming(minutes: minutes)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private var topBar: some View {

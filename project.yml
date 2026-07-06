@@ -14,7 +14,7 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
     DEVELOPMENT_TEAM: T5VJ9JRCNB
-    MARKETING_VERSION: "1.4.0"
+    MARKETING_VERSION: "1.5.0"
     CURRENT_PROJECT_VERSION: "1"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     SWIFT_STRICT_CONCURRENCY: minimal
@@ -202,6 +202,7 @@ targets:
       - path: Shared/SharedSettings.swift
       - path: App/Models/PairState.swift
       - path: App/Models/PendingInvite.swift
+      - path: App/Models/SnoozeState.swift
       - path: App/Models/NounPresets.swift
       - path: App/Models/OpenSourceLicenses.swift
       - path: App/Helpers/DeviceIdentity.swift
