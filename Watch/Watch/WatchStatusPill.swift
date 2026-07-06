@@ -91,8 +91,9 @@ struct WatchStatusPill: View {
         case .outgoingSeen: return "Seen"
         case .outgoingAcked: return "Acknowledged"
         case .incomingPending(let name, let message):
+            let displayName = name.isEmpty ? String(localized: "Partner") : name
             let body = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return body.isEmpty ? "\(name) needs you" : "\(name) \(body)"
+            return body.isEmpty ? "\(displayName) needs you" : "\(displayName) \(body)"
         case .incomingSnoozed: return "Snoozed"
         }
     }

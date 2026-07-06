@@ -89,8 +89,9 @@ struct StatusIndicatorView: View {
         case .outgoingSeen: return "Seen"
         case .outgoingAcked: return "Acknowledged"
         case .incomingPending(let a):
+            let name = a.senderName.isEmpty ? String(localized: "Partner") : a.senderName
             let body = a.message.trimmingCharacters(in: .whitespacesAndNewlines)
-            return body.isEmpty ? "\(a.senderName) needs you" : "\(a.senderName) \(body)"
+            return body.isEmpty ? "\(name) needs you" : "\(name) \(body)"
         case .incomingSnoozed: return "Snoozed"
         }
     }
