@@ -161,7 +161,7 @@ Symmetric (one scan → both can send/receive). See `App/Models/PairState.swift`
     - **Phone → Mac:** pair with `attention-cli pair invite --name MacPartner` (opens a QR the phone scans), then `attention-cli watch` in one terminal and press the phone's red button — the alert prints; `attention-cli ack --emoji ❤️` fires the "Got back to you" banner back at the phone.
     - **Mac → Phone:** with a pair already established, `attention-cli send --message "needs attention"` triggers the full APNs → NSE → lock-screen ack-actions path on the phone.
     - **Inspect state:** `attention-cli pair status`, `attention-cli inspect` (dumps Pair + last 10 Alerts/Acks), `attention-cli pair forget` to reset.
-    - CloudKit environment (Development vs Production) is **not** pinned by build config — verify in CloudKit Dashboard before sending, because a Production write hits real paired phones. Full walkthrough in SETUP.md §12.
+    - The CLI's CloudKit environment (Development vs Production) is set by *its own* signing, not by the iOS app's Debug=`development` / Release=`production` entitlement wiring — so don't assume it matches the app. Verify in CloudKit Dashboard before sending, because a Production write hits real paired phones. Full walkthrough in SETUP.md §12.
 
 ## Pull requests
 
