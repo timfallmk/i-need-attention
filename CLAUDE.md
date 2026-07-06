@@ -154,9 +154,14 @@ Symmetric (one scan → both can send/receive). See `App/Models/PairState.swift`
 ## Common operations
 
 - **Add a new CloudKit field**: edit `Shared/Constants.swift`, update `AlertRecord`/`PairState` mappers, update `CloudKitService` reads/writes, **add the matching field + index in CloudKit Dashboard** (and document in SETUP.md).
-- **Add a new entitlement**: edit `App/Attention.entitlements` (or NSE/Watch ones), add to `project.yml` capabilities if XcodeGen needs to know, register in the developer portal, and update SETUP.md step 2.
+- **Add a new entitlement**: edit **both** `App/Attention.entitlements` and `App/Attention.Debug.entitlements` (they must stay identical except for `aps-environment` — Release uses `production`, Debug uses `development`), plus NSE/Watch ones if applicable, add to `project.yml` capabilities if XcodeGen needs to know, register in the developer portal, and update SETUP.md step 2.
 - **Add a new view**: drop into `App/Views/`. Use `@Environment(AppState.self)` to read state. Mutations go through methods on AppState, not direct property writes.
 - **Add a new notification action**: extend `Constants.NotificationAction`, add the `UNNotificationAction` to the category in `PushNotifications.attentionPingCategory`, and handle the response in `userNotificationCenter(_:didReceive:)`.
+- **Solo-test the alert loop without a partner**: use `AttentionCLI` (macOS command-line tool under `Tools/AttentionCLI/`). Build with `xcodegen generate && xcodebuild -scheme AttentionCLI -configuration Debug build`, then symlink the binary from DerivedData onto `PATH`. Typical loops:
+    - **Phone → Mac:** pair with `attention-cli pair invite --name MacPartner` (opens a QR the phone scans), then `attention-cli watch` in one terminal and press the phone's red button — the alert prints; `attention-cli ack --emoji ❤️` fires the "Got back to you" banner back at the phone.
+    - **Mac → Phone:** with a pair already established, `attention-cli send --message "needs attention"` triggers the full APNs → NSE → lock-screen ack-actions path on the phone.
+    - **Inspect state:** `attention-cli pair status`, `attention-cli inspect` (dumps Pair + last 10 Alerts/Acks), `attention-cli pair forget` to reset.
+    - CloudKit environment (Development vs Production) is **not** pinned by build config — verify in CloudKit Dashboard before sending, because a Production write hits real paired phones. Full walkthrough in SETUP.md §12.
 
 ## Pull requests
 

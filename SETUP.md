@@ -22,6 +22,7 @@ Exact step-by-step from zero to two paired phones running the app via TestFlight
   Files it will touch:
   - `project.yml` (bundle ID prefix + all 4 `PRODUCT_BUNDLE_IDENTIFIER` entries)
   - `App/Attention.entitlements` (iCloud container + App Group)
+  - `App/Attention.Debug.entitlements` (iCloud container + App Group — Debug variant, keep in sync)
   - `NotificationService/NotificationService.entitlements` (iCloud container + App Group)
   - `Shared/Constants.swift` (`cloudKitContainerID` + `AppGroup.identifier`)
   - `App/AppState.swift`, `App/Services/PushNotifications.swift`, `App/Services/CloudKitService.swift`, `App/Services/PairingService.swift`, `App/Services/WatchBridge.swift` (Logger subsystem strings — don't break anything if left as-is, but update for cleanliness)
@@ -81,6 +82,8 @@ Go to <https://icloud.developer.apple.com/dashboard> → select your container �
 - [ ] Repeat with **iPhone B**
 
 If you hit "couldn't find provisioning profile" — go back to Signing & Capabilities, untick + retick "Automatically manage signing", then try again.
+
+> **APNs environment note:** local Debug builds use the **development** APNs network, while TestFlight/Release builds use **production**. These are two separate push networks that don't interoperate. The project ships two entitlements files — `App/Attention.entitlements` (production, used by Release/Archive) and `App/Attention.Debug.entitlements` (development, used by Debug) — wired via per-configuration `CODE_SIGN_ENTITLEMENTS` in `project.yml`. So a Debug build on a real device receives development pushes and a TestFlight build receives production pushes; both work, but a Debug device won't see pushes triggered by a TestFlight build and vice versa. If you add a new entitlement key, add it to **both** files (they must otherwise stay identical).
 
 ## 6. Pair the two phones
 

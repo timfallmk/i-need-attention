@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Keep in sync with App/Attention.Debug.entitlements. Only aps-environment differs (production vs development). -->
+<!-- Keep in sync with App/Attention.entitlements. Only aps-environment differs (development vs production). -->
 <plist version="1.0">
 <dict>
     <key>aps-environment</key>
-    <string>production</string>
+    <string>development</string>
     <key>com.apple.developer.icloud-container-identifiers</key>
     <array>
         <string>iCloud.com.timfallmk.attention</string>
