@@ -31,8 +31,9 @@ struct WatchSnapshot: Codable, Equatable {
         /// snapshots encoded by older app versions.
         var message: String?
         /// When set (and in the future), this incoming alert is snoozed until this time.
-        /// Optional for backward compatibility with snapshots encoded by older versions.
-        var snoozedUntil: Date?
+        /// Defaulted so it's optional in the synthesized memberwise init too (source compat
+        /// for existing call sites), and back-compatible in Codable (decodes nil when absent).
+        var snoozedUntil: Date? = nil
     }
 
     var paired: Bool
