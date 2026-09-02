@@ -1,0 +1,26 @@
+2.0 moves your alerts out of shared iCloud storage and into private storage that only the two of you can reach, encrypted with a key that never leaves your phones. That is a change to where everything lives, so it needs two things from you.
+
+BOTH OF YOU NEED THIS BUILD. One phone on 2.0 and one on 1.x cannot reach each other at all. Install it on both before trying anything below.
+
+YOU HAVE TO PAIR AGAIN, ONCE. Your old pairing can't carry over — it describes storage the app no longer uses. Opening 2.0 will show you the pairing screen with a note explaining this. Your history is still there.
+
+WHAT TO TRY
+
+1. Pair again. One of you taps Show Code, the other taps Scan Code. The shared-link route works too.
+
+2. Watch for "Finishing setup". Pairing is now two handshakes, and the second one happens by itself a moment after the first. The phone that SHOWED the code may sit on a "Finishing setup" screen briefly; the phone that SCANNED may show a banner saying it can reach its partner but not the other way round yet. Both should clear on their own within a few seconds. Please say so if either one sticks — that is the single most useful thing you can report.
+
+3. Send in both directions, and acknowledge. Check the sender's status pill flips to the emoji you chose.
+
+4. Force-quit the app on one phone, then have the other send. The banner must still arrive, and pulling it down must still offer the ack buttons. Do the same for an acknowledgement: force-quit the SENDER's app, acknowledge from the other phone, and confirm the "got back to you" banner arrives.
+
+5. Open History. Alerts from before this build should still be listed, alongside anything new.
+
+6. Rename yourself in Settings. Your partner should see the new name without either of you doing anything else.
+
+7. If you use the watch: press from the watch, acknowledge from the watch, check the pill.
+
+KNOWN ROUGH EDGES
+
+- The first launch does a one-time copy of your old history. If you are offline then, it retries on later launches.
+- attention-cli can no longer pair. That is expected in this build.
