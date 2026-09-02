@@ -1,6 +1,10 @@
 # Security Policy
 
-This is a personal-use app paired by QR scan in person. The only secret in the system is the per-pair `pairKey` — a 128-bit random value generated at pair time and never transmitted outside the in-person QR exchange. All CloudKit access for a pair is gated by knowledge of that key.
+This is a personal-use app paired in person by QR scan, or remotely by an invite link.
+
+**Be aware of what the `pairKey` is and isn't.** It is a 128-bit random value that identifies a pair, and the app treats it as a lookup key. It is **not** an access control. All records live in CloudKit's *public* database, where security roles are granted per record type with no row-level scoping — so any client that can reach the container can read every pair's records, and the `pairKey` is itself a readable field on the Pair record. Knowing a pairKey is not required to read one.
+
+Anonymous (`_world`) access has been removed. Authenticated (`_icloud`) access remains, because every device running the app is a signed-in iCloud client and the app cannot function without it. Closing that requires moving off the public database; see the repository's audit notes for the plan.
 
 ## Reporting a vulnerability
 
@@ -15,7 +19,8 @@ I aim to acknowledge within a few days and to ship a fix to TestFlight within tw
 
 In scope:
 
-- Anything that lets a third party read or write into a pair without knowing its `pairKey`.
+- Anything that lets a party with no CloudKit access to this container read or write into a pair.
+- Anything that widens what a signed-in iCloud user can reach beyond what the public-database design already permits (documented above — please don't report that as new).
 - Anything that lets a paired device escalate beyond the documented send / receive / acknowledge surface.
 - Bypasses of the user-controlled toggles for critical alerts and sender-side acknowledgement banners.
 

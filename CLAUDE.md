@@ -76,7 +76,7 @@ Ack           one per acknowledgement — exists *only* to trigger the sender-si
   alertRecordName       backreference to the Alert record (forward-compat; not read yet)
 ```
 
-All three record types live in the **public** database. The `pairKey` itself is the secret — anyone who knows it can read/write into the pair. We never expose it outside the in-person QR scan.
+All three record types live in the **public** database. The `pairKey` is a *lookup value, not an access control* — it is a plaintext field on the Pair record, and CloudKit's public-database security roles are per record type with no row-level scoping. A `_world` web-services query returned Pair records in full, pairKey included, which is why the `_world` grant was removed. `_icloud` read/write remains because every device running the app is a signed-in iCloud client. Anything that must actually be private has to move off the public database.
 
 ### Push delivery flow
 
