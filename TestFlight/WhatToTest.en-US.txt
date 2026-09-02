@@ -23,4 +23,3 @@ WHAT TO TRY
 KNOWN ROUGH EDGES
 
 - The first launch does a one-time copy of your old history. If you are offline then, it retries on later launches.
-- attention-cli can no longer pair. That is expected in this build.
