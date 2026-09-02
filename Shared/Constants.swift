@@ -94,6 +94,14 @@ enum Constants {
         static let snoozeMinutesKey = "snoozeMinutes"
     }
 
+    /// Record zones. From 2.0 each user owns one zone — their *inbox* — which their
+    /// partner writes into as a share participant. The receiver therefore subscribes to
+    /// their own private database rather than to a shared one, and neither user owns
+    /// "the pair": deleting your own zone ends only the direction you receive.
+    enum Zone {
+        static let inbox = "attention-inbox-v1"
+    }
+
     enum AppGroup {
         static let identifier = "group.com.timfallmk.attention"
     }
