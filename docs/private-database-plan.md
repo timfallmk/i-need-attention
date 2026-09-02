@@ -1,6 +1,8 @@
 # Private Inbox Zones + Encrypted Payloads
 
-**Status: planned, not started.** Supersedes "Option 3" as originally scoped (a single `CKShare`d zone owned by the inviter). This doc is the design record and the decision log; nothing here is implemented.
+**Status: in progress.** Supersedes "Option 3" as originally scoped (a single `CKShare`d zone owned by the inviter). This doc is the design record and the decision log.
+
+Landed so far: the crypto layer (`Shared/PairCrypto.swift`) — layer 2 below — which is pure logic and did not have to wait on the spike. Everything structural is still unbuilt, and **the spike has not been run**, so the four questions under [What must be verified](#what-must-be-verified-before-writing-production-code) are all still open. See the [work order](#work-order) for what is done and what is not.
 
 Target release: **2.0.0**.
 
@@ -163,10 +165,10 @@ Replacements, for which the codebase already has a precedent in `SharedSettings.
 
 ## Work order
 
-1. **Spike the four questions above.** Two accounts, two devices. Everything structural is contingent on 1 and 2.
+1. **Spike the four questions above.** Two accounts, two devices. Everything structural is contingent on 1 and 2. **Not run.**
 2. **Diagnostics export.** Independent of the spike, so it can run in parallel. Land it first so it is exercised on a known-good build.
 3. `PairState` v2: per-direction state, key in Keychain, App-Group readable for the NSE.
-4. Crypto layer — HKDF, seal/open, hashed lookup value — with tests. Pure logic, unit-testable without CloudKit.
+4. ~~Crypto layer — HKDF, seal/open, hashed lookup value — with tests.~~ **Done** (`Shared/PairCrypto.swift`). Not yet wired into any record path; that lands with step 7.
 5. First-launch read of pre-2.0 public history into a local snapshot.
 6. Zone creation, both shares, programmatic accept, the half-formed state; rewrite `PairingService`.
 7. Rewrite `CloudKitService` against inbox zones.
@@ -175,4 +177,4 @@ Replacements, for which the codebase already has a precedent in `SharedSettings.
 10. Schema file, `SETUP.md`, `CLAUDE.md`.
 11. `MARKETING_VERSION` → 2.0.0.
 
-Steps 3–5 are independent of the spike and can proceed alongside it. Steps 6 onward are not.
+Steps 2, 3 and 5 are independent of the spike and can proceed alongside it. Steps 6 onward are not.
