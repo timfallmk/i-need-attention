@@ -10,31 +10,68 @@ import Foundation
 /// readable, and in this app that is exactly the data worth protecting.
 ///
 /// So unpairing deletes the zone (after `AppState.unpair` has archived it locally) and
-/// clears this value; the next pairing mints a fresh name and starts empty.
+/// rotates this value; the next pairing starts empty. There is deliberately no fixed
+/// fallback name: a name only ever comes into existence here, which means there is no
+/// second path by which two pairings could end up sharing a zone.
 enum InboxZone {
     private static let storageKey = "attention.inboxZone.v1"
+    private static let lock = NSLock()
 
-    /// Installs that paired before per-pairing zones existed own a zone under the fixed
-    /// name and have a live share on it. Defaulting to it keeps them working — the
-    /// rotation only ever happens on the far side of an unpair.
+    /// Minted on first use and persisted. The mint is behind a lock because this is
+    /// reached from `CloudKitService`, which is not actor-isolated: two concurrent
+    /// first-reads would otherwise mint two names and hand one caller a zone the other
+    /// just overwrote.
     static var currentName: String {
-        UserDefaults.standard.string(forKey: storageKey) ?? Constants.Zone.legacyInbox
+        lock.lock()
+        defer { lock.unlock() }
+        if let stored = UserDefaults.standard.string(forKey: storageKey) { return stored }
+        return mintLocked()
     }
 
-    /// Called on the next `ensureInboxZone` after an unpair. Returns the new name.
+    /// Called on the far side of an unpair. Returns the new name.
     @discardableResult
     static func rotate() -> String {
-        let name = "attention-inbox-" + UUID().uuidString.lowercased()
-        UserDefaults.standard.set(name, forKey: storageKey)
-        return name
+        lock.lock()
+        defer { lock.unlock() }
+        return mintLocked()
     }
 
-    /// Whether a name has been minted, as opposed to falling back to the legacy one.
+    /// Whether a name exists yet. Only `resetPairingPredatingPerPairingZones` needs
+    /// this, and only before anything has read `currentName`.
     static var isMinted: Bool {
-        UserDefaults.standard.string(forKey: storageKey) != nil
+        lock.lock()
+        defer { lock.unlock() }
+        return UserDefaults.standard.string(forKey: storageKey) != nil
+    }
+
+    /// Ends a pairing made before zones were per-pairing.
+    ///
+    /// Such a device owns a zone under the old fixed name and has a live share on it,
+    /// but nothing here records which zone that was — so its partner would keep writing
+    /// into a zone this device no longer reads, and the pairing would look healthy while
+    /// delivering nothing. A pairing that silently receives nothing is worse than no
+    /// pairing, so it ends and the user pairs again.
+    ///
+    /// The orphaned zone and its share are left alone: reaching them needs the name this
+    /// device never stored, and they are only reachable by a partner who is about to be
+    /// unpaired anyway.
+    static func resetPairingPredatingPerPairingZones() {
+        guard !isMinted, PairState.load() != nil else { return }
+        PairState.clear()
+        PendingInvite.clear()
+        rotate()
     }
 
     static func clear() {
+        lock.lock()
+        defer { lock.unlock() }
         UserDefaults.standard.removeObject(forKey: storageKey)
+    }
+
+    /// Caller holds `lock`.
+    private static func mintLocked() -> String {
+        let name = "attention-inbox-" + UUID().uuidString.lowercased()
+        UserDefaults.standard.set(name, forKey: storageKey)
+        return name
     }
 }

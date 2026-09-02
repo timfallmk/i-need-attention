@@ -62,6 +62,9 @@ final class AppState {
         // First thing, before any view can render and before anything can re-pair. It is
         // synchronous and touches only local storage.
         LegacyHistoryCapture.prepare()
+        // Also before anything can read the zone name, since minting one is what makes
+        // a stale pairing indistinguishable from a fresh install.
+        InboxZone.resetPairingPredatingPerPairingZones()
         self.needsRepairAfterCutover = CutoverNotice.needsRepair
 
         self.settings = UserSettings()
