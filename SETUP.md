@@ -87,9 +87,16 @@ The migration is a one-shot, and it is scoped per CloudKit environment — a Deb
 For that device there's a Debug-only **Settings → Debug → Recover pre-2.0 history**:
 
 - [ ] Read the pair key off the `Pair` record in CloudKit Dashboard (Production → Public Database)
-- [ ] Point the build at the environment holding those records — for pre-2.0 history that's Production, via `com.apple.developer.icloud-container-environment` in `App/Attention.entitlements`
+- [ ] Point the build at the environment holding those records — for pre-2.0 history that's Production. The key is **not** in `App/Attention.entitlements` by default; **add** it:
+
+      ```xml
+      <key>com.apple.developer.icloud-container-environment</key>
+      <string>Production</string>
+      ```
+
 - [ ] Run on the device, open **Settings** from the gear on the pairing screen, paste the key under **Debug**, tap the button
-- [ ] Revert the entitlement
+- [ ] `git restore App/Attention.entitlements` to remove the key again
+- [ ] **Rebuild and re-run on the device.** Entitlements are baked into the binary, so the phone keeps talking to Production until you do — which looks like `Share not found` when it tries to accept a share minted in Development. Re-running from Xcode replaces the binary and keeps the app container, so the recovered archive survives; *deleting* the app is what would destroy it.
 
 It reads and writes locally and deletes nothing; the archive is written to both the Development and Release paths so a later TestFlight build finds it too.
 

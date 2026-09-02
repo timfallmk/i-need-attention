@@ -17,9 +17,21 @@ extension CloudKitService {
     /// to call on every launch.
     @discardableResult
     func ensureInboxZone() async throws -> CKRecordZone.ID {
-        let zoneID = CKRecordZone.ID(zoneName: Constants.Zone.inbox, ownerName: CKCurrentUserDefaultName)
+        let zoneID = Self.inboxZoneID
+        // Creating a zone that exists is a no-op server-side, but it is still a round
+        // trip, and the handshake makes this call seven times. Once per launch is enough.
+        if ensuredZones.contains(zoneID.zoneName) { return zoneID }
         _ = try await privateDB.modifyRecordZones(saving: [CKRecordZone(zoneID: zoneID)], deleting: [])
+        ensuredZones.insert(zoneID.zoneName)
         return zoneID
+    }
+
+    /// Deletes the inbox zone and everything in it, ending the partner's access to
+    /// every record it holds. Callers archive first — see `AppState.unpair`.
+    func deleteInboxZone() async throws {
+        let zoneID = Self.inboxZoneID
+        _ = try await privateDB.modifyRecordZones(saving: [], deleting: [zoneID])
+        ensuredZones.forget(zoneID.zoneName)
     }
 
     /// Fetch-or-create the zone-wide share on this device's inbox zone.
@@ -226,7 +238,7 @@ extension CloudKitService {
     /// failure that this ignores rather than throwing. Callers treat a throw as "the
     /// old link may still be live", which a missing share is not.
     func revokeInboxShare() async throws {
-        let zoneID = CKRecordZone.ID(zoneName: Constants.Zone.inbox, ownerName: CKCurrentUserDefaultName)
+        let zoneID = Self.inboxZoneID
         let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: zoneID)
         _ = try await privateDB.modifyRecords(saving: [], deleting: [shareID],
                                               savePolicy: .ifServerRecordUnchanged,

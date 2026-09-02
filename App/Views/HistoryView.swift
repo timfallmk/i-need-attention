@@ -6,7 +6,7 @@ struct HistoryView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
-    @State private var alerts: [AlertRecord] = []
+    @State private var sections: [HistorySection] = []
     @State private var isLoading = true
     @State private var loadFailed = false
 
@@ -37,47 +37,170 @@ struct HistoryView: View {
             } actions: {
                 Button("Retry") { Task { await load() } }
             }
-        } else if alerts.isEmpty {
+        } else if sections.allSatisfy(\.alerts.isEmpty) {
             ContentUnavailableView {
                 Label("No history yet", systemImage: "clock")
             } description: {
                 Text("Alerts you send and receive will show up here.")
             }
         } else {
-            List(alerts) { alert in
-                HistoryRow(alert: alert, isMine: (appState.pair?.myDeviceID ?? DeviceIdentity.id) == alert.senderDeviceID)
+            List {
+                // One section per pairing. Grouping is the point rather than decoration:
+                // a flat list mixes partners with nothing to say which is which, and
+                // "who was I talking to in March" is the question this sheet answers.
+                ForEach(sections) { section in
+                    Section {
+                        ForEach(section.alerts) { alert in
+                            HistoryRow(alert: alert, isMine: section.myDeviceID == alert.senderDeviceID)
+                        }
+                    } header: {
+                        HistorySectionHeader(section: section)
+                    }
+                }
             }
-            .listStyle(.plain)
+            .listStyle(.insetGrouped)
             .refreshable { await load() }
         }
     }
 
     @MainActor
     private func load() async {
-        let archived = LegacyHistoryArchive.load()?.alerts ?? []
         guard let pair = appState.pair else {
-            // An unpaired device can still have pre-2.0 history worth showing — that
-            // is the state a user is in between the cutover and re-pairing.
-            alerts = LegacyHistoryArchive.merged(live: [], archived: archived)
+            // Unpaired is a real state with real history: between the 2.0 cutover and
+            // re-pairing, and after any later unpair. Everything shown here is local.
+            sections = HistorySection.archivedOnly()
             loadFailed = false
             isLoading = false
             return
         }
         // Keep the current list visible during a pull-to-refresh; only show the
         // full-screen spinner on the first load.
-        isLoading = alerts.isEmpty
+        isLoading = sections.isEmpty
         loadFailed = false
+
+        let pairingID = InboxZone.currentName
         do {
             let live = try await CloudKitService.shared.fetchRecentAlerts(pair: pair)
-            alerts = LegacyHistoryArchive.merged(live: live, archived: archived)
+            // Fold the fetch into the local archive on the way past. This is what makes
+            // the archive survive the partner tearing their zone down before we do —
+            // waiting for our own unpair to copy it would be a race we could lose.
+            PairingArchive.absorb(live, pairingID: pairingID, partnerName: pair.partnerName)
+            sections = HistorySection.build(live: live, pair: pair, pairingID: pairingID)
         } catch {
-            // Don't wipe an already-loaded list on a refresh failure; only surface
-            // the full-screen error state when there's nothing to show. The archive
-            // needs no network, so it stands in on its own.
-            alerts = LegacyHistoryArchive.merged(live: alerts, archived: archived)
-            loadFailed = alerts.isEmpty
+            // A refresh failure shouldn't wipe the list. The archive needs no network,
+            // so it stands in on its own and the error state is only for a blank sheet.
+            sections = HistorySection.build(live: [], pair: pair, pairingID: pairingID)
+            loadFailed = sections.allSatisfy(\.alerts.isEmpty)
         }
         isLoading = false
+    }
+}
+
+/// One pairing's worth of history.
+struct HistorySection: Identifiable {
+    let id: String
+    let partnerName: String
+    let alerts: [AlertRecord]
+    let startedAt: Date
+    let endedAt: Date?
+    /// Which device ID counts as "me" for these rows. Carried per section because it is
+    /// only reliably the current one for the current pairing.
+    let myDeviceID: String
+
+    var isCurrent: Bool { endedAt == nil }
+
+    /// Live rows for the current pairing, then every closed pairing newest first, then
+    /// the pre-2.0 snapshot. The current pairing renders from the fetch rather than from
+    /// the archive so a pull-to-refresh shows the server's answer, not our copy of it.
+    @MainActor
+    static func build(live: [AlertRecord], pair: PairState, pairingID: String) -> [HistorySection] {
+        var result: [HistorySection] = []
+        let archive = PairingArchive.load()
+        // The fetch is capped at 30 and the archive is not, so the union is the honest
+        // answer — and it doubles as the fallback when the fetch failed outright.
+        let current = LegacyHistoryArchive.merged(
+            live: live,
+            archived: archive.pairings.first { $0.id == pairingID }?.alerts ?? []
+        )
+        result.append(
+            HistorySection(
+                id: pairingID,
+                partnerName: pair.partnerName,
+                alerts: current,
+                startedAt: current.map(\.createdAt).min() ?? Date(),
+                endedAt: nil,
+                myDeviceID: pair.myDeviceID
+            )
+        )
+        result += closedSections(from: archive, excluding: pairingID)
+        result += legacySection().map { [$0] } ?? []
+        // An empty section is a header with nothing under it. A pairing with no alerts
+        // at all is the "No history yet" case, which the caller renders instead.
+        return result.filter { !$0.alerts.isEmpty }
+    }
+
+    @MainActor
+    static func archivedOnly() -> [HistorySection] {
+        closedSections(from: PairingArchive.load(), excluding: nil)
+            + (legacySection().map { [$0] } ?? [])
+    }
+
+    private static func closedSections(from archive: PairingArchive, excluding currentID: String?) -> [HistorySection] {
+        archive.pairings
+            .filter { $0.id != currentID && !$0.alerts.isEmpty }
+            .sorted { $0.startedAt > $1.startedAt }
+            .map { pairing in
+                HistorySection(
+                    id: pairing.id,
+                    partnerName: pairing.partnerName,
+                    alerts: pairing.alerts.map(AlertRecord.init(archived:)),
+                    startedAt: pairing.startedAt,
+                    endedAt: pairing.endedAt ?? pairing.alerts.map(\.createdAt).max() ?? pairing.startedAt,
+                    myDeviceID: DeviceIdentity.id
+                )
+            }
+    }
+
+    /// The pre-2.0 snapshot, which predates pairing IDs entirely. Its partner is
+    /// recovered from the rows themselves: whoever sent the ones this device didn't.
+    private static func legacySection() -> HistorySection? {
+        let rows = LegacyHistoryArchive.load()?.alerts ?? []
+        guard !rows.isEmpty else { return nil }
+        let me = DeviceIdentity.id
+        let partner = rows.first { $0.senderDeviceID != me && !$0.senderName.isEmpty }?.senderName
+        return HistorySection(
+            id: "legacy-pre-2.0",
+            partnerName: partner ?? "Before this version",
+            alerts: rows.map(AlertRecord.init(archived:)),
+            startedAt: rows.map(\.createdAt).min() ?? Date(),
+            endedAt: rows.map(\.createdAt).max() ?? Date(),
+            myDeviceID: me
+        )
+    }
+}
+
+private struct HistorySectionHeader: View {
+    let section: HistorySection
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(section.partnerName)
+            Text("·")
+                .foregroundStyle(.tertiary)
+            Text(range)
+                .foregroundStyle(.secondary)
+        }
+        .font(.caption)
+        .textCase(nil)
+    }
+
+    private var range: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM yyyy"
+        let start = formatter.string(from: section.startedAt)
+        guard let endedAt = section.endedAt else { return "since \(start)" }
+        let end = formatter.string(from: endedAt)
+        return start == end ? start : "\(start) – \(end)"
     }
 }
 
