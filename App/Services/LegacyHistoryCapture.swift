@@ -58,7 +58,7 @@ enum LegacyHistoryCapture {
         }
 
         do {
-            let alerts = try await cloud.fetchRecentAlerts(pairKey: pairKey, limit: limit)
+            let alerts = try await cloud.fetchLegacyPublicAlerts(pairKey: pairKey, limit: limit)
             let archive = LegacyHistoryArchive(alerts: alerts.map(ArchivedAlert.init), capturedAt: Date())
             guard archive.save() else {
                 record(failure: "archive could not be written", into: &state)

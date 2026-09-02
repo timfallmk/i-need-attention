@@ -123,8 +123,9 @@ final class PushNotifications: NSObject {
             return .newData
         }
 
+        guard let pair = appState.pair else { return .noData }
         do {
-            let alert = try await CloudKitService.shared.fetchAlert(recordID: recordID)
+            let alert = try await CloudKitService.shared.fetchAlert(recordID: recordID, pair: pair)
             await appState.handleIncomingChange(alert)
             return .newData
         } catch {
@@ -201,13 +202,18 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
             return
         }
 
-        let recordID = CKRecord.ID(recordName: recordName)
+        // Inline ack actions only ever apply to an incoming alert, which lives in the
+        // zone this device owns — the bare record name in the payload has no zone.
+        let recordID = CKRecord.ID(recordName: recordName, zoneID: CloudKitService.inboxZoneID)
         Task { @MainActor in
             defer { completionHandler() }
+            // The delegate is nonisolated and holds no AppState; the persisted pairing
+            // is the same source AppState itself loads from.
+            guard let pair = PairState.load() else { return }
             if Constants.NotificationAction.allAckActionIdentifiers.contains(actionID) {
                 let emoji = Constants.NotificationAction.emoji(for: actionID)
                 do {
-                    _ = try await CloudKitService.shared.acknowledgeAlert(recordID: recordID, emoji: emoji)
+                    _ = try await CloudKitService.shared.acknowledgeAlert(recordID: recordID, emoji: emoji, pair: pair)
                     // Mirrors AppState.acknowledgeIncoming: the NSE-set badge persists until ack,
                     // and inline ack from the banner is still an ack.
                     try? await UNUserNotificationCenter.current().setBadgeCount(0)
@@ -216,7 +222,7 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
                     self.log.error("Failed to acknowledge alert \(recordName, privacy: .public): \(String(describing: error), privacy: .public)")
                 }
             } else if actionID == UNNotificationDefaultActionIdentifier {
-                _ = try? await CloudKitService.shared.markAlertSeen(recordID: recordID)
+                _ = try? await CloudKitService.shared.markAlertSeen(recordID: recordID, pair: pair)
             }
             // UNNotificationDismissActionIdentifier and anything else: no-op.
         }

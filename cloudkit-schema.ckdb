@@ -1,4 +1,21 @@
 DEFINE SCHEMA
+    /* PairHandshake carries the joiner's half of the 2.0 pairing handshake: it is
+       written into the inviter's inbox zone, which only an accepted share participant
+       can reach. Private-database record types need no grants — zone membership is the
+       access control, which is the whole point of the 2.0 move. */
+    RECORD TYPE PairHandshake (
+        "___createTime"  TIMESTAMP,
+        "___createdBy"   REFERENCE,
+        "___etag"        STRING,
+        "___modTime"     TIMESTAMP,
+        "___modifiedBy"  REFERENCE,
+        "___recordID"    REFERENCE,
+
+        deviceID         STRING,
+        name             STRING,
+        shareURL         STRING
+    );
+
     RECORD TYPE Pair (
         "___createTime"  TIMESTAMP,
         "___createdBy"   REFERENCE,
@@ -35,6 +52,14 @@ DEFINE SCHEMA
         seenAt           TIMESTAMP,
         acknowledgedAt   TIMESTAMP,
         critical         INT64,
+
+        /* 2.0 ciphertext. New names rather than a changed type on the three plaintext
+           fields above: a record type's schema is container-wide, and pre-2.0 records
+           still have to parse. Not queryable — nothing filters on ciphertext, and the
+           records live in private zones where the zone is the filter. */
+        senderNameSealed BYTES,
+        messageSealed    BYTES,
+        ackEmojiSealed   BYTES,
 
         GRANT READ TO "_icloud",
         GRANT WRITE TO "_icloud",

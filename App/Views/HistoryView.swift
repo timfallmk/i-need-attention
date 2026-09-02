@@ -68,7 +68,7 @@ struct HistoryView: View {
         isLoading = alerts.isEmpty
         loadFailed = false
         do {
-            let live = try await CloudKitService.shared.fetchRecentAlerts(pairKey: pair.pairKey)
+            let live = try await CloudKitService.shared.fetchRecentAlerts(pair: pair)
             alerts = LegacyHistoryArchive.merged(live: live, archived: archived)
         } catch {
             // Don't wipe an already-loaded list on a refresh failure; only surface

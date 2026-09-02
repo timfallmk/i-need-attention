@@ -62,7 +62,7 @@ final class CLIClient {
         record[Constants.AlertField.state] = Constants.AlertState.sent.rawValue as CKRecordValue
         record[Constants.AlertField.critical] = 0 as CKRecordValue
         let saved = try await publicDB.save(record)
-        guard let model = AlertRecord(record: saved) else { throw CLIError.malformedRecord }
+        guard let model = AlertRecord(record: saved, pairKey: nil) else { throw CLIError.malformedRecord }
         return model
     }
 
@@ -119,7 +119,7 @@ final class CLIClient {
         let (results, _) = try await publicDB.records(matching: query, resultsLimit: 20)
         return results.compactMap { _, result in
             guard case .success(let record) = result else { return nil }
-            return AlertRecord(record: record)
+            return AlertRecord(record: record, pairKey: nil)
         }
     }
 
@@ -149,7 +149,7 @@ final class CLIClient {
         query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let (results, _) = try await publicDB.records(matching: query, resultsLimit: 1)
         for (_, result) in results {
-            if case .success(let record) = result { return AlertRecord(record: record) }
+            if case .success(let record) = result { return AlertRecord(record: record, pairKey: nil) }
         }
         return nil
     }
@@ -161,7 +161,7 @@ final class CLIClient {
         let (results, _) = try await publicDB.records(matching: query, resultsLimit: limit)
         return results.compactMap { _, result in
             guard case .success(let record) = result else { return nil }
-            return AlertRecord(record: record)
+            return AlertRecord(record: record, pairKey: nil)
         }
     }
 

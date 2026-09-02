@@ -152,12 +152,10 @@ final class AppState {
             return
         }
         do {
-            async let outgoingFetch = CloudKitService.shared.fetchMostRecentAlert(
-                pairKey: pair.pairKey, senderDeviceID: pair.myDeviceID
-            )
-            async let incomingFetch = CloudKitService.shared.fetchMostRecentAlert(
-                pairKey: pair.pairKey, senderDeviceID: pair.partnerDeviceID
-            )
+            // Direction is the zone now, not a senderDeviceID predicate: what we sent
+            // lives in their zone, what they sent lives in ours.
+            async let outgoingFetch = CloudKitService.shared.fetchMostRecentOutgoing(pair: pair)
+            async let incomingFetch = CloudKitService.shared.fetchMostRecentIncoming(pair: pair)
             let (outgoing, incoming) = try await (outgoingFetch, incomingFetch)
             let dismissedName = UserDefaults.standard.string(forKey: Self.dismissedOutgoingKey)
             let wasDismissed = outgoing?.state == .acknowledged && outgoing?.id.recordName == dismissedName
@@ -216,12 +214,12 @@ final class AppState {
 
         Haptics.press()
         do {
-            // Read the live displayName so renaming yourself in Settings takes effect on
-            // the next outgoing alert without needing to re-pair.
+            // Read the live displayName so renaming yourself in Settings takes effect
+            // on the next outgoing alert without needing to re-pair.
+            var sender = pair
+            sender.myName = UntrustedText.name(settings.displayName)
             let record = try await CloudKitService.shared.sendAlert(
-                pairKey: pair.pairKey,
-                senderDeviceID: pair.myDeviceID,
-                senderName: UntrustedText.name(settings.displayName),
+                pair: sender,
                 message: body,
                 critical: false
             )
@@ -242,7 +240,6 @@ final class AppState {
     /// Called by PushNotifications when a new alert (or alert update) arrives.
     func handleIncomingChange(_ alert: AlertRecord) async {
         guard let pair else { return }
-        guard alert.pairKey == pair.pairKey else { return }
 
         if alert.senderDeviceID == pair.myDeviceID {
             // It's an update to one of my outgoing alerts (seen / acknowledged).
@@ -260,7 +257,7 @@ final class AppState {
             // Record it and mark seen.
             lastIncoming = alert
             do {
-                let updated = try await CloudKitService.shared.markAlertSeen(recordID: alert.id)
+                let updated = try await CloudKitService.shared.markAlertSeen(recordID: alert.id, pair: pair)
                 lastIncoming = updated
             } catch {
                 log.error("markAlertSeen: \(error.localizedDescription)")
@@ -276,7 +273,8 @@ final class AppState {
         // below only clears *delivered* ones; the scheduled request needs explicit cancel.)
         cancelSnooze()
         do {
-            let updated = try await CloudKitService.shared.acknowledgeAlert(recordID: alert.id, emoji: emoji)
+            guard let pair else { return }
+            let updated = try await CloudKitService.shared.acknowledgeAlert(recordID: alert.id, emoji: emoji, pair: pair)
             lastIncoming = updated
             Haptics.success()
             try? await UNUserNotificationCenter.current().setBadgeCount(0)

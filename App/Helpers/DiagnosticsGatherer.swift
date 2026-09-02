@@ -44,7 +44,7 @@ enum DiagnosticsGatherer {
     private static func recentEvents(pair: PairState?) async -> [DiagnosticsReport.Event] {
         guard let pair else { return [] }
         guard let alerts = try? await CloudKitService.shared.fetchRecentAlerts(
-            pairKey: pair.pairKey,
+            pair: pair,
             limit: 20
         ) else {
             return []
