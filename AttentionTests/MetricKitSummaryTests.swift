@@ -77,16 +77,30 @@ final class MetricKitSummaryTests: XCTestCase {
         XCTAssertEqual(summary.lastCrashReason?.count, MetricKitSummary.maxReasonLength)
     }
 
-    func testEmptyCrashReasonIsIgnoredRatherThanStored() {
+    func testANewCrashWithoutAReasonClearsTheOldReason() {
+        // lastCrashAt and lastCrashReason describe the same crash. Leaving the previous
+        // reason attached to a newer timestamp would report a cause that never happened,
+        // which is worse in a diagnostic than reporting no cause at all.
         var summary = MetricKitSummary.empty
         summary.record(receivedAt: first, crashes: 1, hangs: 0, diskWriteExceptions: 0,
                        cpuExceptions: 0, crashReason: "SIGSEGV")
         summary.record(receivedAt: second, crashes: 1, hangs: 0, diskWriteExceptions: 0,
                        cpuExceptions: 0, crashReason: "")
 
-        XCTAssertEqual(summary.lastCrashReason, "SIGSEGV")
+        XCTAssertNil(summary.lastCrashReason)
         XCTAssertEqual(summary.lastCrashAt, second)
         XCTAssertEqual(summary.crashes, 2)
+    }
+
+    func testANewCrashWithoutAReasonAlsoClearsWhenNil() {
+        var summary = MetricKitSummary.empty
+        summary.record(receivedAt: first, crashes: 1, hangs: 0, diskWriteExceptions: 0,
+                       cpuExceptions: 0, crashReason: "SIGSEGV")
+        summary.record(receivedAt: second, crashes: 1, hangs: 0, diskWriteExceptions: 0,
+                       cpuExceptions: 0, crashReason: nil)
+
+        XCTAssertNil(summary.lastCrashReason)
+        XCTAssertEqual(summary.lastCrashAt, second)
     }
 
     func testNegativeCountsCannotDriveTotalsBackwards() {

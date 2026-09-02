@@ -61,12 +61,16 @@ struct MetricKitSummary: Codable, Equatable {
         diskWriteExceptions += max(0, newDiskWrites)
         cpuExceptions += max(0, newCPU)
 
-        // A payload with no crash in it must not blank the last one we know about.
+        // A payload with no crash in it describes no crash, so it must leave the last one
+        // we know about untouched.
         guard newCrashes > 0 else { return }
+
+        // A payload that does report a crash replaces both fields together. They describe
+        // the same crash, so carrying an older reason forward onto a newer timestamp would
+        // report a cause that never happened — worse than reporting no cause at all.
         lastCrashAt = receivedAt
-        if let crashReason, !crashReason.isEmpty {
-            lastCrashReason = String(crashReason.prefix(Self.maxReasonLength))
-        }
+        lastCrashReason = crashReason
+            .flatMap { $0.isEmpty ? nil : String($0.prefix(Self.maxReasonLength)) }
     }
 
     static func load() -> MetricKitSummary? {
