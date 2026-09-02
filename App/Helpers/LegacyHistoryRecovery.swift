@@ -31,7 +31,7 @@ enum LegacyHistoryRecovery {
         var message: String {
             switch self {
             case .recovered(let count):
-                return "Recovered \(count) alert\(count == 1 ? "" : "s"). Reopen History to see them."
+                return "Recovered \(count) alert\(count == 1 ? "" : "s"). They're under History, below."
             case .foundNothing:
                 return "No records for that pair key in this build's CloudKit environment. "
                      + "Check the key, and that this build points at the environment holding them."
