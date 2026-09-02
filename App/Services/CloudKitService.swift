@@ -152,6 +152,7 @@ final class CloudKitService: @unchecked Sendable {
         guard let model = AlertRecord(record: saved, pairKey: pair.pairKey) else {
             throw AttentionError.malformedRecord
         }
+        await postStatusNotice(pair: pair, alert: recordID, state: .seen, emoji: nil)
         return model
     }
 
@@ -184,7 +185,63 @@ final class CloudKitService: @unchecked Sendable {
         guard let model = AlertRecord(record: saved, pairKey: pair.pairKey) else {
             throw AttentionError.malformedRecord
         }
+        // Deliberately after the update and deliberately not gated on `alreadyAcked`:
+        // a previous call that saved the Alert but failed to post the notice would
+        // otherwise leave the sender with no banner and no way to get one.
+        await postStatusNotice(pair: pair, alert: recordID, state: .acknowledged, emoji: emoji)
         return model
+    }
+
+    /// Tells the sender what we did with their alert, by writing into the zone *they*
+    /// own — the only place a push we control can originate from. Best effort: the
+    /// Alert record already carries the truth, so a failure here costs the banner, not
+    /// the state, and the sender still reconciles on next foreground.
+    ///
+    /// No-ops for a record that isn't in our own zone, which means it isn't an incoming
+    /// alert and has no sender to notify.
+    private func postStatusNotice(pair: PairState,
+                                  alert recordID: CKRecord.ID,
+                                  state: Constants.AlertState,
+                                  emoji: String?) async {
+        guard recordID.zoneID.ownerName == CKCurrentUserDefaultName,
+              let senderZone = pair.outgoingZone else { return }
+
+        let noticeID = CKRecord.ID(
+            recordName: Constants.AlertStatusField.recordName(for: recordID.recordName),
+            zoneID: senderZone.zoneID
+        )
+        let notice = (try? await sharedDB.record(for: noticeID))
+            ?? CKRecord(recordType: Constants.RecordType.alertStatus, recordID: noticeID)
+        notice[Constants.AlertStatusField.alertRecordName] = recordID.recordName as CKRecordValue
+        notice[Constants.AlertStatusField.state] = state.rawValue as CKRecordValue
+        do {
+            if let emoji, !emoji.isEmpty {
+                notice[Constants.AlertStatusField.ackEmojiSealed] =
+                    try PairCrypto.seal(emoji, pairKey: pair.pairKey,
+                                        field: Constants.AlertStatusField.ackEmojiSealed) as CKRecordValue
+            }
+            _ = try await sharedDB.save(notice)
+        } catch {
+            log.error("status notice failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// Reads a status notice the partner left in our zone. Used by the push handler,
+    /// which is given the notice's record ID and needs to know which alert it answers.
+    func fetchStatusNotice(recordID: CKRecord.ID,
+                           pair: PairState) async -> (alertRecordName: String, state: Constants.AlertState, emoji: String?)? {
+        guard let record = try? await privateDB.record(for: recordID),
+              let alertRecordName = record[Constants.AlertStatusField.alertRecordName] as? String,
+              let raw = record[Constants.AlertStatusField.state] as? String,
+              let state = Constants.AlertState(rawValue: raw) else {
+            return nil
+        }
+        let emoji = UntrustedText.emoji(
+            PairCrypto.opened(record[Constants.AlertStatusField.ackEmojiSealed] as? Data,
+                              pairKey: pair.pairKey,
+                              field: Constants.AlertStatusField.ackEmojiSealed)
+        )
+        return (alertRecordName, state, emoji)
     }
 
     func fetchAlert(recordID: CKRecord.ID, pair: PairState) async throws -> AlertRecord {
