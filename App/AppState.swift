@@ -216,7 +216,7 @@ final class AppState {
             let record = try await CloudKitService.shared.sendAlert(
                 pairKey: pair.pairKey,
                 senderDeviceID: pair.myDeviceID,
-                senderName: settings.displayName,
+                senderName: UntrustedText.name(settings.displayName),
                 message: body,
                 critical: false
             )
@@ -512,7 +512,7 @@ final class AppState {
     /// the updated name. Also updates the local copy in `pair.myName`.
     func syncMyDisplayName() async {
         guard var pair else { return }
-        let newName = settings.displayName
+        let newName = UntrustedText.name(settings.displayName)
         guard !newName.isEmpty, newName != pair.myName else { return }
         do {
             try await CloudKitService.shared.updatePairName(

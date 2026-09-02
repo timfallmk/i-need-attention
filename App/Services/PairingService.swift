@@ -30,7 +30,8 @@ final class PairingService {
         // they'd shadow the invite's real predicates (registration skips existing IDs).
         try? await cloud.purgeSeededSubscriptions()
         #endif
-        let invite = PairingInvite.generate(myDeviceID: DeviceIdentity.id, myName: myName)
+        let invite = PairingInvite.generate(myDeviceID: DeviceIdentity.id,
+                                            myName: UntrustedText.name(myName))
         let record = try await cloud.createPair(invite: invite)
         PendingInvite(
             pairKey: invite.pairKey,
@@ -136,7 +137,7 @@ final class PairingService {
         let updated = try await cloud.joinPair(
             record: record,
             joinerDeviceID: DeviceIdentity.id,
-            joinerName: myName
+            joinerName: UntrustedText.name(myName)
         )
         let state = PairState(
             pairKey: invite.pairKey,

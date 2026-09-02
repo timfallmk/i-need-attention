@@ -87,15 +87,17 @@ final class NotificationService: UNNotificationServiceExtension {
 
     private func applyContent(from notification: CKQueryNotification, to content: UNMutableNotificationContent, isAck: Bool) {
         let fields = notification.recordFields ?? [:]
-        let partnerName = SharedSettings.partnerName ?? "Partner"
+        let partnerName = UntrustedText.name(SharedSettings.partnerName, fallback: "Partner")
 
         if isAck {
             let emoji = fields[Constants.AckField.emoji] as? String
             content.title = partnerName
             content.body = ackBody(emoji: emoji)
         } else {
-            let senderName = (fields[Constants.AlertField.senderName] as? String) ?? partnerName
-            let message = (fields[Constants.AlertField.message] as? String) ?? "needs attention"
+            let senderName = UntrustedText.name(fields[Constants.AlertField.senderName] as? String,
+                                                fallback: partnerName)
+            let message = UntrustedText.message(fields[Constants.AlertField.message] as? String,
+                                                fallback: "needs attention")
             let senderRequestedCritical = (fields[Constants.AlertField.critical] as? Int ?? 0) == 1
             content.title = senderName
             content.body = message
@@ -112,11 +114,13 @@ final class NotificationService: UNNotificationServiceExtension {
     private func apply(record: CKRecord, to content: UNMutableNotificationContent, isAck: Bool) {
         if isAck {
             let emoji = record[Constants.AckField.emoji] as? String
-            content.title = SharedSettings.partnerName ?? "Partner"
+            content.title = UntrustedText.name(SharedSettings.partnerName, fallback: "Partner")
             content.body = ackBody(emoji: emoji)
         } else {
-            if let senderName = record[Constants.AlertField.senderName] as? String { content.title = senderName }
-            if let message = record[Constants.AlertField.message] as? String { content.body = message }
+            content.title = UntrustedText.name(record[Constants.AlertField.senderName] as? String,
+                                               fallback: content.title)
+            content.body = UntrustedText.message(record[Constants.AlertField.message] as? String,
+                                                 fallback: content.body)
             let senderRequestedCritical = (record[Constants.AlertField.critical] as? Int ?? 0) == 1
             applyPriority(senderRequestedCritical: senderRequestedCritical, to: content)
         }
