@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var isGeneratingReport = false
     @State private var nameSyncTask: Task<Void, Never>?
     @State private var showHistory = false
+    @State private var hasArchivedHistory = false
     #if DEBUG
     @State private var recoveryPairKey = ""
     @State private var isRecovering = false
@@ -128,18 +129,22 @@ struct SettingsView: View {
                 }
                 #endif
 
-                Section {
-                    Button {
-                        showHistory = true
-                    } label: {
-                        Label("History", systemImage: "clock")
+                // Only in the one state where it is unreachable and non-empty: unpaired,
+                // with a local archive. That is the window after the 2.0 cutover, where
+                // the notice says the history survived and the main screen — which is
+                // where History normally lives — doesn't exist yet. A paired user reaches
+                // it from that toolbar, and a fresh install has nothing to show.
+                if appState.pair == nil && hasArchivedHistory {
+                    Section {
+                        Button {
+                            showHistory = true
+                        } label: {
+                            Label("History", systemImage: "clock")
+                        }
+                    } footer: {
+                        Text("Your alerts from before this version, kept on this phone. "
+                             + "They'll appear alongside new ones once you've paired again.")
                     }
-                } footer: {
-                    // Also on the main screen's toolbar, but that needs a pair. After the
-                    // 2.0 cutover every upgrading user is unpaired and their whole history
-                    // is the local archive — telling them it survived and giving them no
-                    // way to look at it is not much of a reassurance.
-                    Text("Alerts you've sent and received, including anything from before this version.")
                 }
 
                 Section("About") {
@@ -189,7 +194,8 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showHistory) {
+            .task { hasArchivedHistory = LegacyHistoryArchive.load() != nil }
+        .sheet(isPresented: $showHistory) {
                 HistoryView()
                     .environment(appState)
             }
@@ -241,6 +247,9 @@ struct SettingsView: View {
         isRecovering = true
         recoveryResult = nil
         recoveryResult = await LegacyHistoryRecovery.recover(pairKey: recoveryPairKey).message
+        // The row is conditional on there being an archive, and recovery is what creates
+        // one — without this the success message points at a row that isn't there yet.
+        hasArchivedHistory = LegacyHistoryArchive.load() != nil
         isRecovering = false
     }
     #endif
