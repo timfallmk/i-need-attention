@@ -201,9 +201,29 @@ was that a push arrives and draws at all, and it does.
 concession to be made if this answered badly, and it would have cost the metadata privacy
 that motivates the whole move.
 
-### Consequence: the `Ack` record type can go
+### Consequence: the `Ack` record type can go — acknowledging does not change
 
-Confirmed rather than hoped. It exists only as a public-database workaround, costing a second write per acknowledgement and a record type that is never garbage-collected. Once records move to the private database, the sender-side banner can come from the `Alert` update directly and `Ack` can be deleted along with `outgoing-ack-v2`, its predicate in `SubscriptionPredicates`, and the `outgoingAckSubscriptionUnavailable` diagnostic plumbing that exists to report when it fails to register.
+Worth stating plainly, because the name invites the opposite reading: **`Ack` is not the
+acknowledgement.** The acknowledgement lives on the `Alert` record — `state` becomes
+`acknowledged`, with `acknowledgedAt` and `ackEmoji` beside it — and `CloudKitService`
+already says so in as many words: *"Source of truth for the in-app indicator remains the
+Alert update above; the Ack record exists purely to trigger the visible banner."*
+
+The `Ack` record is a duplicate written immediately afterwards for one reason: a
+`firesOnRecordCreation` subscription can carry a visible push, and the public database
+refuses the same thing on record *update*. It is a workaround wearing the feature's name.
+
+So the acknowledge button, the emoji, the sender's banner and the status pill all stay.
+What goes is a second write per acknowledgement and a record type that is never garbage
+collected, along with `outgoing-ack-v2`, its predicate in `SubscriptionPredicates`, and the
+`outgoingAckSubscriptionUnavailable` diagnostic plumbing that exists to report when that
+subscription fails to register.
+
+**The replacement is not "subscribe to any `Alert` update".** `markAlertSeen` also updates
+the `Alert`, so an unfiltered update subscription would fire a banner when the partner
+merely *looked* at the alert. The predicate has to be `state == "acknowledged"` — which is
+exactly what the abandoned v1 attempt used. v1 was not wrong; it was rejected for the
+visible-push-on-update rule that the spike has now shown does not apply here.
 
 ## Versioning
 
