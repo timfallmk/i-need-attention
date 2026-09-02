@@ -156,6 +156,25 @@ a typed email address, which was the objection that sank the earlier design.
 - Q4 confirms the identity can be *read*. Creating a share that **invites** by that
   `userRecordID` is a separate call and has not been exercised.
 
+### Spike result, 2026-09-02 — question 1: the inbox model works
+
+**A participant's write into the owner's zone fires the owner's private-database
+subscription. Confirmed**, in both directions, between two Apple IDs.
+
+This is the load-bearing one. The whole reason for inbox zones rather than outbox zones is
+that the receiver subscribes to their *own* private database, which is better-trodden
+ground than a participant observing someone else's zone. That now rests on an observation
+rather than an assumption.
+
+Note for whoever builds this: **both sides need their own subscription.** A push arrives
+only if the *receiving* side has registered one on its own zone; registering on one side
+produces a working write and no notification, which looks like a delivery failure and is
+not.
+
+No banner appeared while the receiving app was in the foreground, which is correct rather
+than a partial result — iOS suppresses banners for the foreground app unless it implements
+`userNotificationCenter(_:willPresent:)`. The push was delivered; it simply was not drawn.
+
 ### Consequence: the `Ack` record type can go
 
 Confirmed rather than hoped. It exists only as a public-database workaround, costing a second write per acknowledgement and a record type that is never garbage-collected. Once records move to the private database, the sender-side banner can come from the `Alert` update directly and `Ack` can be deleted along with `outgoing-ack-v2`, its predicate in `SubscriptionPredicates`, and the `outgoingAckSubscriptionUnavailable` diagnostic plumbing that exists to report when it fails to register.
