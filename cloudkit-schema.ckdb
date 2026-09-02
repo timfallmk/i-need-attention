@@ -41,6 +41,28 @@ DEFINE SCHEMA
         ackEmojiSealed   BYTES
     );
 
+    /* Pre-2.0, and read-only from 2.0 on: nothing writes Pair or Ack any more, but the
+       records still exist and AttentionCLI still speaks the old protocol. An import that
+       omitted them would be asking CloudKit to delete record types that hold data. */
+    RECORD TYPE Pair (
+        "___createTime"  TIMESTAMP,
+        "___createdBy"   REFERENCE,
+        "___etag"        STRING,
+        "___modTime"     TIMESTAMP,
+        "___modifiedBy"  REFERENCE,
+        "___recordID"    REFERENCE,
+
+        pairKey          STRING QUERYABLE,
+        deviceA          STRING,
+        deviceB          STRING,
+        nameA            STRING,
+        nameB            STRING,
+
+        GRANT READ TO "_icloud",
+        GRANT WRITE TO "_icloud",
+        GRANT CREATE TO "_icloud"
+    );
+
     RECORD TYPE Alert (
         "___createTime"  TIMESTAMP SORTABLE,
         "___createdBy"   REFERENCE,
