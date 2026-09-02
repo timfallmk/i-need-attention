@@ -29,7 +29,14 @@ enum LegacyHistoryCapture {
             LegacyHistoryCaptureState(phase: .done).save()
             return
         }
-        PairSecrets.store.setSecret(existingPair.pairKey, for: Constants.Keychain.legacyHistoryKeyAccount)
+        // Marking this pending without the key stashed would strand the capture: the
+        // next launch sees state and skips prepare, then run() finds no key and gives
+        // up. Leaving the state absent instead means the next launch tries again.
+        guard PairSecrets.store.setSecret(existingPair.pairKey,
+                                          for: Constants.Keychain.legacyHistoryKeyAccount) else {
+            log.error("Could not stash the pre-2.0 pair key; will retry next launch")
+            return
+        }
         LegacyHistoryCaptureState(phase: .pending).save()
     }
 
