@@ -35,7 +35,7 @@ struct AlertRecord: Identifiable, Equatable {
         self.state = state
         self.seenAt = record[Constants.AlertField.seenAt] as? Date
         self.acknowledgedAt = record[Constants.AlertField.acknowledgedAt] as? Date
-        self.ackEmoji = record[Constants.AlertField.ackEmoji] as? String
+        self.ackEmoji = UntrustedText.emoji(record[Constants.AlertField.ackEmoji] as? String)
         self.critical = (record[Constants.AlertField.critical] as? Int ?? 0) == 1
     }
 }
