@@ -39,6 +39,11 @@ struct DiagnosticsReport: Equatable {
     var systemVersion: String
     var generatedAt: Date
 
+    /// What MetricKit has reported, if anything. Covers the loud failures — crashes, hangs,
+    /// resource exceptions — which the rest of this report cannot see because they never
+    /// reach the code that would record them.
+    var metrics: MetricKitSummary?
+
     var accountStatus: String
     var pairFingerprint: String?
     var myDeviceFingerprint: String?
@@ -91,6 +96,10 @@ struct DiagnosticsReport: Equatable {
         out.append("System: \(systemVersion)")
         out.append("")
 
+        out.append("[Device diagnostics]")
+        out.append(contentsOf: Self.metricLines(metrics))
+        out.append("")
+
         out.append("[Pairing]")
         out.append("iCloud account: \(accountStatus)")
         out.append("Pair: \(pairFingerprint ?? "not paired")")
@@ -124,6 +133,24 @@ struct DiagnosticsReport: Equatable {
         }
 
         return out.joined(separator: "\n")
+    }
+
+    private static func metricLines(_ metrics: MetricKitSummary?) -> [String] {
+        guard let metrics, !metrics.isEmpty else {
+            return ["MetricKit: nothing received yet"]
+        }
+        var lines = ["MetricKit payloads: \(metrics.payloadsReceived)"]
+        if let last = metrics.lastReceivedAt {
+            lines.append("Last payload: \(timestamp(last))")
+        }
+        var crashLine = "Crashes: \(metrics.crashes)"
+        if let at = metrics.lastCrashAt { crashLine += "  last=\(timestamp(at))" }
+        if let reason = metrics.lastCrashReason { crashLine += "  reason=\(reason)" }
+        lines.append(crashLine)
+        lines.append("Hangs: \(metrics.hangs)")
+        lines.append("Disk write exceptions: \(metrics.diskWriteExceptions)")
+        lines.append("CPU exceptions: \(metrics.cpuExceptions)")
+        return lines
     }
 
     private static func line(for event: Event) -> String {

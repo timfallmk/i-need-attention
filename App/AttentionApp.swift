@@ -19,6 +19,8 @@ struct AttentionApp: App {
                     appDelegate.appState = appState
                     Haptics.prepare()
                     PushNotifications.shared.configure()
+                    // Subscribe early so a payload delivered during this launch is captured.
+                    MetricKitCollector.shared.start()
                     // Activate the watch bridge before bootstrap so that the initial
                     // pushWatchSnapshot() inside bootstrap finds an activated WCSession
                     // (sendSnapshot bails out otherwise). The bridge also re-pushes

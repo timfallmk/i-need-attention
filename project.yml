@@ -208,6 +208,7 @@ targets:
       - path: App/Models/SnoozeState.swift
       - path: App/Models/AlertRecord.swift
       - path: App/Models/DiagnosticsReport.swift
+      - path: App/Models/MetricKitSummary.swift
       - path: App/Models/UserSettings.swift
       - path: App/Models/NounPresets.swift
       - path: App/Models/OpenSourceLicenses.swift
