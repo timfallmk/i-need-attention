@@ -31,6 +31,30 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Signing config guard
+        run: |
+          set -euo pipefail
+          targets=$(xcodebuild -list -project Attention.xcodeproj -json \
+            | python3 -c 'import json,sys; print("\n".join(json.load(sys.stdin)["project"]["targets"]))')
+          fail=0
+          while IFS= read -r t; do
+            [ -n "$t" ] || continue
+            if ! settings=$(xcodebuild -project Attention.xcodeproj -target "$t" -showBuildSettings 2>/dev/null); then
+              echo "::error::could not read build settings for $t - the guard cannot verify it"
+              fail=1
+              continue
+            fi
+            # Only bundles (.app/.appex/.xctest) need an Info.plist to be signed.
+            # AttentionCLI is a bare Mach-O tool and legitimately has none, so key off
+            # WRAPPER_EXTENSION rather than maintaining an exclusion list by hand.
+            grep -qE '^[[:space:]]*WRAPPER_EXTENSION = ' <<<"$settings" || continue
+            if ! grep -qE '^[[:space:]]*(GENERATE_INFOPLIST_FILE = YES|INFOPLIST_FILE = [^[:space:]])' <<<"$settings"; then
+              echo "::error::$t is a bundle target with neither INFOPLIST_FILE nor GENERATE_INFOPLIST_FILE=YES, so it cannot be code signed"
+              fail=1
+            fi
+          done <<<"$targets"
+          exit $fail
+
       - name: Test Attention (iOS Simulator)
         run: |
           set -o pipefail

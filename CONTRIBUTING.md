@@ -30,6 +30,7 @@ A few things to know up front:
 - Match the existing code style (Swift 5.10, SwiftUI for iOS 17+, minimal comments — see CLAUDE.md).
 - If you change CloudKit schema, capabilities, or App ID configuration, update [SETUP.md](SETUP.md) in the same commit.
 - Test on a real device. The simulator can't deliver push or run CloudKit subscriptions reliably.
+- Run the unit tests locally (⌘U) before pushing. CI builds with code signing disabled, so a green CI run is not evidence that the test bundle builds and signs on a real machine.
 - Reference any related issue in the PR description.
 
 ## Code of conduct
