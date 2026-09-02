@@ -2,7 +2,9 @@
 
 **Status: in progress.** Supersedes "Option 3" as originally scoped (a single `CKShare`d zone owned by the inviter). This doc is the design record and the decision log.
 
-Landed so far: the crypto layer (`Shared/PairCrypto.swift`) — layer 2 below — which is pure logic and did not have to wait on the spike. Everything structural is still unbuilt, and **the spike has not been run**, so the four questions under [What must be verified](#what-must-be-verified-before-writing-production-code) are all still open. See the [work order](#work-order) for what is done and what is not.
+Landed so far: the crypto layer (`Shared/PairCrypto.swift`) and the diagnostics export, both pure enough not to wait on the spike. Everything structural is still unbuilt.
+
+**The spike has been run in part.** The save-time half of question 2 is answered — the private database accepts a visible mutable-content subscription on record *update*, which the public database refuses — so the objection that shaped the current architecture does not apply there, and the `Ack` record type can be deleted. Push *delivery*, participant writes, and questions 3 and 4 are all still open and need a second account and a device. See [What must be verified](#what-must-be-verified-before-writing-production-code).
 
 Target release: **2.0.0**.
 
@@ -109,9 +111,30 @@ Four questions. None of these are asserted anywhere above; where the design depe
 
 If question 2 answers badly, the fallback is to keep a single content-free record in the public database purely as a push trigger — the payload is already encrypted, so a trigger record leaks only that *something* arrived. That is a meaningful concession on metadata and should be a deliberate decision, not a default.
 
-### A simplification if 2 answers well
+### Spike result, 2026-09-02 — the save-time half of question 2 is answered: YES
 
-If visible pushes are permitted on record update in a private zone, the `Ack` record type can be deleted outright. It exists only as a public-database workaround, costing a second write per acknowledgement and a record type that is never garbage-collected. Nearly free to test in the same spike.
+Run from a throwaway macOS `.app` against **one** account's own private database, **Development** environment. Each subscription was saved and then read back with `allSubscriptions()`, because a subscription can save while the server silently strips the fields that make its push visible — which reads as success and behaves as failure.
+
+| Shape | Saved | Server stored |
+| --- | --- | --- |
+| query / create / silent | accepted | `contentAvailable=true` |
+| query / create / **visible** | accepted | `alertBody="Attention"  mutableContent=true` |
+| query / **update** / **visible** | accepted | `alertBody="Attention"  mutableContent=true` |
+| database subscription / visible | accepted | `alertBody="Attention"  mutableContent=true` |
+
+**The private database does not carry the public database's restriction.** `firesOnRecordUpdate` combined with a visible mutable-content push — rejected with `BAD_REQUEST` on the public database, and the sole reason the `Ack` record type exists — is accepted here and stored intact. A `CKDatabaseSubscription` keeps the visible fields too, so the feared "silent-only" outcome did not materialise and a fallback exists either way.
+
+**What this does not establish.** Server acceptance is necessary, not sufficient:
+
+- **Delivery is untested.** Whether APNs actually delivers, and whether the NSE renders a banner with the app force-quit, still needs a device. That is the remaining half of question 2.
+- **The write was by the zone owner**, not by a share participant. The subscription half of question 1 is confirmed — such a subscription can exist on your own private database — but whether *another user's* write into your zone fires it is still open, and still needs a second account.
+- **Development only.** Production has refused things Development allows before, which is the entire reason for the `schema-seed` dance in CLAUDE.md.
+
+Questions 3 and 4 were not touched; both need a second account.
+
+### Consequence: the `Ack` record type can go
+
+Confirmed rather than hoped. It exists only as a public-database workaround, costing a second write per acknowledgement and a record type that is never garbage-collected. Once records move to the private database, the sender-side banner can come from the `Alert` update directly and `Ack` can be deleted along with `outgoing-ack-v2`, its predicate in `SubscriptionPredicates`, and the `outgoingAckSubscriptionUnavailable` diagnostic plumbing that exists to report when it fails to register.
 
 ## Versioning
 
