@@ -15,7 +15,7 @@ If you find a security issue, **please don't open a public GitHub issue.** Inste
 - GitHub's [private vulnerability reporting](../../security/advisories/new), or
 - Email the maintainer at `timfall+github@gmail.com`.
 
-I aim to acknowledge within a few days and to ship a fix to TestFlight within two weeks for anything that exposes user data or breaks the trust boundary on `pairKey`.
+I aim to acknowledge within a few days and to ship a fix within two weeks for anything that exposes user data, or that widens access beyond what this document describes.
 
 ## Scope
 
