@@ -99,7 +99,8 @@ final class DiagnosticsReportTests: XCTestCase {
 
     func testRenderIncludesEverySection() {
         let rendered = makeReport().render()
-        for section in ["[App]", "[Pairing]", "[Notifications]", "[Subscriptions]", "[Recent alerts]"] {
+        for section in ["[App]", "[Device diagnostics]", "[Pairing]", "[Notifications]",
+                        "[Subscriptions]", "[Recent alerts]"] {
             XCTAssertTrue(rendered.contains(section), "missing \(section)")
         }
     }
@@ -139,6 +140,29 @@ final class DiagnosticsReportTests: XCTestCase {
         XCTAssertTrue(broken.contains("CKError 15"))
     }
 
+    // MARK: - MetricKit section
+
+    func testMetricsSectionSaysSoWhenNothingHasArrived() {
+        let rendered = makeReport(metrics: nil).render()
+        XCTAssertTrue(rendered.contains("MetricKit: nothing received yet"))
+
+        let empty = makeReport(metrics: .empty).render()
+        XCTAssertTrue(empty.contains("MetricKit: nothing received yet"))
+    }
+
+    func testMetricsSectionRendersWhatArrived() {
+        var summary = MetricKitSummary.empty
+        summary.record(receivedAt: Date(timeIntervalSince1970: 0), crashes: 2, hangs: 1,
+                       diskWriteExceptions: 0, cpuExceptions: 3, crashReason: "SIGSEGV")
+        let rendered = makeReport(metrics: summary).render()
+
+        XCTAssertTrue(rendered.contains("MetricKit payloads: 1"))
+        XCTAssertTrue(rendered.contains("Crashes: 2"))
+        XCTAssertTrue(rendered.contains("reason=SIGSEGV"))
+        XCTAssertTrue(rendered.contains("Hangs: 1"))
+        XCTAssertTrue(rendered.contains("CPU exceptions: 3"))
+    }
+
     // MARK: - Helpers
 
     private func acknowledgedEvent() -> DiagnosticsReport.Event {
@@ -158,13 +182,15 @@ final class DiagnosticsReportTests: XCTestCase {
     private func makeReport(
         paired: Bool = true,
         failureReason: String? = nil,
-        events: [DiagnosticsReport.Event] = []
+        events: [DiagnosticsReport.Event] = [],
+        metrics: MetricKitSummary? = nil
     ) -> DiagnosticsReport {
         DiagnosticsReport(
             appVersion: "2.0.0",
             buildVersion: "1",
             systemVersion: "iOS 17.0",
             generatedAt: Date(timeIntervalSince1970: 0),
+            metrics: metrics,
             accountStatus: "available",
             pairFingerprint: paired ? DiagnosticsReport.fingerprint(of: pairKey) : nil,
             myDeviceFingerprint: paired ? DiagnosticsReport.fingerprint(of: myDeviceID) : nil,
