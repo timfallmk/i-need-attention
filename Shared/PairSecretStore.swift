@@ -20,11 +20,18 @@ protocol PairSecretStore {
 /// reaches the same item using an entitlement both targets already carry and no new
 /// capability has to be registered in the developer portal.
 ///
-/// `ThisDeviceOnly` accessibility is deliberate. Keeping the key out of iCloud
-/// Keychain and out of backups is the whole point; the cost is that a backup
-/// restored onto a new phone arrives unpaired and has to pair again.
-/// `AfterFirstUnlock` rather than `WhenUnlocked` because the NSE decrypts pushes
-/// that arrive while the screen is locked.
+/// The item is **synchronizable** and `AfterFirstUnlock`. Not `ThisDeviceOnly`: from
+/// 2.0 the pair key is the HKDF input that decrypts every payload, so a device that
+/// arrives without it cannot read history that is still sitting in CloudKit, and
+/// recovery is not solo — re-pairing needs the partner and a fresh scan. Meanwhile
+/// `DeviceIdentity.id` and the rest of `PairState` are in `UserDefaults`, which does
+/// restore, so a device-only key would restore everything except the one value that
+/// makes it usable. The exposure being closed is the plaintext copy in the app
+/// container, which any keychain storage closes; device-only would only have added
+/// protection against someone holding an encrypted backup *and* its password.
+///
+/// `AfterFirstUnlock` rather than `WhenUnlocked` because the NSE decrypts pushes that
+/// arrive while the screen is locked.
 struct KeychainPairSecretStore: PairSecretStore {
     let service: String
     let accessGroup: String?
@@ -36,10 +43,14 @@ struct KeychainPairSecretStore: PairSecretStore {
     }
 
     private func query(for account: String) -> [String: Any] {
+        // kSecAttrSynchronizable has to appear in every query, not just the insert:
+        // omitting it means "non-synchronizable only", which would silently fail to
+        // find, update or delete the item we store.
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
+            kSecAttrSynchronizable as String: true,
             kSecUseDataProtectionKeychain as String: true
         ]
         if let accessGroup {
@@ -69,9 +80,15 @@ struct KeychainPairSecretStore: PairSecretStore {
         case errSecSuccess:
             return true
         case errSecItemNotFound:
+            // A device that ran a build storing this key as non-synchronizable has a
+            // twin the query above can't see. Clear it, or the add can collide with it.
+            var stale = existing
+            stale[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
+            SecItemDelete(stale as CFDictionary)
+
             var insert = existing
             insert[kSecValueData as String] = data
-            insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
             return SecItemAdd(insert as CFDictionary, nil) == errSecSuccess
         default:
             return false
