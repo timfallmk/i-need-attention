@@ -7,10 +7,15 @@ import Foundation
 /// so a field failure is only visible through what the app reports about itself. That makes
 /// this the whole debugging surface rather than a convenience.
 ///
-/// The type holds fingerprints and booleans and nothing else — there is no field a name, a
-/// message, an emoji or a pair key could be stored in. Redaction happens when the report is
-/// built rather than when it is rendered, so a future caller cannot leak by formatting
-/// carelessly.
+/// A name, a message, an emoji or a pair key cannot reach this type: identities are stored
+/// as truncated fingerprints and settings as booleans, and every remaining string is either
+/// one this app produced itself (versions, account and authorization status, alert state) or
+/// — in the single case of a CloudKit error description — scrubbed on the way in. That last
+/// field is the only one carrying text from outside, so it is the only one where the
+/// guarantee rests on `redactedFailureReason` rather than on the shape of the type.
+///
+/// Redaction happens when the report is built rather than when it is rendered, so a later
+/// caller cannot leak by formatting carelessly.
 struct DiagnosticsReport: Equatable {
     enum Direction: String, Equatable {
         case incoming
@@ -136,10 +141,18 @@ struct DiagnosticsReport: Equatable {
 
     /// ISO 8601 rather than a localized style: this text is read by a developer comparing
     /// it against server-side timing, not by the person who exported it.
-    private static func timestamp(_ date: Date) -> String {
+    ///
+    /// Built once. Configuring a date formatter is expensive and `render` calls this up to
+    /// three times per event; a formatter that is configured at creation and never mutated
+    /// afterwards is safe to format from anywhere.
+    private static let formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    private static func timestamp(_ date: Date) -> String {
+        formatter.string(from: date)
     }
 }

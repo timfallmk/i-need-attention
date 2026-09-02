@@ -8,7 +8,7 @@ Target release: **2.0.0**.
 
 ## Why
 
-#61 closed anonymous read of the public database — verified behaviourally, a Web Services query with a valid API token now returns `ACCESS_DENIED` where it previously returned every `Pair` record with its `pairKey` in plaintext.
+PR #61 closed anonymous read of the public database — verified behaviourally, a Web Services query with a valid API token now returns `ACCESS_DENIED` where it previously returned every `Pair` record with its `pairKey` in plaintext.
 
 What that did not close: public-database security roles are per record type with no row-level scoping, so `_icloud` — every signed-in Apple ID — retains read *and write* on `Pair`, `Alert`, and `Ack`. Any authenticated client that can reach the container can still read every pair's records, and can still write into any pair. #62 bounds how hostile writes *render*; it does not stop them.
 
