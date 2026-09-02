@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var exportedReport: ExportedReport?
     @State private var isGeneratingReport = false
     @State private var nameSyncTask: Task<Void, Never>?
+    @State private var showHistory = false
     #if DEBUG
     @State private var recoveryPairKey = ""
     @State private var isRecovering = false
@@ -127,6 +128,20 @@ struct SettingsView: View {
                 }
                 #endif
 
+                Section {
+                    Button {
+                        showHistory = true
+                    } label: {
+                        Label("History", systemImage: "clock")
+                    }
+                } footer: {
+                    // Also on the main screen's toolbar, but that needs a pair. After the
+                    // 2.0 cutover every upgrading user is unpaired and their whole history
+                    // is the local archive — telling them it survived and giving them no
+                    // way to look at it is not much of a reassurance.
+                    Text("Alerts you've sent and received, including anything from before this version.")
+                }
+
                 Section("About") {
                     NavigationLink {
                         AcknowledgementsView()
@@ -173,6 +188,10 @@ struct SettingsView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .sheet(isPresented: $showHistory) {
+                HistoryView()
+                    .environment(appState)
             }
             .sheet(item: $exportedReport) { report in
                 DiagnosticsExportView(text: report.text)
