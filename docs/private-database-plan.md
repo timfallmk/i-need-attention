@@ -286,13 +286,23 @@ Replacements, for which the codebase already has a precedent in `SharedSettings.
 3. ~~`PairState` v2: key in Keychain, App-Group readable for the NSE.~~ **Done** (`Shared/PairSecretStore.swift`). The item is `AfterFirstUnlock`, synchronizable, under the App Group as its access group, so the NSE reads it with no new entitlement and a new phone inherits the key rather than losing every payload the crypto layer sealed with it; `PendingInvite` got the same treatment, since a live invite's key is exactly as sensitive. The **per-direction state** half moved to step 6: the fields it would add (each side's zone ID, share URL, accepted-yet flag) have no consumers until the handshake exists, and designing them ahead of it would be guesswork.
 4. ~~Crypto layer — HKDF, seal/open, hashed lookup value — with tests.~~ **Done** (`Shared/PairCrypto.swift`). Not yet wired into any record path; that lands with step 7.
 5. ~~First-launch read of pre-2.0 public history into a local snapshot.~~ **Done** (`ArchivedAlert`, `LegacyHistoryArchive`, `LegacyHistoryCapture`). The ordering trap is that the records are reachable only while the device still holds the pre-2.0 pair key, so the key is stashed under its own keychain account synchronously at the top of `bootstrap()` and the fetch retries against that copy rather than against `PairState`. `HistoryView` merges archived rows with live ones, live winning on a shared record name.
-6. Zone creation, both shares, programmatic accept, the half-formed state; rewrite `PairingService`.
-7. Rewrite `CloudKitService` against inbox zones.
-8. Subscriptions and NSE, per the spike.
-9. Re-pair UI and cutover messaging.
-10. Schema file, `SETUP.md`, `CLAUDE.md`.
-11. `MARKETING_VERSION` → 2.0.0.
+6. ~~Zone creation, both shares, programmatic accept, the half-formed state; rewrite `PairingService`.~~ **Done** — landed in three slices: zone/share plumbing, `PairState` v3, then the handshake itself.
+7. ~~Rewrite `CloudKitService` against inbox zones.~~ **Done**, with `PairCrypto` wired in: contents are sealed, direction is the zone rather than a `senderDeviceID` predicate.
+8. ~~Subscriptions and NSE, per the spike.~~ **Done**, but *not* as planned — see the correction below.
+9. ~~Re-pair UI and cutover messaging.~~ **Done** (`CutoverNotice`, `FinishingSetupView`, the one-way banner).
+10. ~~Schema file, `SETUP.md`, `CLAUDE.md`.~~ **Done.**
+11. ~~`MARKETING_VERSION` → 2.0.0.~~ **Done.**
 12. **Tester notes.** Last, once the user-facing behaviour has stopped moving.
+
+### Correction to step 8, found while writing it
+
+The plan assumed the sender's ack banner could ride on the `Alert` update once records lived in private zones, since the spike showed private databases don't inherit the public database's refusal of a visible push on `firesOnRecordUpdate`. That was the wrong half of the problem.
+
+An alert you send lives in your *partner's* zone. Their acknowledgement is therefore an update you would have to observe through the **shared** database — and the shared database accepts only `CKDatabaseSubscription`. `CKQuerySubscription` there fails with "Subscription type not supported in SharedDB", and `CKRecordZoneSubscription` is rejected too. A database subscription's notification names a database rather than a record, so the extension would have to run a full change-token fetch inside its 30-second budget just to learn what moved.
+
+So `Ack`'s *rationale* survives even though `Ack` doesn't: the receiver writes an `AlertStatus` record into the sender's own zone, where an ordinary private-database query subscription reaches it. Acknowledging is two writes again. What changed is where the second one lives — a private zone the pair alone can reach, with its emoji sealed, rather than a row every signed-in iCloud account could read.
+
+The payoff is that **nothing subscribes to the partner's zone at all**. Every subscription is a private-database query subscription on the zone you own, which is the one mechanism the spike verified end to end.
 
 Step 12 is a tracked file rather than a manual App Store Connect step: Xcode Cloud picks up `TestFlight/WhatToTest.<locale>.txt` from the project root and shows it as the build's "What to Test" in TestFlight. For this repo that means `TestFlight/WhatToTest.en-US.txt`, which does not exist yet. Locale-suffixed siblings are supported if it is ever worth translating, and `ci_scripts/ci_post_clone.sh` could generate the file instead if the notes ever need to be derived from the build — neither is needed here.
 
