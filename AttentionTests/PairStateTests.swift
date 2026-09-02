@@ -2,14 +2,31 @@ import XCTest
 
 final class PairStateTests: XCTestCase {
 
+    private var secrets: InMemoryPairSecretStore!
+
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.removeObject(forKey: PairState.storageKey)
+        secrets = InMemoryPairSecretStore()
+        PairSecrets.store = secrets
+        removeStoredBlobs()
     }
 
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: PairState.storageKey)
+        removeStoredBlobs()
+        PairSecrets.store = InMemoryPairSecretStore()
+        secrets = nil
         super.tearDown()
+    }
+
+    private func removeStoredBlobs() {
+        UserDefaults.standard.removeObject(forKey: PairState.storageKey)
+        UserDefaults.standard.removeObject(forKey: PairState.legacyStorageKey)
+    }
+
+    /// Writes the pre-2.0 shape: all five fields, pair key included, in UserDefaults.
+    private func writeLegacyBlob(_ state: PairState) {
+        let data = try! JSONEncoder().encode(state)
+        UserDefaults.standard.set(data, forKey: PairState.legacyStorageKey)
     }
 
     private func makePairState(
@@ -122,5 +139,80 @@ final class PairStateTests: XCTestCase {
 
     func testStorageKeyIsNonEmpty() {
         XCTAssertFalse(PairState.storageKey.isEmpty)
+    }
+
+    // MARK: - Secret storage
+
+    func testSaveKeepsPairKeyOutOfUserDefaults() {
+        makePairState(pairKey: "top-secret").save()
+        let data = UserDefaults.standard.data(forKey: PairState.storageKey)
+        XCTAssertNotNil(data)
+        XCTAssertFalse(String(data: data!, encoding: .utf8)!.contains("top-secret"))
+    }
+
+    func testSaveStoresPairKeyInSecretStore() {
+        makePairState(pairKey: "top-secret").save()
+        XCTAssertEqual(secrets.secret(for: Constants.Keychain.pairKeyAccount), "top-secret")
+    }
+
+    func testLoadReturnsNilWhenSecretIsMissing() {
+        makePairState().save()
+        secrets.removeSecret(for: Constants.Keychain.pairKeyAccount)
+        XCTAssertNil(PairState.load())
+    }
+
+    func testClearRemovesTheSecret() {
+        makePairState().save()
+        PairState.clear()
+        XCTAssertNil(secrets.secret(for: Constants.Keychain.pairKeyAccount))
+    }
+
+    // MARK: - Migration from the pre-2.0 blob
+
+    func testLegacyBlobIsLoaded() {
+        let legacy = makePairState(pairKey: "legacy-key", partnerName: "Erin")
+        writeLegacyBlob(legacy)
+        XCTAssertEqual(PairState.load(), legacy)
+    }
+
+    func testLegacyBlobIsMigratedToSplitStorage() {
+        writeLegacyBlob(makePairState(pairKey: "legacy-key"))
+        _ = PairState.load()
+        XCTAssertNil(UserDefaults.standard.data(forKey: PairState.legacyStorageKey))
+        XCTAssertNotNil(UserDefaults.standard.data(forKey: PairState.storageKey))
+        XCTAssertEqual(secrets.secret(for: Constants.Keychain.pairKeyAccount), "legacy-key")
+    }
+
+    func testMigratedStateSurvivesASecondLoad() {
+        let legacy = makePairState(pairKey: "legacy-key")
+        writeLegacyBlob(legacy)
+        _ = PairState.load()
+        XCTAssertEqual(PairState.load(), legacy)
+    }
+
+    func testLegacyBlobIsKeptWhenTheSecretStoreRefusesTheWrite() {
+        let legacy = makePairState(pairKey: "legacy-key")
+        writeLegacyBlob(legacy)
+        secrets.writesSucceed = false
+
+        XCTAssertEqual(PairState.load(), legacy)
+        XCTAssertNotNil(UserDefaults.standard.data(forKey: PairState.legacyStorageKey))
+
+        secrets.writesSucceed = true
+        XCTAssertEqual(PairState.load(), legacy)
+        XCTAssertNil(UserDefaults.standard.data(forKey: PairState.legacyStorageKey))
+    }
+
+    func testSplitStorageIsPreferredOverAStaleLegacyBlob() {
+        makePairState(pairKey: "current-key", partnerName: "Current").save()
+        writeLegacyBlob(makePairState(pairKey: "stale-key", partnerName: "Stale"))
+        XCTAssertEqual(PairState.load()?.pairKey, "current-key")
+        XCTAssertEqual(PairState.load()?.partnerName, "Current")
+    }
+
+    func testClearRemovesTheLegacyBlobToo() {
+        writeLegacyBlob(makePairState())
+        PairState.clear()
+        XCTAssertNil(PairState.load())
     }
 }

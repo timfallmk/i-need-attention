@@ -2,14 +2,25 @@ import XCTest
 
 final class PendingInviteTests: XCTestCase {
 
+    private var secrets: InMemoryPairSecretStore!
+
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.removeObject(forKey: PendingInvite.storageKey)
+        secrets = InMemoryPairSecretStore()
+        PairSecrets.store = secrets
+        removeStoredBlobs()
     }
 
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: PendingInvite.storageKey)
+        removeStoredBlobs()
+        PairSecrets.store = InMemoryPairSecretStore()
+        secrets = nil
         super.tearDown()
+    }
+
+    private func removeStoredBlobs() {
+        UserDefaults.standard.removeObject(forKey: PendingInvite.storageKey)
+        UserDefaults.standard.removeObject(forKey: PendingInvite.legacyStorageKey)
     }
 
     private func makeInvite(createdAt: Date = Date()) -> PendingInvite {
@@ -83,5 +94,46 @@ final class PendingInviteTests: XCTestCase {
         XCTAssertEqual(parsed?.pairKey, pending.pairKey)
         XCTAssertEqual(parsed?.inviterDeviceID, pending.myDeviceID)
         XCTAssertEqual(parsed?.inviterName, pending.myName)
+    }
+
+    // MARK: - Secret storage
+
+    func testSaveKeepsPairKeyOutOfUserDefaults() {
+        var invite = makeInvite()
+        invite.pairKey = "top-secret"
+        invite.save()
+        let data = UserDefaults.standard.data(forKey: PendingInvite.storageKey)
+        XCTAssertNotNil(data)
+        XCTAssertFalse(String(data: data!, encoding: .utf8)!.contains("top-secret"))
+        XCTAssertEqual(secrets.secret(for: Constants.Keychain.pendingInviteKeyAccount), "top-secret")
+    }
+
+    func testInviteAndPairUseSeparateSecretAccounts() {
+        makeInvite().save()
+        XCTAssertNil(secrets.secret(for: Constants.Keychain.pairKeyAccount))
+    }
+
+    func testLoadReturnsNilWhenSecretIsMissing() {
+        makeInvite().save()
+        secrets.removeSecret(for: Constants.Keychain.pendingInviteKeyAccount)
+        XCTAssertNil(PendingInvite.load())
+    }
+
+    func testClearRemovesTheSecret() {
+        makeInvite().save()
+        PendingInvite.clear()
+        XCTAssertNil(secrets.secret(for: Constants.Keychain.pendingInviteKeyAccount))
+    }
+
+    // MARK: - Migration from the pre-2.0 blob
+
+    func testLegacyBlobIsMigratedToSplitStorage() {
+        let legacy = makeInvite()
+        let data = try! JSONEncoder().encode(legacy)
+        UserDefaults.standard.set(data, forKey: PendingInvite.legacyStorageKey)
+
+        XCTAssertEqual(PendingInvite.load(), legacy)
+        XCTAssertNil(UserDefaults.standard.data(forKey: PendingInvite.legacyStorageKey))
+        XCTAssertEqual(secrets.secret(for: Constants.Keychain.pendingInviteKeyAccount), legacy.pairKey)
     }
 }

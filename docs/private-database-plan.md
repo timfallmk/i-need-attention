@@ -233,7 +233,7 @@ visible-push-on-update rule that the spike has now shown does not apply here.
 
 **2.0.0.** The first release since 1.0.0 that is not drop-in:
 
-- `PairState` (`attention.pair.v1`) becomes meaningless; every existing user re-pairs.
+- `PairState` (`attention.pair.v2` plus its keychain item) becomes meaningless; every existing user re-pairs.
 - The invite payload changes shape, so a 1.7 device cannot read a 2.0 invite or the reverse.
 - Records move databases, so 1.7 and 2.0 devices are invisible to each other.
 
@@ -283,7 +283,7 @@ Replacements, for which the codebase already has a precedent in `SharedSettings.
 
 1. ~~**Spike the four questions above.**~~ **Done, 2026-09-02.** All four answered favourably, so nothing structural is blocked any more.
 2. **Diagnostics export.** Independent of the spike, so it can run in parallel. Land it first so it is exercised on a known-good build.
-3. `PairState` v2: per-direction state, key in Keychain, App-Group readable for the NSE.
+3. ~~`PairState` v2: key in Keychain, App-Group readable for the NSE.~~ **Done** (`Shared/PairSecretStore.swift`). The item is `AfterFirstUnlockThisDeviceOnly` under the App Group as its access group, so the NSE reads it with no new entitlement; `PendingInvite` got the same treatment, since a live invite's key is exactly as sensitive. The **per-direction state** half moved to step 6: the fields it would add (each side's zone ID, share URL, accepted-yet flag) have no consumers until the handshake exists, and designing them ahead of it would be guesswork.
 4. ~~Crypto layer — HKDF, seal/open, hashed lookup value — with tests.~~ **Done** (`Shared/PairCrypto.swift`). Not yet wired into any record path; that lands with step 7.
 5. First-launch read of pre-2.0 public history into a local snapshot.
 6. Zone creation, both shares, programmatic accept, the half-formed state; rewrite `PairingService`.
@@ -303,4 +303,4 @@ The note has to cover two things a 2.0.0 tester cannot discover on their own:
 
 Note also that `CLAUDE.md` and `SETUP.md` both currently describe "What to Test" as a separate optional field in App Store Connect. That is true of the App Store Connect UI but misses the tracked-file route, so both need correcting alongside step 10.
 
-Steps 2, 3 and 5 are independent of the spike and can proceed alongside it. Steps 6 onward are not.
+Steps 2, 3 and 5 were independent of the spike. Steps 6 onward are not, and are also not independent of each other — they land on `develop/2.0.0` and reach `main` as one merge.
