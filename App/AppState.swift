@@ -64,6 +64,11 @@ final class AppState {
     // MARK: - Boot
 
     func bootstrap() async {
+        // Before anything else, and synchronously: the pre-2.0 history is reachable
+        // only while this device still holds the pre-2.0 pair key, and re-pairing
+        // under 2.0 replaces it. The fetch itself can wait until the end of launch.
+        LegacyHistoryCapture.prepare(existingPair: pair)
+
         await refreshICloudStatus()
 
         #if DEBUG
@@ -118,6 +123,7 @@ final class AppState {
         // and so paired users get an initial sync without depending on a later
         // scenePhase change firing (.onChange skips the initial value).
         await reconcileLatestAlert()
+        await LegacyHistoryCapture.run()
         await refreshNotificationStatus()
         pushWatchSnapshot()
     }

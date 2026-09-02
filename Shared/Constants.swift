@@ -109,6 +109,11 @@ enum Constants {
         /// Account holding the key of an invite that hasn't been accepted yet. Kept
         /// separate so cancelling an invite can't disturb a live pairing.
         static let pendingInviteKeyAccount = "pendingInvite"
+
+        /// Account holding the *pre-2.0* pair key, kept only until the one-shot
+        /// history capture succeeds. Separate from `pairKeyAccount` because the
+        /// capture has to outlive the re-pair that replaces the live key.
+        static let legacyHistoryKeyAccount = "legacyHistoryPairKey"
     }
 
     /// Identifiers for the inline notification actions ("pull down on banner" → ack with emoji).
