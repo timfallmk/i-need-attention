@@ -161,6 +161,13 @@ final class PairStateTests: XCTestCase {
         XCTAssertNil(PairState.load())
     }
 
+    func testSaveWritesNothingWhenTheSecretStoreRefuses() {
+        secrets.writesSucceed = false
+        XCTAssertFalse(makePairState().save())
+        XCTAssertNil(UserDefaults.standard.data(forKey: PairState.storageKey))
+        XCTAssertNil(PairState.load())
+    }
+
     func testClearRemovesTheSecret() {
         makePairState().save()
         PairState.clear()

@@ -26,9 +26,12 @@ struct PairState: Codable, Equatable {
         var partnerName: String
     }
 
-    /// Returns nil when the keychain has no key for a stored pairing — a restored
-    /// backup, say, since the item is device-only. That reads as "not paired", which
-    /// is accurate: without the key nothing can be sent, read or decrypted.
+    /// Returns nil when the keychain has no key for a stored pairing. Real causes are
+    /// a push handled before the first unlock after a reboot (the item is
+    /// `AfterFirstUnlock`) and a fresh device where iCloud Keychain hasn't synced yet.
+    /// Both read as "not paired", which is accurate while it lasts: without the key
+    /// nothing can be sent, read or decrypted. Neither is destructive — the v2 blob
+    /// stays put, so a later launch that can reach the key loads normally.
     static func load() -> PairState? {
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let stored = try? JSONDecoder().decode(Stored.self, from: data),
@@ -44,16 +47,23 @@ struct PairState: Codable, Equatable {
         return migrateLegacy()
     }
 
-    func save() {
-        PairSecrets.store.setSecret(pairKey, for: Constants.Keychain.pairKeyAccount)
+    /// The `UserDefaults` half is written only once the key is stored, so a keychain
+    /// that refuses the write leaves the device consistently unpaired rather than
+    /// holding a pairing it can never load.
+    @discardableResult
+    func save() -> Bool {
         let stored = Stored(
             myDeviceID: myDeviceID,
             myName: myName,
             partnerDeviceID: partnerDeviceID,
             partnerName: partnerName
         )
-        guard let data = try? JSONEncoder().encode(stored) else { return }
+        guard let data = try? JSONEncoder().encode(stored),
+              PairSecrets.store.setSecret(pairKey, for: Constants.Keychain.pairKeyAccount) else {
+            return false
+        }
         UserDefaults.standard.set(data, forKey: PairState.storageKey)
+        return true
     }
 
     static func clear() {
