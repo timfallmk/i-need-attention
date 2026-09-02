@@ -45,7 +45,7 @@ struct HistoryView: View {
             }
         } else {
             List(alerts) { alert in
-                HistoryRow(alert: alert, isMine: appState.pair?.myDeviceID == alert.senderDeviceID)
+                HistoryRow(alert: alert, isMine: (appState.pair?.myDeviceID ?? DeviceIdentity.id) == alert.senderDeviceID)
             }
             .listStyle(.plain)
             .refreshable { await load() }
@@ -54,8 +54,11 @@ struct HistoryView: View {
 
     @MainActor
     private func load() async {
+        let archived = LegacyHistoryArchive.load()?.alerts ?? []
         guard let pair = appState.pair else {
-            alerts = []
+            // An unpaired device can still have pre-2.0 history worth showing — that
+            // is the state a user is in between the cutover and re-pairing.
+            alerts = LegacyHistoryArchive.merged(live: [], archived: archived)
             loadFailed = false
             isLoading = false
             return
@@ -65,10 +68,13 @@ struct HistoryView: View {
         isLoading = alerts.isEmpty
         loadFailed = false
         do {
-            alerts = try await CloudKitService.shared.fetchRecentAlerts(pairKey: pair.pairKey)
+            let live = try await CloudKitService.shared.fetchRecentAlerts(pairKey: pair.pairKey)
+            alerts = LegacyHistoryArchive.merged(live: live, archived: archived)
         } catch {
             // Don't wipe an already-loaded list on a refresh failure; only surface
-            // the full-screen error state when there's nothing to show.
+            // the full-screen error state when there's nothing to show. The archive
+            // needs no network, so it stands in on its own.
+            alerts = LegacyHistoryArchive.merged(live: alerts, archived: archived)
             loadFailed = alerts.isEmpty
         }
         isLoading = false
