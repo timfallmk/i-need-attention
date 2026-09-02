@@ -63,10 +63,12 @@ enum LegacyHistoryCapture {
         guard var state = LegacyHistoryCaptureState.load(), state.phase == .pending else { return }
 
         guard let pairKey = PairSecrets.store.secret(for: Constants.Keychain.legacyHistoryKeyAccount) else {
-            // Same pre-unlock window as prepare(): the item can exist and still read as
-            // nil. Counting it as a failed attempt retries on the next launch, and the
-            // attempt limit still stops a genuinely missing key retrying forever.
-            record(failure: "stashed key not readable", into: &state)
+            // Same pre-unlock window as prepare(), and it must not count as an attempt:
+            // a run of background launches against a locked keychain would otherwise
+            // spend the whole budget without ever reaching CloudKit, and give up on
+            // history that was there all along. The counter exists to bound *fetch*
+            // failures. Retrying forever costs one keychain read per launch.
+            log.notice("Stashed pre-2.0 key not readable yet; will retry next launch")
             return
         }
 

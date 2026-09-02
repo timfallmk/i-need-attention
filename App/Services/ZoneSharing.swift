@@ -34,6 +34,8 @@ extension CloudKitService {
     /// types the other's Apple ID. The joiner's share back is `.none` with the inviter
     /// invited by `userRecordID`, which they learn from the first share's owner — so
     /// only one bearer token ever exists.
+    /// Callers pairing a partner by identity must pass `participantUserRecordID`: a
+    /// `.none` share with no participant is one nobody can ever accept.
     func inboxShare(publicPermission: CKShare.ParticipantPermission = .readWrite,
                     inviting participantUserRecordID: CKRecord.ID? = nil) async throws -> CKShare {
         let zoneID = try await ensureInboxZone()
