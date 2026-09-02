@@ -302,7 +302,9 @@ final class CloudKitService: @unchecked Sendable {
                 log.error("history fetch failed for one zone: \(String(describing: error), privacy: .public)")
             }
         }
-        return alerts.sorted { $0.createdAt > $1.createdAt }
+        // Each zone was queried with the full limit, so trim after merging — otherwise
+        // "30 most recent" would quietly mean up to 60.
+        return Array(alerts.sorted { $0.createdAt > $1.createdAt }.prefix(limit))
     }
 
     /// The pre-2.0 public-database history, read once by `LegacyHistoryCapture` before
@@ -535,6 +537,8 @@ enum AttentionError: LocalizedError {
     case shareUnavailable
     case shareNotAccepted
     case pairIncomplete
+    case inviteNotSaved
+    case partnerIdentityUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -547,6 +551,9 @@ enum AttentionError: LocalizedError {
         case .shareUnavailable:  return "That pairing link is no longer valid. Ask the other phone to show a new one."
         case .shareNotAccepted:  return "Couldn't finish connecting to the other phone. Check your connection and try again."
         case .pairIncomplete:    return "Still finishing setup with the other phone. Try again in a moment."
+        case .inviteNotSaved:    return "Couldn't save the new invite on this phone. Try again."
+        case .partnerIdentityUnavailable:
+            return "Couldn't identify the other phone's iCloud account. Ask them to show a fresh code and try again."
         }
     }
 }

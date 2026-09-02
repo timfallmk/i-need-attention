@@ -59,7 +59,7 @@ final class PairingService {
             shareURL: shareURL,
             createdAt: Date()
         ).save() else {
-            throw AttentionError.inviteCleanupFailed
+            throw AttentionError.inviteNotSaved
         }
 
         // Best effort: the joiner's profile record landing in our zone is what completes
@@ -157,7 +157,13 @@ final class PairingService {
             }
         }
 
-        let (inviterZoneID, inviterUserID) = try await cloud.acceptShare(at: invite.shareURL)
+        let (inviterZoneID, owner) = try await cloud.acceptShare(at: invite.shareURL)
+        // Without their identity the share back would be minted with no participant and
+        // no public permission — a share nobody can accept, leaving the pair silently
+        // one-directional forever. Better to fail the pairing outright and be retried.
+        guard let inviterUserID = owner else {
+            throw AttentionError.partnerIdentityUnavailable
+        }
 
         // share_B names the inviter rather than carrying a bearer token: their identity
         // came back with the share we just accepted. A failure to look them up would
