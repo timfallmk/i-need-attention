@@ -95,7 +95,7 @@ final class ConstantsTests: XCTestCase {
         XCTAssertFalse(Constants.SubscriptionID.incomingAlerts.isEmpty)
         XCTAssertFalse(Constants.SubscriptionID.outgoingStatus.isEmpty)
         XCTAssertFalse(Constants.SubscriptionID.outgoingAck.isEmpty)
-        XCTAssertFalse(Constants.SubscriptionID.pairUpdates.isEmpty)
+        XCTAssertFalse(Constants.SubscriptionID.pairProfile.isEmpty)
     }
 
     func testSubscriptionIDsAreUnique() {
@@ -103,7 +103,7 @@ final class ConstantsTests: XCTestCase {
             Constants.SubscriptionID.incomingAlerts,
             Constants.SubscriptionID.outgoingStatus,
             Constants.SubscriptionID.outgoingAck,
-            Constants.SubscriptionID.pairUpdates,
+            Constants.SubscriptionID.pairProfile,
         ]
         XCTAssertEqual(ids.count, 4)
     }
