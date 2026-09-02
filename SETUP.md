@@ -80,6 +80,19 @@ From 2.0 the app's records live in **per-user private database zones**, not in t
 
 > **Unverified, and the most likely thing to bite you:** pre-2.0 the app carried a DEBUG-only seeder that made CloudKit auto-create a `_sub_trigger_<subscriptionID>` record for each subscription, because Production rejects schema mutations from devices and would otherwise refuse every new subscription ID with `BAD_REQUEST`. That seeder wrote to the public database and has been removed. Whether private-zone query subscriptions need the same Development-then-deploy dance is **not something this repo has confirmed**. If TestFlight builds come up with no pushes and Console shows `SubscriptionCreate` rejections, that is what happened: register the subscriptions once from a Debug build on a device, then **Deploy Schema Changes…** again.
 
+### Recovering pre-2.0 history on one device
+
+The migration is a one-shot, and it is scoped per CloudKit environment — a Debug build reads Development, where an upgrading user has no history, and a Release build reads Production, where they do. That scoping keeps the two from spending each other's turn, but it doesn't help a device whose capture already ran against the wrong one before the scoping existed.
+
+For that device there's a Debug-only **Settings → Debug → Recover pre-2.0 history**:
+
+- [ ] Read the pair key off the `Pair` record in CloudKit Dashboard (Production → Public Database)
+- [ ] Point the build at the environment holding those records — for pre-2.0 history that's Production, via `com.apple.developer.icloud-container-environment` in `App/Attention.entitlements`
+- [ ] Run on the device, paste the key, tap the button
+- [ ] Revert the entitlement
+
+It reads and writes locally and deletes nothing; the archive is written to both the Development and Release paths so a later TestFlight build finds it too.
+
 ## 5. First build directly to a phone (sanity check before publishing)
 
 - [ ] Plug **iPhone A** into the Mac, unlock it, tap **Trust** when prompted

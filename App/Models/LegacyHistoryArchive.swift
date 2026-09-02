@@ -17,21 +17,31 @@ struct LegacyHistoryArchive: Codable, Equatable {
     /// *Development* public database, where a user upgrading from TestFlight has no
     /// history at all — so without this, running one on a real device would archive an
     /// empty result over a good Production snapshot.
-    private static let fileName: String = {
-        #if DEBUG
-        "legacy-history-v1-development.json"
-        #else
-        "legacy-history-v1.json"
-        #endif
-    }()
+    ///
+    /// Build configuration is the proxy for environment: Xcode's Run action produces a
+    /// Debug build against Development, TestFlight and the App Store a Release build
+    /// against Production.
+    private static func fileName(development: Bool) -> String {
+        development ? "legacy-history-v1-development.json" : "legacy-history-v1.json"
+    }
 
-    private static var fileURL: URL? {
+    private static var isDevelopmentBuild: Bool {
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    private static func fileURL(development: Bool) -> URL? {
         guard let base = try? FileManager.default.url(
             for: .applicationSupportDirectory, in: .userDomainMask,
             appropriateFor: nil, create: true
         ) else { return nil }
-        return base.appendingPathComponent(fileName)
+        return base.appendingPathComponent(fileName(development: development))
     }
+
+    private static var fileURL: URL? { fileURL(development: isDevelopmentBuild) }
 
     static func load() -> LegacyHistoryArchive? {
         guard let url = fileURL, let data = try? Data(contentsOf: url) else { return nil }
@@ -120,3 +130,18 @@ struct LegacyHistoryCaptureState: Codable, Equatable {
         UserDefaults.standard.removeObject(forKey: storageKey)
     }
 }
+
+#if DEBUG
+extension LegacyHistoryArchive {
+    /// Writes this archive where a *Release* build will look for it, whatever build
+    /// wrote it. Only `LegacyHistoryRecovery` uses it: recovering history means running
+    /// a Debug build pointed at the Production container, and the point of the exercise
+    /// is for the TestFlight build to find the result afterwards.
+    @discardableResult
+    func saveForProductionBuilds() -> Bool {
+        guard let url = Self.fileURL(development: false),
+              let data = try? JSONEncoder().encode(self) else { return false }
+        return (try? data.write(to: url, options: .atomic)) != nil
+    }
+}
+#endif
