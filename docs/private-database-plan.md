@@ -176,5 +176,15 @@ Replacements, for which the codebase already has a precedent in `SharedSettings.
 9. Re-pair UI and cutover messaging.
 10. Schema file, `SETUP.md`, `CLAUDE.md`.
 11. `MARKETING_VERSION` → 2.0.0.
+12. **Tester notes.** Last, once the user-facing behaviour has stopped moving.
+
+Step 12 is a tracked file rather than a manual App Store Connect step: Xcode Cloud picks up `TestFlight/WhatToTest.<locale>.txt` from the project root and shows it as the build's "What to Test" in TestFlight. For this repo that means `TestFlight/WhatToTest.en-US.txt`, which does not exist yet. Locale-suffixed siblings are supported if it is ever worth translating, and `ci_scripts/ci_post_clone.sh` could generate the file instead if the notes ever need to be derived from the build — neither is needed here.
+
+The note has to cover two things a 2.0.0 tester cannot discover on their own:
+
+- **Their existing pair is gone and they must re-pair.** Both partners need to be on 2.0 before it will work, so the note should say that explicitly rather than leaving someone to conclude the app is broken.
+- **What to actually exercise**, which is the half-formed state above as much as the happy path: pair, send both directions, acknowledge, check history, and confirm a banner still arrives with the app force-quit.
+
+Note also that `CLAUDE.md` and `SETUP.md` both currently describe "What to Test" as a separate optional field in App Store Connect. That is true of the App Store Connect UI but misses the tracked-file route, so both need correcting alongside step 10.
 
 Steps 2, 3 and 5 are independent of the spike and can proceed alongside it. Steps 6 onward are not.
