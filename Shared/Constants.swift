@@ -68,6 +68,15 @@ enum Constants {
         /// inviter — but the storage provider has no more business reading it than the
         /// rest.
         static let shareURLSealed = "shareURLSealed"
+
+        /// When this person finished archiving their pre-2.0 history, or absent if they
+        /// haven't. Their partner reads it before deleting the shared public records:
+        /// those records belong to the pair, not to whoever upgraded first, and deleting
+        /// them on one device destroys the other's only copy.
+        ///
+        /// Plaintext, deliberately. It is a fact about the app's own migration, says
+        /// nothing about the people using it, and the partner has to read it.
+        static let legacyHistoryCapturedAt = "legacyHistoryCapturedAt"
     }
 
     enum PairField {
