@@ -124,13 +124,21 @@ Run from a throwaway macOS `.app` against **one** account's own private database
 
 **The private database does not carry the public database's restriction.** `firesOnRecordUpdate` combined with a visible mutable-content push — rejected with `BAD_REQUEST` on the public database, and the sole reason the `Ack` record type exists — is accepted here and stored intact. A `CKDatabaseSubscription` keeps the visible fields too, so the feared "silent-only" outcome did not materialise and a fallback exists either way.
 
-**What this does not establish.** Server acceptance is necessary, not sufficient:
+**What this run did not establish** — server acceptance is necessary, not sufficient. All of
+it was answered later the same day by the two-account spike recorded below; the list is kept
+so it is clear what this probe alone could and could not show.
 
-- **Delivery is untested.** Whether APNs actually delivers, and whether the NSE renders a banner with the app force-quit, still needs a device. That is the remaining half of question 2.
-- **The write was by the zone owner**, not by a share participant. The subscription half of question 1 is confirmed — such a subscription can exist on your own private database — but whether *another user's* write into your zone fires it is still open, and still needs a second account.
-- **Development only.** Production has refused things Development allows before, which is the entire reason for the `schema-seed` dance in CLAUDE.md.
+- **Delivery.** Whether APNs actually delivers, and whether a banner renders with the app
+  force-quit. → answered under *question 2* below.
+- **A participant's write**, rather than the zone owner's own. This probe confirmed only
+  that such a subscription can exist on your own private database. → answered under
+  *question 1* below.
+- **Questions 3 and 4**, untouched here because both need a second Apple ID. → answered
+  under *questions 3 and 4* below.
 
-Questions 3 and 4 were not touched; both need a second account.
+**Development only.** That caveat is the one thing here that still stands, and it stands for
+every result in this document. Production has refused things Development allows before,
+which is the entire reason for the `schema-seed` dance in CLAUDE.md.
 
 ### Spike result, 2026-09-02 — questions 3 and 4: the handshake holds
 
