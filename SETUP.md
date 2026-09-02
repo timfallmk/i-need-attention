@@ -20,12 +20,11 @@ Exact step-by-step from zero to two paired phones running the app via TestFlight
   grep -rl "com.example.attention" . | xargs sed -i '' 's/com\.example\.attention/com.yourname.attention/g'
   ```
   Files it will touch:
-  - `project.yml` (bundle ID prefix + all 4 `PRODUCT_BUNDLE_IDENTIFIER` entries)
+  - `project.yml` (bundle ID prefix, all 4 `PRODUCT_BUNDLE_IDENTIFIER` entries, and `WKCompanionAppBundleIdentifier` — the generated Info.plists pick these up automatically)
   - `App/Attention.entitlements` (iCloud container + App Group)
   - `NotificationService/NotificationService.entitlements` (iCloud container + App Group)
   - `Shared/Constants.swift` (`cloudKitContainerID` + `AppGroup.identifier`)
   - `App/AppState.swift`, `App/Services/PushNotifications.swift`, `App/Services/CloudKitService.swift`, `App/Services/PairingService.swift`, `App/Services/WatchBridge.swift` (Logger subsystem strings — don't break anything if left as-is, but update for cleanliness)
-  - `Watch/Watch/Info.plist` (`WKCompanionAppBundleIdentifier`)
 - [ ] `xcodegen generate`
 - [ ] `open Attention.xcodeproj`
 
