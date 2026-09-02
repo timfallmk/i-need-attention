@@ -98,6 +98,7 @@ final class AppState {
         // and so paired users get an initial sync without depending on a later
         // scenePhase change firing (.onChange skips the initial value).
         await reconcileLatestAlert()
+        await reconcileHalfFormedPair()
         await refreshPartnerName()
         await LegacyHistoryCapture.run()
         await refreshNotificationStatus()
@@ -422,6 +423,8 @@ final class AppState {
 
     func applyPair(_ state: PairState) {
         self.pair = state
+        // Whatever the cutover cost them, they've paid it.
+        CutoverNotice.needsRepair = false
         // Completing a pair consumes any pending invite (the service layer clears the
         // persisted copy); re-sync the observable mirror.
         self.pendingInvite = PendingInvite.load()
@@ -532,6 +535,24 @@ final class AppState {
             )
         } catch {
             log.error("profile name write: \(error.localizedDescription)")
+        }
+    }
+
+    /// Finishes a pairing that only went one way. The inviter is waiting for the
+    /// joiner's share to arrive in its zone; the joiner is waiting to learn that the
+    /// inviter accepted theirs. Both recover without the user doing anything, so this
+    /// runs on launch and on every foreground until it has nothing left to do.
+    func reconcileHalfFormedPair() async {
+        guard let pair, !pair.isComplete else { return }
+
+        if !pair.canSend, let completed = try? await PairingService.shared.completeInviterPairing() {
+            applyPair(completed)
+            Haptics.success()
+            return
+        }
+        if let updated = await PairingService.shared.refreshPartnerReachability(pair) {
+            self.pair = updated
+            pushWatchSnapshot()
         }
     }
 

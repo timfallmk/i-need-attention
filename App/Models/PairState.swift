@@ -26,9 +26,13 @@ struct PairState: Codable, Equatable {
     /// own inbox zone. Cached from the share's participants; refreshed, not trusted.
     var partnerCanReach: Bool = false
 
-    /// Both directions live. Until this holds the UI says "finishing setup" rather
-    /// than "paired", and must not offer a send button that would do nothing.
-    var isComplete: Bool { outgoingZone != nil && partnerCanReach }
+    /// Whether pressing the button would actually reach anyone. The joiner has this the
+    /// moment they accept; the inviter only once the joiner's share comes back.
+    var canSend: Bool { outgoingZone != nil }
+
+    /// Both directions live. Until this holds the UI says "finishing setup" rather than
+    /// "paired", and must never offer a button that would silently do nothing.
+    var isComplete: Bool { canSend && partnerCanReach }
 
     /// v3 is the 2.0 shape. v1 and v2 described pairings in the public database, which
     /// 2.0 abandons — `LegacyPairing` reads those, and only to salvage their history.
@@ -91,6 +95,22 @@ struct PairState: Codable, Equatable {
     static func clear() {
         PairSecrets.store.removeSecret(for: Constants.Keychain.pairKeyAccount)
         UserDefaults.standard.removeObject(forKey: storageKey)
+    }
+}
+
+/// Whether this device arrived at 2.0 carrying a pairing that no longer works.
+///
+/// The 2.0 cutover doesn't migrate old pairings — it can't, since they describe records
+/// in a database the app has stopped using — so an upgrading user opens the app and
+/// finds themselves unpaired with no explanation. This is the flag that lets the pairing
+/// screen say why, and it is deliberately separate from `LegacyPairing`, whose blobs are
+/// cleared as soon as the history capture has taken what it needs.
+enum CutoverNotice {
+    static let storageKey = "attention.cutover.needsRepair.v1"
+
+    static var needsRepair: Bool {
+        get { UserDefaults.standard.bool(forKey: storageKey) }
+        set { UserDefaults.standard.set(newValue, forKey: storageKey) }
     }
 }
 

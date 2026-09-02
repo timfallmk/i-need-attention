@@ -28,6 +28,15 @@ struct MainView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
+                // We can send but they can't reach us yet — the joiner's side of the
+                // half-formed state. Sending works, so the button stays; saying nothing
+                // would leave them wondering why nothing ever comes back.
+                if let pair = appState.pair, pair.canSend, !pair.partnerCanReach {
+                    OneWayBanner(partnerName: pair.partnerName)
+                        .padding(.horizontal, 16)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 StatusIndicatorView(
                     outgoing: appState.pendingOutgoing,
                     incoming: appState.lastIncoming,
@@ -329,3 +338,35 @@ private struct AckSheet: View {
     }
 }
 
+
+/// The joiner's half of the transient one-directional window: they can send, but their
+/// partner hasn't accepted their share yet, so nothing can come back. Resolves on its
+/// own — `AppState.reconcileHalfFormedPair` checks on every foreground — so this
+/// explains rather than asks for anything.
+private struct OneWayBanner: View {
+    let partnerName: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.up.circle")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("You can reach \(displayName), not the other way round yet")
+                    .font(.footnote.weight(.medium))
+                Text("Their phone finishes connecting on its own.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.orange.opacity(0.12))
+        )
+    }
+
+    private var displayName: String {
+        partnerName.isEmpty ? "your partner" : partnerName
+    }
+}

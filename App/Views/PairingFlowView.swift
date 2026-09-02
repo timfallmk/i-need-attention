@@ -34,9 +34,41 @@ struct PairingFlowView: View {
         }
     }
 
+    /// An upgrading user opens 2.0 and finds themselves unpaired. Without this they'd
+    /// reasonably conclude the app had lost their pairing, or broken — and the one thing
+    /// they can't discover on their own is that their partner has to update too.
+    private var cutoverNotice: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Pairing has changed", systemImage: "lock.rotation")
+                .font(.subheadline.weight(.semibold))
+            Text("This version keeps your alerts in private iCloud storage that only the two of you can reach, and that means pairing again — once. Your history is still here.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Text("You'll both need this version installed before it will work.")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.orange.opacity(0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+        )
+        .padding(.horizontal, 20)
+    }
+
     private var chooser: some View {
         VStack(spacing: 28) {
             Spacer(minLength: 8)
+
+            if CutoverNotice.needsRepair {
+                cutoverNotice
+            }
+
             Image(systemName: "antenna.radiowaves.left.and.right")
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(.red)
