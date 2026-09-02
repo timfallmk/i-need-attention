@@ -8,6 +8,11 @@ struct SettingsView: View {
     @State private var exportedReport: ExportedReport?
     @State private var isGeneratingReport = false
     @State private var nameSyncTask: Task<Void, Never>?
+    #if DEBUG
+    @State private var recoveryPairKey = ""
+    @State private var isRecovering = false
+    @State private var recoveryResult: String?
+    #endif
 
     var body: some View {
         @Bindable var settings = appState.settings
@@ -85,6 +90,42 @@ struct SettingsView: View {
                 } header: {
                     Text("Diagnostics")
                 }
+
+                #if DEBUG
+                Section {
+                    TextField("Pre-2.0 pair key", text: $recoveryPairKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.system(.body, design: .monospaced))
+
+                    Button {
+                        Task { await recoverLegacyHistory() }
+                    } label: {
+                        HStack {
+                            Label("Recover pre-2.0 history", systemImage: "clock.arrow.circlepath")
+                            if isRecovering {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isRecovering || recoveryPairKey.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                    if let recoveryResult {
+                        Text(recoveryResult)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Debug")
+                } footer: {
+                    Text("Rebuilds the archive of pre-2.0 alerts from a pair key, for a device "
+                         + "whose one-shot capture ran against the wrong CloudKit environment. "
+                         + "The key is on the Pair record in CloudKit Dashboard. This build has "
+                         + "to point at the environment holding those records. Reads only — it "
+                         + "deletes nothing.")
+                }
+                #endif
 
                 Section("About") {
                     NavigationLink {
@@ -174,6 +215,17 @@ struct SettingsView: View {
     /// guaranteed to inherit the isolation. It does not block the main thread — the
     /// CloudKit fetch inside the gatherer awaits a non-isolated service, so the network
     /// work still happens off it.
+    #if DEBUG
+    @MainActor
+    private func recoverLegacyHistory() async {
+        guard !isRecovering else { return }
+        isRecovering = true
+        recoveryResult = nil
+        recoveryResult = await LegacyHistoryRecovery.recover(pairKey: recoveryPairKey).message
+        isRecovering = false
+    }
+    #endif
+
     @MainActor
     private func generateReport() async {
         // `.disabled` only takes effect once the flag flips below, so a second tap can land
