@@ -176,6 +176,10 @@ struct SettingsView: View {
     /// work still happens off it.
     @MainActor
     private func generateReport() async {
+        // `.disabled` only takes effect once the flag flips below, so a second tap can land
+        // in the hop between the button action and this body running. Being on the main
+        // actor makes this check-and-set atomic: there is no suspension between them.
+        guard !isGeneratingReport else { return }
         isGeneratingReport = true
         defer { isGeneratingReport = false }
         let report = await DiagnosticsGatherer.gather(from: appState)
