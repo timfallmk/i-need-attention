@@ -131,27 +131,50 @@ final class InboxZoneTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        // `PairState.save()` writes the pair key to the keychain; the in-memory store is
+        // what keeps these tests off the real one and independent of run order.
+        PairSecrets.store = InMemoryPairSecretStore()
         InboxZone.clear()
+        PairState.clear()
     }
 
     override func tearDown() {
         InboxZone.clear()
+        PairState.clear()
+        PairSecrets.store = InMemoryPairSecretStore()
         super.tearDown()
     }
 
-    /// Devices paired before zones were per-pairing own one under the fixed name and
-    /// have a live share on it. Changing what they resolve to would strand them.
-    func testFallsBackToTheLegacyNameBeforeAnyRotation() {
-        XCTAssertEqual(InboxZone.currentName, Constants.Zone.legacyInbox)
+    private func storePairing() {
+        PairState(
+            pairKey: "test-pair-key",
+            myDeviceID: "device-A",
+            myName: "Alice",
+            partnerDeviceID: "device-B",
+            partnerName: "Bob"
+        ).save()
+    }
+
+    func testNoNameExistsUntilOneIsAskedFor() {
         XCTAssertFalse(InboxZone.isMinted)
     }
 
-    func testRotateMintsAFreshNameAndPersistsIt() {
-        let minted = InboxZone.rotate()
+    /// There is no fixed fallback name — a name only ever comes into existence by being
+    /// minted, so there is no second path by which two pairings could share a zone.
+    func testCurrentNameMintsOnFirstUseAndPersists() {
+        let first = InboxZone.currentName
 
         XCTAssertTrue(InboxZone.isMinted)
+        XCTAssertTrue(first.hasPrefix("attention-inbox-"))
+        XCTAssertEqual(InboxZone.currentName, first)
+    }
+
+    func testRotateMintsAFreshNameAndPersistsIt() {
+        let before = InboxZone.currentName
+        let minted = InboxZone.rotate()
+
+        XCTAssertNotEqual(minted, before)
         XCTAssertEqual(InboxZone.currentName, minted)
-        XCTAssertNotEqual(minted, Constants.Zone.legacyInbox)
         XCTAssertTrue(minted.hasPrefix("attention-inbox-"))
     }
 
@@ -163,5 +186,31 @@ final class InboxZoneTests: XCTestCase {
 
         XCTAssertNotEqual(first, second)
         XCTAssertEqual(InboxZone.currentName, second)
+    }
+
+    // MARK: - Resetting a pairing that predates per-pairing zones
+
+    func testResetEndsAPairingMadeBeforeZonesWerePerPairing() {
+        storePairing()
+        XCTAssertNotNil(PairState.load())
+
+        InboxZone.resetPairingPredatingPerPairingZones()
+
+        XCTAssertNil(PairState.load())
+        XCTAssertTrue(InboxZone.isMinted)
+    }
+
+    func testResetLeavesAPairingMadeUnderAMintedZoneAlone() {
+        InboxZone.rotate()
+        storePairing()
+
+        InboxZone.resetPairingPredatingPerPairingZones()
+
+        XCTAssertNotNil(PairState.load())
+    }
+
+    func testResetDoesNothingOnAFreshInstall() {
+        InboxZone.resetPairingPredatingPerPairingZones()
+        XCTAssertFalse(InboxZone.isMinted)
     }
 }
