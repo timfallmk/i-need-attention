@@ -213,3 +213,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.timfallmk.attention.tests
         CODE_SIGN_STYLE: Automatic
+        # Signing a test bundle requires an Info.plist. Unlike the four app/extension
+        # targets this one has no `info:` block, so Xcode must synthesize one — without
+        # this the local `xcodebuild test` fails at CreateBuildDescription. CI doesn't
+        # hit it because it builds with CODE_SIGNING_ALLOWED=NO.
+        GENERATE_INFOPLIST_FILE: YES
