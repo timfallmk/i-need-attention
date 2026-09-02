@@ -88,7 +88,7 @@ For that device there's a Debug-only **Settings → Debug → Recover pre-2.0 hi
 
 - [ ] Read the pair key off the `Pair` record in CloudKit Dashboard (Production → Public Database)
 - [ ] Point the build at the environment holding those records — for pre-2.0 history that's Production, via `com.apple.developer.icloud-container-environment` in `App/Attention.entitlements`
-- [ ] Run on the device, paste the key, tap the button
+- [ ] Run on the device, open **Settings** from the gear on the pairing screen, paste the key under **Debug**, tap the button
 - [ ] Revert the entitlement
 
 It reads and writes locally and deletes nothing; the archive is written to both the Development and Release paths so a later TestFlight build finds it too.

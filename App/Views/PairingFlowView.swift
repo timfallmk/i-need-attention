@@ -6,6 +6,7 @@ struct PairingFlowView: View {
     @Environment(AppState.self) private var appState
     @State private var mode: Mode = .chooser
     @State private var displayName: String = DeviceIdentity.name
+    @State private var showSettings = false
 
     enum Mode: Equatable {
         case chooser
@@ -31,6 +32,24 @@ struct PairingFlowView: View {
             }
             .navigationTitle("Pair your phones")
             .navigationBarTitleDisplayMode(.inline)
+            // Settings used to be reachable only from the main screen, which needs a
+            // pair — so an unpaired device had no way in at all. That is backwards for
+            // the two things an unpaired user most plausibly wants: their display name,
+            // and Export diagnostics, which matters most when pairing is what's failing.
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+                    .environment(appState)
+            }
         }
     }
 
