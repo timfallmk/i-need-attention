@@ -7,6 +7,7 @@ struct PairingFlowView: View {
     @State private var mode: Mode = .chooser
     @State private var displayName: String = DeviceIdentity.name
     @State private var showSettings = false
+    @State private var pasteFailed = false
 
     enum Mode: Equatable {
         case chooser
@@ -148,21 +149,42 @@ struct PairingFlowView: View {
                 Button {
                     Haptics.select()
                     DeviceIdentity.name = trimmedName
-                    if let text = UIPasteboard.general.string,
-                       let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)) {
-                        appState.handleIncomingURL(url)
-                    }
+                    pasteFailed = !acceptPastedInvite()
+                    if pasteFailed { Haptics.error() }
                 } label: {
                     Text("Got an invite link? Paste it")
                         .font(.footnote.weight(.medium))
                 }
                 .tint(.secondary)
                 .padding(.top, 2)
+
+                if pasteFailed {
+                    Text("That didn't look like an invite link. Copy the whole link your partner shared, then tap Paste again.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.center)
+                        .transition(.opacity)
+                }
             }
             .padding(.horizontal, 28)
 
             Spacer()
         }
+        .animation(.easeInOut(duration: 0.2), value: pasteFailed)
+    }
+
+    /// Share sheets write a shared `URL` to the pasteboard as a `public.url` item, and
+    /// `UIPasteboard.string` does not coerce one of those for a custom scheme — so
+    /// reading only `string`, as this used to, missed the ordinary path from
+    /// `ShareLink` → Copy and looked exactly like a no-op.
+    private func acceptPastedInvite() -> Bool {
+        let board = UIPasteboard.general
+        if let url = board.url, appState.handleIncomingURL(url) { return true }
+        if let text = board.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+           let url = URL(string: text) {
+            return appState.handleIncomingURL(url)
+        }
+        return false
     }
 }
 

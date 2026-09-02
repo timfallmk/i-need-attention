@@ -419,9 +419,18 @@ final class AppState {
     /// Entry point for tapped `attention://pair` links. The payload is untrusted — exactly
     /// as untrusted as a scanned QR — so it goes through the same defensive parser, and
     /// nothing happens without the user confirming in the join sheet.
-    func handleIncomingURL(_ url: URL) {
-        guard let invite = PairingInvite.from(qrPayload: url.absoluteString) else { return }
+    ///
+    /// Returns false rather than swallowing the failure: the paste affordance has no
+    /// other way to tell a malformed payload from a working app doing nothing, which is
+    /// exactly how it read.
+    @discardableResult
+    func handleIncomingURL(_ url: URL) -> Bool {
+        guard let invite = PairingInvite.from(qrPayload: url.absoluteString) else {
+            log.notice("Ignoring URL that isn't a pairing invite: \(url.scheme ?? "-", privacy: .public)://\(url.host ?? "-", privacy: .public)")
+            return false
+        }
         incomingJoinInvite = invite
+        return true
     }
 
     // MARK: - Pairing wrapper
