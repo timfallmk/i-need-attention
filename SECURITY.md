@@ -2,9 +2,11 @@
 
 This is a personal-use app paired in person by QR scan, or remotely by an invite link.
 
-**Be aware of what the `pairKey` is and isn't.** It is a 128-bit random value that identifies a pair, and the app treats it as a lookup key. It is **not** an access control. All records live in CloudKit's *public* database, where security roles are granted per record type with no row-level scoping — so any client that can reach the container can read every pair's records, and the `pairKey` is itself a readable field on the Pair record. Knowing a pairKey is not required to read one.
+**Be aware of what the `pairKey` is and isn't.** It is a 128-bit random value that identifies a pair, and the app treats it as a lookup key. It is **not** an access control. All records live in CloudKit's *public* database, where security roles are granted per record type with no row-level scoping — so one grant covers every record of that type. **Any authenticated iCloud client** that can reach the container reads all of them, and the `pairKey` is itself a readable field on the Pair record, so knowing a pairKey is not required to read one.
 
-Anonymous (`_world`) access has been removed. Authenticated (`_icloud`) access remains, because every device running the app is a signed-in iCloud client and the app cannot function without it. Closing that requires moving off the public database; see the repository's audit notes for the plan.
+The schema in `cloudkit-schema.ckdb` grants `_world` (unauthenticated) nothing, so anonymous reads are not possible against a container deployed from it. Check this in CloudKit Dashboard for any container you operate — a schema file does not configure a live container, and one set up earlier may still carry the grant.
+
+`_icloud` (authenticated) read and write remain, because every device running the app is a signed-in iCloud client and the app cannot work without them. Closing that gap means moving off the public database. It is planned, not done.
 
 ## Reporting a vulnerability
 
