@@ -119,6 +119,13 @@ final class PendingInviteTests: XCTestCase {
         XCTAssertNil(PendingInvite.load())
     }
 
+    func testSaveWritesNothingWhenTheSecretStoreRefuses() {
+        secrets.writesSucceed = false
+        XCTAssertFalse(makeInvite().save())
+        XCTAssertNil(UserDefaults.standard.data(forKey: PendingInvite.storageKey))
+        XCTAssertNil(PendingInvite.load())
+    }
+
     func testClearRemovesTheSecret() {
         makeInvite().save()
         PendingInvite.clear()

@@ -56,16 +56,22 @@ struct PendingInvite: Codable, Equatable {
         return migrateLegacy()
     }
 
-    func save() {
-        PairSecrets.store.setSecret(pairKey, for: Constants.Keychain.pendingInviteKeyAccount)
+    /// Conditional on the key landing, for the reason `PairState.save()` gives: a
+    /// persisted invite with no key is one that can never be loaded again.
+    @discardableResult
+    func save() -> Bool {
         let stored = Stored(
             myDeviceID: myDeviceID,
             myName: myName,
             recordName: recordName,
             createdAt: createdAt
         )
-        guard let data = try? JSONEncoder().encode(stored) else { return }
+        guard let data = try? JSONEncoder().encode(stored),
+              PairSecrets.store.setSecret(pairKey, for: Constants.Keychain.pendingInviteKeyAccount) else {
+            return false
+        }
         UserDefaults.standard.set(data, forKey: PendingInvite.storageKey)
+        return true
     }
 
     static func clear() {

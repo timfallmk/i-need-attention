@@ -42,15 +42,18 @@ struct KeychainPairSecretStore: PairSecretStore {
         self.accessGroup = accessGroup
     }
 
-    private func query(for account: String) -> [String: Any] {
-        // kSecAttrSynchronizable has to appear in every query, not just the insert:
-        // omitting it means "non-synchronizable only", which would silently fail to
-        // find, update or delete the item we store.
+    /// `synchronizable` has to appear in every query, not just the insert: omitting it
+    /// means "non-synchronizable only", which would silently fail to find, update or
+    /// delete the item we store. Reads and deletes pass `Any` so a non-synchronizable
+    /// twin left by an older build is still found and still cleared; the update path
+    /// passes `true` so it can't quietly write back into the twin and keep it
+    /// unsynced — that case falls through to the insert, which replaces it.
+    private func query(for account: String, synchronizable: Any) -> [String: Any] {
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecAttrSynchronizable as String: true,
+            kSecAttrSynchronizable as String: synchronizable,
             kSecUseDataProtectionKeychain as String: true
         ]
         if let accessGroup {
@@ -60,7 +63,7 @@ struct KeychainPairSecretStore: PairSecretStore {
     }
 
     func secret(for account: String) -> String? {
-        var lookup = query(for: account)
+        var lookup = query(for: account, synchronizable: kSecAttrSynchronizableAny)
         lookup[kSecReturnData as String] = true
         lookup[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -73,7 +76,7 @@ struct KeychainPairSecretStore: PairSecretStore {
     @discardableResult
     func setSecret(_ secret: String, for account: String) -> Bool {
         let data = Data(secret.utf8)
-        let existing = query(for: account)
+        let existing = query(for: account, synchronizable: true)
         let update = [kSecValueData as String: data]
 
         switch SecItemUpdate(existing as CFDictionary, update as CFDictionary) {
@@ -81,10 +84,8 @@ struct KeychainPairSecretStore: PairSecretStore {
             return true
         case errSecItemNotFound:
             // A device that ran a build storing this key as non-synchronizable has a
-            // twin the query above can't see. Clear it, or the add can collide with it.
-            var stale = existing
-            stale[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
-            SecItemDelete(stale as CFDictionary)
+            // twin the update above can't see. Clear it, or the add can collide with it.
+            SecItemDelete(query(for: account, synchronizable: kSecAttrSynchronizableAny) as CFDictionary)
 
             var insert = existing
             insert[kSecValueData as String] = data
@@ -96,7 +97,7 @@ struct KeychainPairSecretStore: PairSecretStore {
     }
 
     func removeSecret(for account: String) {
-        SecItemDelete(query(for: account) as CFDictionary)
+        SecItemDelete(query(for: account, synchronizable: kSecAttrSynchronizableAny) as CFDictionary)
     }
 }
 
