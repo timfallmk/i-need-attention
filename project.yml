@@ -203,6 +203,7 @@ targets:
       - path: Shared/SubscriptionPredicates.swift
       - path: Shared/UntrustedText.swift
       - path: Shared/PairCrypto.swift
+      - path: Shared/PairSecretStore.swift
       - path: App/Models/PairState.swift
       - path: App/Models/PendingInvite.swift
       - path: App/Models/SnoozeState.swift

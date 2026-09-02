@@ -98,6 +98,19 @@ enum Constants {
         static let identifier = "group.com.timfallmk.attention"
     }
 
+    /// Keychain item coordinates for the pair key. The access group is the App Group
+    /// identifier (see `KeychainPairSecretStore`), so the app and the NSE address the
+    /// same item without a `keychain-access-groups` entitlement.
+    enum Keychain {
+        static let service = "com.timfallmk.attention.pairKey"
+
+        /// Account holding the key of the completed pairing.
+        static let pairKeyAccount = "pair"
+        /// Account holding the key of an invite that hasn't been accepted yet. Kept
+        /// separate so cancelling an invite can't disturb a live pairing.
+        static let pendingInviteKeyAccount = "pendingInvite"
+    }
+
     /// Identifiers for the inline notification actions ("pull down on banner" → ack with emoji).
     /// Used both when registering the UNNotificationCategory at launch and when interpreting
     /// the response in the notification delegate.
