@@ -1,13 +1,19 @@
 import Foundation
 import os.log
 
-/// One-shot copy of the pre-2.0 public-database history into a local snapshot.
+/// One-shot copy of the pre-2.0 public-database history into a local snapshot, followed
+/// by deleting the originals.
 ///
 /// Ordering is the whole point: the records are reachable only while this device
 /// still holds the pre-2.0 pair key, and re-pairing under 2.0 mints a new one. So the
 /// key is stashed under its own keychain account on the first 2.0 launch — before the
 /// user can re-pair — and the fetch retries across launches against that copy rather
 /// than against `PairState`, which by then describes a different pairing entirely.
+///
+/// The delete is second for the same reason it exists at all. 2.0 stops new data going
+/// somewhere every signed-in iCloud account can read; it does nothing by itself about
+/// the plaintext names, messages and pair keys already sitting there. Archiving first is
+/// what makes removing them cleanup rather than data loss — never reorder these.
 @MainActor
 enum LegacyHistoryCapture {
     private static let log = Logger(subsystem: "com.timfallmk.attention", category: "LegacyHistory")
@@ -60,7 +66,8 @@ enum LegacyHistoryCapture {
     /// Safe to call on every launch: it no-ops once the capture is done, exhausted, or
     /// there was never a pre-2.0 pairing to capture. Requires a preceding `prepare`.
     static func run(cloud: CloudKitService = .shared) async {
-        guard var state = LegacyHistoryCaptureState.load(), state.phase == .pending else { return }
+        guard var state = LegacyHistoryCaptureState.load(),
+              state.phase == .pending || state.phase == .purging else { return }
 
         guard let pairKey = PairSecrets.store.secret(for: Constants.Keychain.legacyHistoryKeyAccount) else {
             // Same pre-unlock window as prepare(), and it must not count as an attempt:
@@ -73,14 +80,32 @@ enum LegacyHistoryCapture {
         }
 
         do {
-            let alerts = try await cloud.fetchLegacyPublicAlerts(pairKey: pairKey, limit: limit)
-            let archive = LegacyHistoryArchive(alerts: alerts.map(ArchivedAlert.init), capturedAt: Date())
-            guard archive.save() else {
-                record(failure: "archive could not be written", into: &state)
-                return
+            if state.phase == .pending {
+                let alerts = try await cloud.fetchLegacyPublicAlerts(pairKey: pairKey, limit: limit)
+                let archive = LegacyHistoryArchive(alerts: alerts.map(ArchivedAlert.init), capturedAt: Date())
+                guard archive.save() else {
+                    record(failure: "archive could not be written", into: &state)
+                    return
+                }
+                log.notice("Archived \(alerts.count, privacy: .public) pre-2.0 alerts")
+
+                // Committed before the first delete, so a crash mid-purge resumes purging
+                // rather than re-archiving over a good snapshot with a half-emptied
+                // database. The attempt counter resets: the fetch's failures aren't the
+                // purge's, and the purge has its own budget to spend.
+                state.phase = .purging
+                state.failedAttempts = 0
+                state.save()
             }
-            log.notice("Archived \(alerts.count, privacy: .public) pre-2.0 alerts")
-            finish(&state)
+
+            if try await cloud.purgeLegacyPublicRecords(pairKey: pairKey) {
+                log.notice("Pre-2.0 public records are gone")
+                finish(&state)
+            } else {
+                // A pass that deleted something says nothing about what's left. Come back
+                // next launch and keep going until a pass comes up empty.
+                state.save()
+            }
         } catch {
             record(failure: String(describing: error), into: &state)
         }

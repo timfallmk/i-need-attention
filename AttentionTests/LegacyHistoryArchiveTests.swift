@@ -152,4 +152,26 @@ final class LegacyHistoryArchiveTests: XCTestCase {
         _ = state.recordFailure()
         XCTAssertEqual(state.failedAttempts, 2)
     }
+
+    // MARK: - Purge phase
+
+    func testPurgingIsNotATerminalPhase() {
+        LegacyHistoryCaptureState(phase: .purging).save()
+        XCTAssertEqual(LegacyHistoryCaptureState.load()?.phase, .purging)
+    }
+
+    func testPurgingPhaseRoundTripsWithItsOwnAttemptCount() {
+        LegacyHistoryCaptureState(phase: .purging, failedAttempts: 2).save()
+        let loaded = LegacyHistoryCaptureState.load()
+        XCTAssertEqual(loaded?.phase, .purging)
+        XCTAssertEqual(loaded?.failedAttempts, 2)
+    }
+
+    /// The archive is what makes deleting the originals safe, so a state that says
+    /// "purging" must never be reachable without one having been written.
+    func testPurgingStillReportsExhaustionAtTheLimit() {
+        var state = LegacyHistoryCaptureState(phase: .purging,
+                                              failedAttempts: LegacyHistoryCaptureState.maxAttempts - 1)
+        XCTAssertTrue(state.recordFailure())
+    }
 }
