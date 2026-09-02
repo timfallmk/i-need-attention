@@ -5,6 +5,8 @@ struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @State private var confirmingUnpair = false
+    @State private var exportedReport: ExportedReport?
+    @State private var isGeneratingReport = false
     @State private var nameSyncTask: Task<Void, Never>?
 
     var body: some View {
@@ -92,6 +94,25 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    Button {
+                        Task { await generateReport() }
+                    } label: {
+                        HStack {
+                            Label("Export diagnostics", systemImage: "stethoscope")
+                            if isGeneratingReport {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isGeneratingReport)
+                } footer: {
+                    Text("A short technical summary you can send if something isn't working. "
+                         + "It contains no names, messages or emoji — you'll see exactly what "
+                         + "it says before deciding whether to share it.")
+                }
+
                 if appState.pair != nil {
                     Section {
                         Button(role: .destructive) {
@@ -111,6 +132,9 @@ struct SettingsView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .sheet(item: $exportedReport) { report in
+                DiagnosticsExportView(text: report.text)
             }
             .alert("Unpair?", isPresented: $confirmingUnpair) {
                 Button("Cancel", role: .cancel) {}
@@ -145,6 +169,13 @@ struct SettingsView: View {
     //     return "Accept Critical Alerts"
     // }
 
+    private func generateReport() async {
+        isGeneratingReport = true
+        defer { isGeneratingReport = false }
+        let report = await DiagnosticsGatherer.gather(from: appState)
+        exportedReport = ExportedReport(text: report.render())
+    }
+
     private var iCloudStatusLabel: String {
         switch appState.iCloudStatus {
         case .available: return "Signed in"
@@ -153,6 +184,46 @@ struct SettingsView: View {
         case .couldNotDetermine: return "Unknown"
         case .temporarilyUnavailable: return "Temporarily unavailable"
         @unknown default: return "Unknown"
+        }
+    }
+}
+
+/// Wrapper so the rendered text can drive `.sheet(item:)`.
+private struct ExportedReport: Identifiable {
+    let id = UUID()
+    let text: String
+}
+
+/// Shows the report before it can be shared.
+///
+/// The preview is the point, not a courtesy: this is a privacy-minded app asking someone to
+/// send a file about their own device, so they get to read every line first rather than
+/// trusting a description of it.
+private struct DiagnosticsExportView: View {
+    let text: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                Text(text)
+                    .font(.system(.footnote, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+            }
+            .navigationTitle("Diagnostics")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Close") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    ShareLink(item: text) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                }
+            }
         }
     }
 }
