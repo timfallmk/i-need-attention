@@ -169,6 +169,12 @@ struct SettingsView: View {
     //     return "Accept Critical Alerts"
     // }
 
+    /// Explicitly MainActor: it mutates `@State`, and with `SWIFT_STRICT_CONCURRENCY:
+    /// minimal` the compiler will not point out that a `Task {}` in a button action is not
+    /// guaranteed to inherit the isolation. It does not block the main thread — the
+    /// CloudKit fetch inside the gatherer awaits a non-isolated service, so the network
+    /// work still happens off it.
+    @MainActor
     private func generateReport() async {
         isGeneratingReport = true
         defer { isGeneratingReport = false }
