@@ -122,6 +122,7 @@ final class AppState {
         // and so paired users get an initial sync without depending on a later
         // scenePhase change firing (.onChange skips the initial value).
         await reconcileLatestAlert()
+        await refreshPartnerName()
         await LegacyHistoryCapture.run()
         await refreshNotificationStatus()
         pushWatchSnapshot()
@@ -509,17 +510,42 @@ final class AppState {
 
     // MARK: - Display name sync
 
-    /// Records a display-name change locally. There is no shared record to push it to
-    /// any more: every alert carries its sender's name, so the partner picks up the new
-    /// one the next time this device presses the button.
+    /// Pushes a display-name change to the partner by updating our profile record in
+    /// their zone — the one place we can write and they can read. Local state updates
+    /// either way: a failed write is retried on the next rename or carried by the next
+    /// alert, which also names its sender.
     func syncMyDisplayName() async {
         guard var pair else { return }
         let newName = UntrustedText.name(settings.displayName)
         guard !newName.isEmpty, newName != pair.myName else { return }
+
         pair.myName = newName
         pair.save()
         self.pair = pair
         Haptics.light()
+        pushWatchSnapshot()
+
+        guard let zone = pair.outgoingZone else { return }
+        do {
+            try await CloudKitService.shared.writeProfile(
+                into: zone.zoneID,
+                deviceID: pair.myDeviceID,
+                name: newName,
+                shareURL: nil,
+                pairKey: pair.pairKey
+            )
+        } catch {
+            log.error("profile name write: \(error.localizedDescription)")
+        }
+    }
+
+    /// Pulls a partner rename out of our own zone. Cheap enough to run on every
+    /// foreground; the profile subscription is what makes it immediate.
+    func refreshPartnerName() async {
+        guard let pair else { return }
+        guard let updated = await PairingService.shared.refreshPartnerName(pair) else { return }
+        self.pair = updated
+        SharedSettings.partnerName = updated.partnerName
         pushWatchSnapshot()
     }
 

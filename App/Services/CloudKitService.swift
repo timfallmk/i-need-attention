@@ -117,7 +117,7 @@ final class CloudKitService: @unchecked Sendable {
     /// database; the partner's, which we joined by accepting their share, is in the
     /// shared one. `CKCurrentUserDefaultName` is the owner name CloudKit gives a zone
     /// this account owns, so it is the discriminator.
-    private func database(for zoneID: CKRecordZone.ID) -> CKDatabase {
+    func database(for zoneID: CKRecordZone.ID) -> CKDatabase {
         zoneID.ownerName == CKCurrentUserDefaultName ? privateDB : sharedDB
     }
 

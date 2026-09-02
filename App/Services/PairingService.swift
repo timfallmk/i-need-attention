@@ -75,22 +75,32 @@ final class PairingService {
     func completeInviterPairing() async throws -> PairState? {
         guard let pending = PendingInvite.load() else { return nil }
 
-        let zoneID = try await cloud.ensureInboxZone()
-        guard let handshake = await cloud.fetchHandshake(in: zoneID) else { return nil }
+        try await cloud.ensureInboxZone()
+        guard let profile = await cloud.fetchPartnerProfile(pairKey: pending.pairKey),
+              let theirShare = profile.shareURL else { return nil }
 
-        let (partnerZoneID, _) = try await cloud.acceptShare(at: handshake.shareURL)
+        let (partnerZoneID, _) = try await cloud.acceptShare(at: theirShare)
 
         let state = PairState(
             pairKey: pending.pairKey,
             myDeviceID: pending.myDeviceID,
             myName: pending.myName,
-            partnerDeviceID: handshake.deviceID,
-            partnerName: handshake.name,
+            partnerDeviceID: profile.deviceID,
+            partnerName: profile.name,
             outgoingZone: ZoneRef(partnerZoneID),
             partnerCanReach: true
         )
         guard state.save() else { throw AttentionError.shareNotAccepted }
         PendingInvite.clear()
+
+        // Now that we can write into their zone, tell them who we are. Without this the
+        // joiner would be stuck with whatever name the invite carried, and would have no
+        // record of ours to update when we rename ourselves.
+        try? await cloud.writeProfile(into: partnerZoneID,
+                                      deviceID: state.myDeviceID,
+                                      name: state.myName,
+                                      shareURL: nil,
+                                      pairKey: state.pairKey)
         return state
     }
 
@@ -154,11 +164,12 @@ final class PairingService {
         }
 
         let myName = UntrustedText.name(myName)
-        try await cloud.writeHandshake(
+        try await cloud.writeProfile(
             into: inviterZoneID,
             deviceID: DeviceIdentity.id,
             name: myName,
-            shareURL: ourShareURL
+            shareURL: ourShareURL,
+            pairKey: invite.pairKey
         )
 
         // We can send immediately; they can't until they accept what we just left them.
@@ -191,6 +202,23 @@ final class PairingService {
         updated.partnerCanReach = true
         guard updated.save() else { return nil }
         log.notice("Partner accepted our share; both directions live")
+        return updated
+    }
+
+    /// Picks up a partner who renamed themselves. Their profile record lives in the zone
+    /// we own, so this is a read of our own private database — no push required, though
+    /// the profile subscription makes it immediate rather than next-foreground.
+    ///
+    /// Returns the updated state only when the name actually changed, so callers don't
+    /// write on every foreground.
+    func refreshPartnerName(_ state: PairState) async -> PairState? {
+        guard let profile = await cloud.fetchPartnerProfile(pairKey: state.pairKey) else { return nil }
+        guard profile.deviceID == state.partnerDeviceID else { return nil }
+        guard !profile.name.isEmpty, profile.name != state.partnerName else { return nil }
+
+        var updated = state
+        updated.partnerName = profile.name
+        guard updated.save() else { return nil }
         return updated
     }
 
