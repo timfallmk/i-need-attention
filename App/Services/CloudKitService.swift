@@ -9,13 +9,27 @@ import os.log
 final class CloudKitService: @unchecked Sendable {
     static let shared = CloudKitService()
 
-    private let log = Logger(subsystem: "com.timfallmk.attention", category: "CloudKit")
-    private let container: CKContainer
-    private let publicDB: CKDatabase
+    let log = Logger(subsystem: "com.timfallmk.attention", category: "CloudKit")
+
+    /// Internal rather than private so the zone-sharing half (`ZoneSharing.swift`) can
+    /// reach them — `private` is file-scoped, and splitting that work into its own file
+    /// keeps it reviewable ahead of the step 7 rewrite.
+    let container: CKContainer
+    let publicDB: CKDatabase
+
+    /// Owned zones. The inbox zone this device owns lives here, and the partner writes
+    /// into it as a share participant.
+    let privateDB: CKDatabase
+
+    /// The partner's inbox zone appears here once their share is accepted. Outgoing
+    /// alerts are written into it.
+    let sharedDB: CKDatabase
 
     private init() {
         self.container = CKContainer(identifier: Constants.cloudKitContainerID)
         self.publicDB = container.publicCloudDatabase
+        self.privateDB = container.privateCloudDatabase
+        self.sharedDB = container.sharedCloudDatabase
     }
 
     // MARK: - Account
@@ -462,6 +476,8 @@ enum AttentionError: LocalizedError {
     case noPair
     case iCloudUnavailable
     case inviteCleanupFailed
+    case shareUnavailable
+    case shareNotAccepted
 
     var errorDescription: String? {
         switch self {
@@ -471,6 +487,8 @@ enum AttentionError: LocalizedError {
         case .noPair:            return "This phone isn't paired yet."
         case .iCloudUnavailable: return "Sign in to iCloud in Settings to use Attention."
         case .inviteCleanupFailed: return "Couldn't clean up the previous invite. Check your connection and try again."
+        case .shareUnavailable:  return "That pairing link is no longer valid. Ask the other phone to show a new one."
+        case .shareNotAccepted:  return "Couldn't finish connecting to the other phone. Check your connection and try again."
         }
     }
 }
