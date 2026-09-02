@@ -132,6 +132,30 @@ Run from a throwaway macOS `.app` against **one** account's own private database
 
 Questions 3 and 4 were not touched; both need a second account.
 
+### Spike result, 2026-09-02 — questions 3 and 4: the handshake holds
+
+Run with two Apple IDs: an iOS Simulator signed into the second account owning the zone, a
+physical device on the first account joining. A throwaway app with its own bundle ID, so
+the production install was never touched.
+
+**Q3 — programmatic acceptance needs no consent UI. Confirmed.**
+`CKFetchShareMetadataOperation` returned metadata and `CKAcceptSharesOperation` succeeded,
+both from code, and **iOS showed no sheet of its own**. So step 4 of the handshake can be
+invisible, and the "one tap, one scan" claim above survives.
+
+**Q4 — the owner's identity is readable from the share. Confirmed.**
+`metadata.share.owner.userIdentity.userRecordID` came back populated, with
+`nameComponents` present too. That is what lets B invite A back by identity rather than by
+a typed email address, which was the objection that sank the earlier design.
+
+**Two gaps inside those answers**, both worth closing before the handshake is built:
+
+- The share tested was **link-based** (`publicPermission = .readWrite`), which is what the
+  *first* share in the handshake uses. The *second* share is invited to a named
+  participant, and whether accepting **that** is equally headless is untested.
+- Q4 confirms the identity can be *read*. Creating a share that **invites** by that
+  `userRecordID` is a separate call and has not been exercised.
+
 ### Consequence: the `Ack` record type can go
 
 Confirmed rather than hoped. It exists only as a public-database workaround, costing a second write per acknowledgement and a record type that is never garbage-collected. Once records move to the private database, the sender-side banner can come from the `Alert` update directly and `Ack` can be deleted along with `outgoing-ack-v2`, its predicate in `SubscriptionPredicates`, and the `outgoingAckSubscriptionUnavailable` diagnostic plumbing that exists to report when it fails to register.
