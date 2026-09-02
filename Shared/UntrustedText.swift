@@ -46,9 +46,12 @@ enum UntrustedText {
         return String(text.prefix(limit)).trimmingCharacters(in: .whitespaces)
     }
 
-    /// NSDataDetector rather than a hand-rolled pattern: it catches bare hosts like
-    /// "example.com" that a scheme-based check misses, which is the shape the abuse
-    /// already in the container actually took.
+    /// NSDataDetector rather than a hand-rolled pattern, which would need maintaining
+    /// against every scheme and encoding trick. It catches schemed URLs reliably — the
+    /// shape both abusive records in the container actually used — and bare hosts only
+    /// where it recognises the TLD, so it declines RFC 2606 reserved names like
+    /// "evil.example". Whatever slips past is bounded by the length cap, which is why
+    /// that cap is the guarantee here and link stripping is best effort.
     private static func strippingLinks(from text: String) -> String {
         guard !text.isEmpty,
               let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
