@@ -129,8 +129,10 @@ final class NotificationService: UNNotificationServiceExtension {
         content.userInfo = ui
     }
 
+    /// Sanitizes here rather than at the two call sites so the fast path and the slow path
+    /// cannot drift apart. `emoji` is a public-database field like the rest.
     private func ackBody(emoji: String?) -> String {
-        if let emoji, !emoji.isEmpty {
+        if let emoji = UntrustedText.emoji(emoji) {
             return "Got back to you \(emoji)"
         }
         return "Got back to you"

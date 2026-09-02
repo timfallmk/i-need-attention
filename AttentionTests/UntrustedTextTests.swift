@@ -89,4 +89,41 @@ final class UntrustedTextTests: XCTestCase {
     func testMessageFallback() {
         XCTAssertEqual(UntrustedText.message(nil, fallback: "needs attention"), "needs attention")
     }
+
+    // MARK: - Ack emoji
+
+    func testEmojiPassesTheAppsOwnAckGlyphs() {
+        for glyph in ["\u{2764}\u{FE0F}", "\u{1F44D}", "\u{1F917}", "\u{1F6A8}"] {
+            XCTAssertEqual(UntrustedText.emoji(glyph), glyph)
+        }
+    }
+
+    func testEmojiReturnsNilForNil() {
+        XCTAssertNil(UntrustedText.emoji(nil))
+    }
+
+    func testEmojiReturnsNilRatherThanEmptyString() {
+        // Callers branch on nil for "no emoji"; "" would render a trailing space.
+        XCTAssertNil(UntrustedText.emoji(""))
+        XCTAssertNil(UntrustedText.emoji("   "))
+    }
+
+    func testEmojiStripsNewlinesThatWouldFakeExtraBannerLines() {
+        XCTAssertEqual(UntrustedText.emoji("\u{1F44D}\nSYSTEM"), "\u{1F44D}SYS")
+    }
+
+    func testEmojiIsTruncatedToItsLimit() {
+        let long = String(repeating: "\u{1F6A8}", count: 40)
+        XCTAssertEqual(UntrustedText.emoji(long)?.count, UntrustedText.maxEmojiLength)
+    }
+
+    func testEmojiStripsBidiOverride() {
+        // U+202E is the reason format characters are filtered even though it costs ZWJ
+        // sequences: a right-to-left override reverses the text a person reads.
+        XCTAssertEqual(UntrustedText.emoji("\u{202E}\u{1F44D}"), "\u{1F44D}")
+    }
+
+    func testEmojiStripsLinks() {
+        XCTAssertNil(UntrustedText.emoji("https://evil.com"))
+    }
 }
