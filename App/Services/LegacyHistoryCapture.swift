@@ -61,7 +61,10 @@ enum LegacyHistoryCapture {
 
     private static func record(failure: String, into state: inout LegacyHistoryCaptureState) {
         if state.recordFailure() {
-            log.error("Giving up on pre-2.0 history after \(state.failedAttempts, privacy: .public) attempts: \(failure, privacy: .public)")
+            // Read out of the inout parameter first: os_log's interpolation is an
+            // escaping autoclosure and can't capture one.
+            let attempts = state.failedAttempts
+            log.error("Giving up on pre-2.0 history after \(attempts, privacy: .public) attempts: \(failure, privacy: .public)")
             finish(&state)
         } else {
             log.notice("Pre-2.0 history capture failed, will retry: \(failure, privacy: .public)")
