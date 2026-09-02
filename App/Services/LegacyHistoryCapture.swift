@@ -52,14 +52,14 @@ enum LegacyHistoryCapture {
             log.error("Could not stash the pre-2.0 pair key; will retry next launch")
             return
         }
-        // Record that this device had a pairing before the pre-2.0 blobs are cleared —
-        // afterwards nothing else can tell an upgrading user from a fresh install, and
-        // the pairing screen owes them an explanation.
+        // Record that this device had a pairing: once it re-pairs, nothing else can tell
+        // an upgrading user from a fresh install, and the pairing screen owes them an
+        // explanation.
         CutoverNotice.needsRepair = true
-        // The key is copied, so the pre-2.0 pairing itself can go. Leaving it would
-        // make `LegacyPairing.pairKey()` ambiguous once a 2.0 pairing writes the same
-        // keychain account.
-        LegacyPairing.clear()
+        // The pre-2.0 pairing itself is *not* cleared here. It is the only record that
+        // there was one, and clearing it before the history is safely archived means a
+        // capture that failed — or ran against the wrong database — can never be retried.
+        // `finish()` clears it, once there is nothing left to come back for.
         LegacyHistoryCaptureState(phase: .pending).save()
     }
 
@@ -128,6 +128,15 @@ enum LegacyHistoryCapture {
     /// and can't leave a dead secret behind.
     private static func finish(_ state: inout LegacyHistoryCaptureState) {
         PairSecrets.store.removeSecret(for: Constants.Keychain.legacyHistoryKeyAccount)
+
+        // Not in a Debug build. Its capture ran against the Development database, where
+        // an upgrading user has no history — so it has established nothing about the
+        // Production records, and throwing away the pre-2.0 pairing here would take the
+        // Production build's only way of finding them with it.
+        #if !DEBUG
+        LegacyPairing.clear()
+        #endif
+
         state.phase = .done
         state.save()
     }

@@ -52,7 +52,18 @@ final class AppState {
     // reconcileLatestAlert doesn't re-surface it after backgrounding/relaunch.
     private static let dismissedOutgoingKey = "attention.dismissedOutgoingRecordName"
 
+    /// Observable mirror of `CutoverNotice.needsRepair`, which is a plain `UserDefaults`
+    /// read and so invisible to SwiftUI. Set here rather than in `bootstrap()`: that runs
+    /// from a `.task`, which fires *after* the first render, so the pairing screen drew
+    /// itself before the flag existed and nothing told it to draw again.
+    var needsRepairAfterCutover: Bool
+
     init() {
+        // First thing, before any view can render and before anything can re-pair. It is
+        // synchronous and touches only local storage.
+        LegacyHistoryCapture.prepare()
+        self.needsRepairAfterCutover = CutoverNotice.needsRepair
+
         self.settings = UserSettings()
         self.pair = PairState.load()
         self.pendingInvite = PendingInvite.load()
@@ -64,12 +75,6 @@ final class AppState {
     // MARK: - Boot
 
     func bootstrap() async {
-        // Before anything else, and synchronously: the pre-2.0 history is reachable
-        // only while this device still holds the pre-2.0 pair key, and pairing under
-        // 2.0 overwrites the keychain account it sits in. The fetch itself can wait
-        // until the end of launch.
-        LegacyHistoryCapture.prepare()
-
         await refreshICloudStatus()
 
         if pair != nil || pendingInvite != nil {
@@ -425,6 +430,7 @@ final class AppState {
         self.pair = state
         // Whatever the cutover cost them, they've paid it.
         CutoverNotice.needsRepair = false
+        needsRepairAfterCutover = false
         // Completing a pair consumes any pending invite (the service layer clears the
         // persisted copy); re-sync the observable mirror.
         self.pendingInvite = PendingInvite.load()

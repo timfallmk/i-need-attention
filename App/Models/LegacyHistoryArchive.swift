@@ -13,7 +13,17 @@ struct LegacyHistoryArchive: Codable, Equatable {
     var alerts: [ArchivedAlert]
     var capturedAt: Date
 
-    private static let fileName = "legacy-history-v1.json"
+    /// Scoped to the CloudKit environment the build talks to. A Debug build reads the
+    /// *Development* public database, where a user upgrading from TestFlight has no
+    /// history at all — so without this, running one on a real device would archive an
+    /// empty result over a good Production snapshot.
+    private static let fileName: String = {
+        #if DEBUG
+        "legacy-history-v1-development.json"
+        #else
+        "legacy-history-v1.json"
+        #endif
+    }()
 
     private static var fileURL: URL? {
         guard let base = try? FileManager.default.url(
@@ -84,7 +94,17 @@ struct LegacyHistoryCaptureState: Codable, Equatable {
         return isExhausted
     }
 
-    static let storageKey = "attention.legacyHistoryCapture.v1"
+    /// Scoped to the CloudKit environment, like the archive itself. The capture is a
+    /// one-shot, and a Debug build querying Development would otherwise spend it — then
+    /// a later Production build would find the marker, skip, and never archive the
+    /// history that was actually there.
+    static let storageKey: String = {
+        #if DEBUG
+        "attention.legacyHistoryCapture.v1.development"
+        #else
+        "attention.legacyHistoryCapture.v1"
+        #endif
+    }()
 
     static func load() -> LegacyHistoryCaptureState? {
         guard let data = UserDefaults.standard.data(forKey: storageKey) else { return nil }
