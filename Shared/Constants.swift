@@ -7,118 +7,32 @@ enum Constants {
         static let pair = "Pair"
         static let alert = "Alert"
         static let ack = "Ack"
-        /// Written by the joiner into the inviter's inbox zone to close the handshake.
-        static let handshake = "PairHandshake"
+        /// One per person, written into the *partner's* inbox zone: it is how each side
+        /// tells the other who they are. Closes the pairing handshake on first write and
+        /// carries display-name changes after that.
+        static let profile = "PairProfile"
     }
 
-    /// The joiner's half of the pairing handshake. It travels as a record in the zone
-    /// the joiner has just been given write access to, rather than as a second QR code:
-    /// accepting the first share is what creates the channel this arrives on.
-    enum Handshake {
-        /// Fixed, so a retried write replaces the previous attempt instead of adding a
-        /// second record. One zone only ever has one joiner.
-        static let recordName = "handshake"
+    /// What one person tells their partner about themselves. The record lives in the
+    /// partner's inbox zone — the one place this device can write and they can read —
+    /// so it doubles as the channel that closes the pairing handshake: accepting the
+    /// first share is what creates the write access this arrives on.
+    enum Profile {
+        /// Fixed, so a rename replaces the record rather than adding a second. One zone
+        /// only ever has one partner writing into it.
+        static let recordName = "profile"
 
         static let deviceID = "deviceID"
-        static let name = "name"
-        static let shareURL = "shareURL"
-    }
 
-    enum PairField {
-        static let pairKey = "pairKey"
-        static let deviceA = "deviceA"
-        static let deviceB = "deviceB"
-        static let nameA = "nameA"
-        static let nameB = "nameB"
-    }
+        /// Sealed like every other human-readable field. A display name in the clear
+        /// beside encrypted alert contents would be a hole in the same wall.
+        static let nameSealed = "nameSealed"
 
-    enum AlertField {
-        /// Pre-2.0 only. Zone membership is the boundary from 2.0, so new records don't
-        /// carry it — but the history capture still parses records that do.
-        static let pairKey = "pairKey"
-        static let senderDeviceID = "senderDeviceID"
-        static let state = "state"
-        static let seenAt = "seenAt"
-        static let acknowledgedAt = "acknowledgedAt"
-        static let critical = "critical"
-
-        /// Pre-2.0 plaintext. Still read, never written.
-        static let senderName = "senderName"
-        static let message = "message"
-        static let ackEmoji = "ackEmoji"
-
-        /// 2.0 ciphertext, sealed under a key derived from the pair key. Separate field
-        /// names rather than a changed type on the old ones: CloudKit's schema is
-        /// per-record-type across the whole container, so `senderName` is a String
-        /// there for good, and the archived pre-2.0 records still need reading.
-        static let senderNameSealed = "senderNameSealed"
-        static let messageSealed = "messageSealed"
-        static let ackEmojiSealed = "ackEmojiSealed"
-    }
-
-    enum AlertState: String {
-        case sent
-        case seen
-        case acknowledged
-    }
-
-    /// Companion record written by the receiver when acking an Alert. CloudKit's
-    /// public-DB CKQuerySubscription rejects `firesOnRecordUpdate` combined with a
-    /// mutable-content alert push — see CLAUDE.md — so we route the sender-side
-    /// banner off `firesOnRecordCreation` of this record type instead. The Alert
-    /// record itself still carries the canonical state for the in-app indicator.
-    enum AckField {
-        static let pairKey = "pairKey"
-        /// Device that should receive the banner — i.e., the original Alert's
-        /// `senderDeviceID`. Named "recipient" from the Ack's perspective so the
-        /// subscription predicate reads naturally.
-        static let recipientDeviceID = "recipientDeviceID"
-        static let emoji = "emoji"
-        static let alertRecordName = "alertRecordName"
-    }
-
-    enum SubscriptionID {
-        static let incomingAlerts = "incoming-alerts-v1"
-        static let outgoingStatus = "outgoing-status-v1"
-        /// v2 changed record type from Alert (firesOnRecordUpdate) to Ack
-        /// (firesOnRecordCreation) — the v1 form was rejected by CloudKit with
-        /// BAD_REQUEST so no real device ever had v1 registered, but the bumped
-        /// ID also avoids any chance of resurrecting a half-saved v1.
-        static let outgoingAck = "outgoing-ack-v2"
-        static let pairUpdates = "pair-updates-v1"
-    }
-
-    enum WatchMessage {
-        static let kindKey = "kind"
-        static let pressKind = "press"
-        static let nameKey = "name"
-
-        /// Phone → watch: a fresh `WatchSnapshot` (JSON-encoded) under `snapshotKey`.
-        /// Sent both via `updateApplicationContext` (always, opportunistic delivery)
-        /// and via `sendMessage` when reachable (live foreground updates).
-        static let snapshotKind = "snapshot"
-        static let snapshotKey = "snapshot"
-
-        /// Watch → phone: acknowledge the latest incoming alert. `ackRecordNameKey`
-        /// carries the CKRecord.ID.recordName so the phone can guard against acking
-        /// a stale userInfo-queued message after a newer alert has replaced it.
-        /// `ackEmojiKey` is optional — omitted means "Just acknowledge".
-        static let ackKind = "ack"
-        static let ackRecordNameKey = "recordName"
-        static let ackEmojiKey = "emoji"
-
-        /// Watch → phone: clear the outgoing alert pill (mirrors the iOS × button).
-        /// `clearRecordNameKey` carries the CKRecord.ID.recordName of the outgoing
-        /// alert being cleared so the phone can ignore stale transferUserInfo clears.
-        static let clearKind = "clear"
-        static let clearRecordNameKey = "clearRecordName"
-
-        /// Watch → phone: snooze (or, with `snoozeMinutesKey` == 0, cancel the snooze on)
-        /// the latest incoming alert. `snoozeRecordNameKey` guards against a stale
-        /// userInfo-queued message the same way `ackRecordNameKey` does.
-        static let snoozeKind = "snooze"
-        static let snoozeRecordNameKey = "snoozeRecordName"
-        static let snoozeMinutesKey = "snoozeMinutes"
+        /// Only set on the joiner's first write, where it carries the share of their own
+        /// zone back to the inviter. Sealed too: it is not a bearer token — it names the
+        /// inviter — but the storage provider has no more business reading it than the
+        /// rest.
+        static let shareURLSealed = "shareURLSealed"
     }
 
     /// Record zones. From 2.0 each user owns one zone — their *inbox* — which their

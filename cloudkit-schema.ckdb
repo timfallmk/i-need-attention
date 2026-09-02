@@ -1,9 +1,12 @@
 DEFINE SCHEMA
-    /* PairHandshake carries the joiner's half of the 2.0 pairing handshake: it is
-       written into the inviter's inbox zone, which only an accepted share participant
-       can reach. Private-database record types need no grants — zone membership is the
-       access control, which is the whole point of the 2.0 move. */
-    RECORD TYPE PairHandshake (
+    /* PairProfile is what one person tells their partner about themselves: it is
+       written into the partner's inbox zone, which only an accepted share participant
+       can reach. It closes the pairing handshake on its first write (carrying the
+       joiner's share back) and carries display-name changes after that. Private-database
+       record types need no grants — zone membership is the access control, which is the
+       whole point of the 2.0 move. The name and share URL are ciphertext for the same
+       reason the alert fields are. */
+    RECORD TYPE PairProfile (
         "___createTime"  TIMESTAMP,
         "___createdBy"   REFERENCE,
         "___etag"        STRING,
@@ -12,27 +15,8 @@ DEFINE SCHEMA
         "___recordID"    REFERENCE,
 
         deviceID         STRING,
-        name             STRING,
-        shareURL         STRING
-    );
-
-    RECORD TYPE Pair (
-        "___createTime"  TIMESTAMP,
-        "___createdBy"   REFERENCE,
-        "___etag"        STRING,
-        "___modTime"     TIMESTAMP,
-        "___modifiedBy"  REFERENCE,
-        "___recordID"    REFERENCE,
-
-        pairKey          STRING QUERYABLE,
-        deviceA          STRING,
-        deviceB          STRING,
-        nameA            STRING,
-        nameB            STRING,
-
-        GRANT READ TO "_icloud",
-        GRANT WRITE TO "_icloud",
-        GRANT CREATE TO "_icloud"
+        nameSealed       BYTES,
+        shareURLSealed   BYTES
     );
 
     RECORD TYPE Alert (

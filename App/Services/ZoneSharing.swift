@@ -114,42 +114,62 @@ extension CloudKitService {
     }
 }
 
-// MARK: - Handshake records
+// MARK: - Profile records
 
 extension CloudKitService {
 
-    /// The joiner's half of the handshake, written into the inviter's inbox zone. Only
-    /// an accepted participant can write here, which is why the inviter can treat the
-    /// record's existence as proof that its own share was accepted.
-    func writeHandshake(into zoneID: CKRecordZone.ID,
-                        deviceID: String,
-                        name: String,
-                        shareURL: URL) async throws {
-        let recordID = CKRecord.ID(recordName: Constants.Handshake.recordName, zoneID: zoneID)
-        // Fetch-then-modify rather than a blind save: a retry after a partial failure
-        // would otherwise fail with "record to insert already exists".
-        let record = (try? await sharedDB.record(for: recordID))
-            ?? CKRecord(recordType: Constants.RecordType.handshake, recordID: recordID)
+    /// What we tell the partner about ourselves, written into the zone they own. Only an
+    /// accepted share participant can write there, which is why the inviter can treat the
+    /// first one that appears as proof its own share was accepted.
+    ///
+    /// `shareURL` is set only on the joiner's first write, where it carries the share of
+    /// their zone back. A rename later is the same record with the same record name, so
+    /// it replaces rather than accumulates.
+    func writeProfile(into zoneID: CKRecordZone.ID,
+                      deviceID: String,
+                      name: String,
+                      shareURL: URL?,
+                      pairKey: String) async throws {
+        let db = database(for: zoneID)
+        let recordID = CKRecord.ID(recordName: Constants.Profile.recordName, zoneID: zoneID)
+        // Fetch-then-modify rather than a blind save: a retry after a partial failure, or
+        // any rename after the first write, would otherwise fail with "record to insert
+        // already exists".
+        let record = (try? await db.record(for: recordID))
+            ?? CKRecord(recordType: Constants.RecordType.profile, recordID: recordID)
 
-        record[Constants.Handshake.deviceID] = deviceID as CKRecordValue
-        record[Constants.Handshake.name] = name as CKRecordValue
-        record[Constants.Handshake.shareURL] = shareURL.absoluteString as CKRecordValue
-        _ = try await sharedDB.save(record)
+        record[Constants.Profile.deviceID] = deviceID as CKRecordValue
+        record[Constants.Profile.nameSealed] =
+            try PairCrypto.seal(name, pairKey: pairKey, field: Constants.Profile.nameSealed) as CKRecordValue
+        if let shareURL {
+            record[Constants.Profile.shareURLSealed] =
+                try PairCrypto.seal(shareURL.absoluteString, pairKey: pairKey,
+                                    field: Constants.Profile.shareURLSealed) as CKRecordValue
+        }
+        _ = try await db.save(record)
     }
 
-    /// The inviter reading what the joiner left. Returns nil while the joiner hasn't
-    /// arrived, which is the ordinary case for as long as the invite is outstanding.
-    func fetchHandshake(in zoneID: CKRecordZone.ID) async -> (deviceID: String, name: String, shareURL: URL)? {
-        let recordID = CKRecord.ID(recordName: Constants.Handshake.recordName, zoneID: zoneID)
+    /// The partner's profile, read out of the zone we own. Returns nil while they haven't
+    /// written one — which for the inviter is the whole time an invite is outstanding.
+    func fetchPartnerProfile(pairKey: String) async -> (deviceID: String, name: String, shareURL: URL?)? {
+        let zoneID = Self.inboxZoneID
+        let recordID = CKRecord.ID(recordName: Constants.Profile.recordName, zoneID: zoneID)
         guard let record = try? await privateDB.record(for: recordID),
-              let deviceID = record[Constants.Handshake.deviceID] as? String,
-              let raw = record[Constants.Handshake.shareURL] as? String,
-              let shareURL = URL(string: raw), shareURL.isCloudKitShare else {
+              let deviceID = record[Constants.Profile.deviceID] as? String else {
             return nil
         }
-        // Written by the partner, so it gets the same treatment as any other name that
-        // arrives over the wire.
-        let name = UntrustedText.name(record[Constants.Handshake.name] as? String, fallback: "Friend")
+
+        // Written by the partner, so it gets the same bounds as any other name off the
+        // wire — decryption proves they held the pair key, not that they were sensible.
+        let name = UntrustedText.name(
+            PairCrypto.opened(record[Constants.Profile.nameSealed] as? Data,
+                              pairKey: pairKey, field: Constants.Profile.nameSealed),
+            fallback: "Friend"
+        )
+        let shareURL = PairCrypto.opened(record[Constants.Profile.shareURLSealed] as? Data,
+                                         pairKey: pairKey, field: Constants.Profile.shareURLSealed)
+            .flatMap(URL.init(string:))
+            .flatMap { $0.isCloudKitShare ? $0 : nil }
         return (deviceID, name, shareURL)
     }
 
