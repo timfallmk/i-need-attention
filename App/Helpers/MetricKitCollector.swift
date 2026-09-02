@@ -14,11 +14,23 @@ import MetricKit
 final class MetricKitCollector: NSObject, MXMetricManagerSubscriber {
     static let shared = MetricKitCollector()
 
+    /// Guards both the registration below and the read-modify-write in `didReceive`.
+    /// Payloads are delivered on a queue this app does not control, so neither is safe to
+    /// leave unsynchronised.
+    private let lock = NSLock()
+    private var started = false
+
     private override init() {
         super.init()
     }
 
+    /// Idempotent. SwiftUI's `.task` is not guaranteed to run once per process, and
+    /// registering twice would deliver every payload twice and inflate the totals.
     func start() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !started else { return }
+        started = true
         MXMetricManager.shared.add(self)
     }
 
@@ -28,6 +40,11 @@ final class MetricKitCollector: NSObject, MXMetricManagerSubscriber {
 
     func didReceive(_ payloads: [MXDiagnosticPayload]) {
         guard !payloads.isEmpty else { return }
+
+        // Load, accumulate and store is a read-modify-write over UserDefaults; two
+        // concurrent deliveries would otherwise lose one payload's counts entirely.
+        lock.lock()
+        defer { lock.unlock() }
 
         var summary = MetricKitSummary.load() ?? .empty
         let receivedAt = Date()
