@@ -12,6 +12,7 @@ final class PairStateTests: XCTestCase {
     }
 
     override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: CutoverNotice.storageKey)
         removeStoredBlobs()
         PairSecrets.store = InMemoryPairSecretStore()
         secrets = nil
@@ -207,6 +208,21 @@ final class PairStateTests: XCTestCase {
         var state = makePairState()
         state.outgoingZone = ZoneRef(zoneName: "inbox", ownerName: "partner")
         XCTAssertFalse(state.isComplete)
+        // ...but it is enough to send, which is the joiner's whole position.
+        XCTAssertTrue(state.canSend)
+    }
+
+    func testANewPairingCannotSendYet() {
+        XCTAssertFalse(makePairState().canSend)
+    }
+
+    /// The inviter's trap: they know the partner accepted, but until their own share
+    /// comes back they have nowhere to write. Offering the button here would mean a
+    /// press that goes nowhere.
+    func testTheirAcceptAloneDoesNotAllowSending() {
+        var state = makePairState()
+        state.partnerCanReach = true
+        XCTAssertFalse(state.canSend)
     }
 
     func testTheirAcceptAloneDoesNotCompleteThePair() {
@@ -301,5 +317,19 @@ final class PairStateTests: XCTestCase {
         writeLegacyV2Blob()
         LegacyPairing.clear()
         XCTAssertFalse(LegacyPairing.exists)
+    }
+
+    // MARK: - Cutover notice
+
+    func testCutoverNoticeDefaultsToFalse() {
+        CutoverNotice.needsRepair = false
+        XCTAssertFalse(CutoverNotice.needsRepair)
+    }
+
+    func testCutoverNoticePersists() {
+        CutoverNotice.needsRepair = true
+        XCTAssertTrue(CutoverNotice.needsRepair)
+        CutoverNotice.needsRepair = false
+        XCTAssertFalse(CutoverNotice.needsRepair)
     }
 }

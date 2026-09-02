@@ -13,11 +13,15 @@ struct RootView: View {
                 ICloudGateView()
             } else if appState.pair == nil {
                 PairingFlowView()
+            } else if appState.pair?.canSend == false {
+                // Paired, but this device's half of the handshake hasn't come back yet.
+                FinishingSetupView()
             } else {
                 MainView()
             }
         }
         .animation(.easeInOut(duration: 0.25), value: appState.pair?.pairKey)
+        .animation(.easeInOut(duration: 0.25), value: appState.pair?.canSend)
         .animation(.easeInOut(duration: 0.25), value: appState.iCloudStatus)
         .sheet(item: $bindable.incomingJoinInvite) { invite in
             JoinInviteSheet(invite: invite)

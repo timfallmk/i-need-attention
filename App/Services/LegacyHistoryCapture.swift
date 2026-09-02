@@ -46,6 +46,10 @@ enum LegacyHistoryCapture {
             log.error("Could not stash the pre-2.0 pair key; will retry next launch")
             return
         }
+        // Record that this device had a pairing before the pre-2.0 blobs are cleared —
+        // afterwards nothing else can tell an upgrading user from a fresh install, and
+        // the pairing screen owes them an explanation.
+        CutoverNotice.needsRepair = true
         // The key is copied, so the pre-2.0 pairing itself can go. Leaving it would
         // make `LegacyPairing.pairKey()` ambiguous once a 2.0 pairing writes the same
         // keychain account.
