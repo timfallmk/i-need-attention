@@ -321,23 +321,29 @@ final class CloudKitService: @unchecked Sendable {
 
     // MARK: - Subscriptions
 
-    /// Registers (idempotently) the four query subscriptions this app needs:
-    ///  - Incoming alerts: visible alert push when partner sends.
-    ///  - Outgoing status: silent push when partner updates seen/ack on our alerts.
-    ///  - Outgoing ack: visible alert push specifically when the partner acks (so the
-    ///    sender sees a banner even with the app force-quit / device locked).
-    ///  - Pair updates: silent push when the partner renames themselves.
+    /// Registers (idempotently) the four query subscriptions this app needs, all of them
+    /// on this device's own inbox zone in the private database:
+    ///  - Incoming alerts: visible alert push when the partner sends.
+    ///  - Outgoing status: silent push when the partner leaves a status notice.
+    ///  - Outgoing ack: visible alert push for the notice that says they acknowledged,
+    ///    so the sender sees a banner with the app force-quit.
+    ///  - Pair profile: silent push when the partner introduces or renames themselves,
+    ///    which is also what closes the last step of the pairing handshake.
+    ///
+    /// Nothing subscribes to the partner's zone. The shared database accepts only
+    /// `CKDatabaseSubscription`, and those notifications name a database rather than a
+    /// record — which is why the receiver writes a status notice into the sender's own
+    /// zone instead of relying on the alert update being noticed.
     ///
     /// Resilient to per-subscription failure: if at least one save succeeds, partial
-    /// failures are logged but not propagated. The next launch retries the missing
-    /// IDs (since they aren't in `existingIDs`). The known-failure case worth
-    /// surfacing is `outgoing-ack-v2`, which depends on the deployed `Ack` record
-    /// type — its outcome is mirrored to `SharedSettings.outgoingAckSubscriptionUnavailable`
-    /// so the Settings → Diagnostics row can flag the silent feature degradation.
-    /// Throws only when the operation fails wholesale (no subscription saved at
-    /// all), so callers should still treat the throw as "try again on next boot".
-    func registerSubscriptions(pairKey: String, myDeviceID: String) async throws {
-        let existing = try await publicDB.allSubscriptions()
+    /// failures are logged but not propagated, and the next launch retries the missing
+    /// IDs. The failure worth surfacing is `outgoing-ack-v3` — it is the one shape the
+    /// public database refused, so if a private database ever refuses it too, the
+    /// Settings → Diagnostics row says so rather than the banner just never arriving.
+    /// Throws only when nothing saved at all.
+    func registerSubscriptions() async throws {
+        let zoneID = try await ensureInboxZone()
+        let existing = try await privateDB.allSubscriptions()
         let existingIDs = Set(existing.map(\.subscriptionID))
 
         // If the ack subscription already lives on the server, the previously-saved
@@ -349,18 +355,17 @@ final class CloudKitService: @unchecked Sendable {
         }
 
         var toSave: [CKSubscription] = []
-
         if !existingIDs.contains(Constants.SubscriptionID.incomingAlerts) {
-            toSave.append(makeIncomingSubscription(pairKey: pairKey, myDeviceID: myDeviceID))
+            toSave.append(makeIncomingSubscription(zoneID: zoneID))
         }
         if !existingIDs.contains(Constants.SubscriptionID.outgoingStatus) {
-            toSave.append(makeOutgoingStatusSubscription(pairKey: pairKey, myDeviceID: myDeviceID))
+            toSave.append(makeOutgoingStatusSubscription(zoneID: zoneID))
         }
         if !existingIDs.contains(Constants.SubscriptionID.outgoingAck) {
-            toSave.append(makeOutgoingAckSubscription(pairKey: pairKey, myDeviceID: myDeviceID))
+            toSave.append(makeOutgoingAckSubscription(zoneID: zoneID))
         }
-        if !existingIDs.contains(Constants.SubscriptionID.pairUpdates) {
-            toSave.append(makePairUpdateSubscription(pairKey: pairKey))
+        if !existingIDs.contains(Constants.SubscriptionID.pairProfile) {
+            toSave.append(makePairProfileSubscription(zoneID: zoneID))
         }
         guard !toSave.isEmpty else { return }
 
@@ -409,12 +414,12 @@ final class CloudKitService: @unchecked Sendable {
                     }
                 }
             }
-            publicDB.add(op)
+            privateDB.add(op)
         }
     }
 
     func removeAllSubscriptions() async throws {
-        let existing = try await publicDB.allSubscriptions()
+        let existing = try await privateDB.allSubscriptions()
         guard !existing.isEmpty else { return }
         let ids = existing.map(\.subscriptionID)
         let op = CKModifySubscriptionsOperation(subscriptionsToSave: nil, subscriptionIDsToDelete: ids)
@@ -425,58 +430,67 @@ final class CloudKitService: @unchecked Sendable {
                 case .failure(let error): cont.resume(throwing: error)
                 }
             }
-            publicDB.add(op)
+            privateDB.add(op)
         }
     }
-
-    #if DEBUG
-    /// Deletes any subscriptions left over from `AppState.bootstrap`'s unpaired
-    /// schema seeder — i.e. those whose predicate references the placeholder
-    /// `pairKey == "schema-seed"`. Called before the paired re-registration
-    /// path so `registerSubscriptions`' idempotent-on-ID check doesn't keep
-    /// the inert placeholders alive under the real subscription IDs (which
-    /// would silently break paired Dev tests). No-op when nothing matches.
-    func purgeSeededSubscriptions() async throws {
-        let existing = try await publicDB.allSubscriptions()
-        let seededIDs: [String] = existing.compactMap { sub in
-            guard let qsub = sub as? CKQuerySubscription else { return nil }
-            return qsub.predicate.predicateFormat.contains("\"schema-seed\"")
-                ? sub.subscriptionID
-                : nil
-        }
-        guard !seededIDs.isEmpty else { return }
-        log.info("purging seeded subs: \(seededIDs.joined(separator: ", "), privacy: .public)")
-        let op = CKModifySubscriptionsOperation(
-            subscriptionsToSave: nil,
-            subscriptionIDsToDelete: seededIDs
-        )
-        op.qualityOfService = .userInitiated
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            op.modifySubscriptionsResultBlock = { result in
-                switch result {
-                case .success: cont.resume()
-                case .failure(let error): cont.resume(throwing: error)
-                }
-            }
-            publicDB.add(op)
-        }
-    }
-    #endif
 
     // MARK: - Subscription factories
 
-    private func makeIncomingSubscription(pairKey: String, myDeviceID: String) -> CKQuerySubscription {
-        let predicate = SubscriptionPredicates.incomingAlerts(pairKey: pairKey, myDeviceID: myDeviceID)
+    /// The partner wrote an alert into our zone. Visible + mutable so the extension can
+    /// replace the placeholder body with the decrypted one.
+    ///
+    /// No `desiredKeys`: the fields worth showing are ciphertext, and shipping binary in
+    /// a push payload that CloudKit may truncate anyway buys nothing. The extension
+    /// fetches the record, which it had to be able to do regardless.
+    private func makeIncomingSubscription(zoneID: CKRecordZone.ID) -> CKQuerySubscription {
         let sub = CKQuerySubscription(
             recordType: Constants.RecordType.alert,
-            predicate: predicate,
+            predicate: SubscriptionPredicates.incomingAlerts(),
             subscriptionID: Constants.SubscriptionID.incomingAlerts,
             options: [.firesOnRecordCreation]
         )
-        // CloudKit caps the per-subscription "additional fields" payload, and Production is
-        // stricter than Development. NSE replaces title/body/sound from the fetched record,
-        // so we keep this minimal: a static alertBody to make it an alert push (so the NSE
-        // is invoked) plus mutable-content to route it through the extension.
+        sub.zoneID = zoneID
+        let info = CKSubscription.NotificationInfo()
+        // CloudKit classifies a push as an alert push only when alertBody is non-empty,
+        // and only alert pushes run the extension. This placeholder is overwritten there
+        // with the real sender and message.
+        info.alertBody = "Attention"
+        info.shouldSendMutableContent = true
+        sub.notificationInfo = info
+        return sub
+    }
+
+    /// Any status notice the partner leaves — silent, so the in-app indicator flips to
+    /// seen without a banner.
+    private func makeOutgoingStatusSubscription(zoneID: CKRecordZone.ID) -> CKQuerySubscription {
+        let sub = CKQuerySubscription(
+            recordType: Constants.RecordType.alertStatus,
+            predicate: SubscriptionPredicates.outgoingStatus(),
+            subscriptionID: Constants.SubscriptionID.outgoingStatus,
+            options: [.firesOnRecordCreation, .firesOnRecordUpdate]
+        )
+        sub.zoneID = zoneID
+        let info = CKSubscription.NotificationInfo()
+        info.shouldSendContentAvailable = true
+        sub.notificationInfo = info
+        return sub
+    }
+
+    /// The acknowledgement specifically — a visible banner, so the sender learns their
+    /// partner answered even with the app force-quit.
+    ///
+    /// This is the shape the public database rejected with BAD_REQUEST: a visible push
+    /// on `firesOnRecordUpdate`. Update permissions are broader than create permissions
+    /// there, so it was treated as a spam vector. In a private zone the only writer is
+    /// an accepted participant, and the spike confirmed the restriction doesn't apply.
+    private func makeOutgoingAckSubscription(zoneID: CKRecordZone.ID) -> CKQuerySubscription {
+        let sub = CKQuerySubscription(
+            recordType: Constants.RecordType.alertStatus,
+            predicate: SubscriptionPredicates.outgoingAck(),
+            subscriptionID: Constants.SubscriptionID.outgoingAck,
+            options: [.firesOnRecordCreation, .firesOnRecordUpdate]
+        )
+        sub.zoneID = zoneID
         let info = CKSubscription.NotificationInfo()
         info.alertBody = "Attention"
         info.shouldSendMutableContent = true
@@ -484,64 +498,23 @@ final class CloudKitService: @unchecked Sendable {
         return sub
     }
 
-    private func makePairUpdateSubscription(pairKey: String) -> CKQuerySubscription {
-        let predicate = SubscriptionPredicates.pairUpdates(pairKey: pairKey)
+    /// The partner introducing themselves — which closes the pairing handshake — or
+    /// renaming themselves later. Silent either way; both are handled in-app.
+    private func makePairProfileSubscription(zoneID: CKRecordZone.ID) -> CKQuerySubscription {
         let sub = CKQuerySubscription(
-            recordType: Constants.RecordType.pair,
-            predicate: predicate,
-            subscriptionID: Constants.SubscriptionID.pairUpdates,
-            options: [.firesOnRecordUpdate]
+            recordType: Constants.RecordType.profile,
+            predicate: SubscriptionPredicates.pairProfile(),
+            subscriptionID: Constants.SubscriptionID.pairProfile,
+            options: [.firesOnRecordCreation, .firesOnRecordUpdate]
         )
+        sub.zoneID = zoneID
         let info = CKSubscription.NotificationInfo()
-        info.shouldSendContentAvailable = true   // silent push; handler refetches the record
-        sub.notificationInfo = info
-        return sub
-    }
-
-    private func makeOutgoingStatusSubscription(pairKey: String, myDeviceID: String) -> CKQuerySubscription {
-        // Updates to alerts I sent — used to refresh the "Sent / Seen / Acknowledged" indicator.
-        let predicate = SubscriptionPredicates.outgoingStatus(pairKey: pairKey, myDeviceID: myDeviceID)
-        let sub = CKQuerySubscription(
-            recordType: Constants.RecordType.alert,
-            predicate: predicate,
-            subscriptionID: Constants.SubscriptionID.outgoingStatus,
-            options: [.firesOnRecordUpdate]
-        )
-        let info = CKSubscription.NotificationInfo()
-        info.shouldSendContentAvailable = true   // silent push; handler refetches the record
-        sub.notificationInfo = info
-        return sub
-    }
-
-    /// Fires when my partner writes an Ack record naming me as the recipient — i.e.,
-    /// they just acked one of my outgoing alerts. Routed as an alert push so the
-    /// sender sees a banner even when the app is force-quit or the device is locked.
-    ///
-    /// This used to be a `firesOnRecordUpdate` subscription on the Alert record with
-    /// a `state == "acknowledged"` predicate. CloudKit rejects that combination —
-    /// public-DB CKQuerySubscription doesn't accept mutable-content alert pushes
-    /// alongside `firesOnRecordUpdate` (anti-abuse: any signed-in user can update
-    /// records they didn't create, so visible-push-on-update would be a spam vector).
-    /// `firesOnRecordCreation` on a dedicated Ack record sidesteps the restriction.
-    private func makeOutgoingAckSubscription(pairKey: String, myDeviceID: String) -> CKQuerySubscription {
-        let predicate = SubscriptionPredicates.outgoingAck(pairKey: pairKey, myDeviceID: myDeviceID)
-        let sub = CKQuerySubscription(
-            recordType: Constants.RecordType.ack,
-            predicate: predicate,
-            subscriptionID: Constants.SubscriptionID.outgoingAck,
-            options: [.firesOnRecordCreation]
-        )
-        let info = CKSubscription.NotificationInfo()
-        info.alertBody = "Acknowledged"          // placeholder; NSE rewrites with partner name + emoji
-        info.shouldSendMutableContent = true     // routes through the NSE
+        info.shouldSendContentAvailable = true
         sub.notificationInfo = info
         return sub
     }
 }
 
-/// Per-subscription tally for `registerSubscriptions`. CloudKit invokes the per-save
-/// and final result blocks serially on the operation's internal queue, so a plain
-/// class with `@unchecked Sendable` is enough — no concurrent mutation in practice.
 private final class SubscriptionSaveResults: @unchecked Sendable {
     private(set) var saved: [String] = []
     private(set) var failed: [(String, Error)] = []

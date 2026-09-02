@@ -6,6 +6,8 @@ enum Constants {
     enum RecordType {
         static let pair = "Pair"
         static let alert = "Alert"
+        /// Pre-2.0 only. Superseded by `alertStatus`, but `AttentionCLI` still speaks
+        /// the old public-database protocol.
         static let ack = "Ack"
         /// One per person, written into the *partner's* inbox zone: it is how each side
         /// tells the other who they are. Closes the pairing handshake on first write and
@@ -106,11 +108,12 @@ enum Constants {
         case acknowledged
     }
 
-    /// Companion record written by the receiver when acking an Alert. CloudKit's
-    /// public-DB CKQuerySubscription rejects `firesOnRecordUpdate` combined with a
-    /// mutable-content alert push — see CLAUDE.md — so we route the sender-side
-    /// banner off `firesOnRecordCreation` of this record type instead. The Alert
-    /// record itself still carries the canonical state for the in-app indicator.
+    /// **Pre-2.0 only.** The public-database ancestor of `AlertStatusField`, kept
+    /// because `AttentionCLI` still speaks that protocol. The app writes `AlertStatus`
+    /// records in private zones instead — same idea, different reason: this one existed
+    /// because the public database rejects a mutable-content push on
+    /// `firesOnRecordUpdate`, its replacement exists because the shared database has no
+    /// usable subscription type at all.
     enum AckField {
         static let pairKey = "pairKey"
         /// Device that should receive the banner — i.e., the original Alert's
@@ -121,15 +124,23 @@ enum Constants {
         static let alertRecordName = "alertRecordName"
     }
 
+    /// All four are `CKQuerySubscription`s on this device's *own* inbox zone in the
+    /// private database. Nothing subscribes to the partner's zone: the shared database
+    /// accepts only `CKDatabaseSubscription`, whose notifications name a database
+    /// rather than a record. Everything this device needs to be told about is therefore
+    /// written into the zone it owns.
     enum SubscriptionID {
-        static let incomingAlerts = "incoming-alerts-v1"
-        static let outgoingStatus = "outgoing-status-v1"
-        /// v2 changed record type from Alert (firesOnRecordUpdate) to Ack
-        /// (firesOnRecordCreation) — the v1 form was rejected by CloudKit with
-        /// BAD_REQUEST so no real device ever had v1 registered, but the bumped
-        /// ID also avoids any chance of resurrecting a half-saved v1.
-        static let outgoingAck = "outgoing-ack-v2"
-        static let pairUpdates = "pair-updates-v1"
+        /// v2 moved from the public database to the inbox zone.
+        static let incomingAlerts = "incoming-alerts-v2"
+        /// v2 changed record type from Alert to AlertStatus along with the move.
+        static let outgoingStatus = "outgoing-status-v2"
+        /// v3 is the same shape the public database rejected — firesOnRecordUpdate with
+        /// a visible push — which private databases allow. The spike confirmed it
+        /// renders a banner with the app force-quit.
+        static let outgoingAck = "outgoing-ack-v3"
+        /// Replaces pair-updates-v1. Drives two things: the last step of the pairing
+        /// handshake, and a partner's rename.
+        static let pairProfile = "pair-profile-v1"
     }
 
     enum WatchMessage {

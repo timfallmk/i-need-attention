@@ -61,6 +61,15 @@ final class PairingService {
         ).save() else {
             throw AttentionError.inviteCleanupFailed
         }
+
+        // Best effort: the joiner's profile record landing in our zone is what completes
+        // the handshake, and this is the subscription that notices. Launch and foreground
+        // both reconcile without it, so a failure here costs promptness, not the pairing.
+        do {
+            try await cloud.registerSubscriptions()
+        } catch {
+            log.error("invite-time subscription registration failed: \(error.localizedDescription)")
+        }
         return invite
     }
 
@@ -183,6 +192,9 @@ final class PairingService {
             partnerCanReach: false
         )
         guard state.save() else { throw AttentionError.shareNotAccepted }
+        // Idempotent by subscription ID, and needed now rather than at next launch:
+        // without it the first alert the inviter sends would arrive silently.
+        try? await cloud.registerSubscriptions()
         return state
     }
 

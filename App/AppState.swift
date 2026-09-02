@@ -72,40 +72,16 @@ final class AppState {
 
         await refreshICloudStatus()
 
-        #if DEBUG
-        // Seeds the CloudKit-internal `_sub_trigger_<subscriptionID>` records into
-        // the Development environment for every subscription this app declares.
-        // Production rejects schema mutations from devices, so those triggers must
-        // exist in Dev before "Deploy Schema Changes…" can promote them — without
-        // this, every newly-introduced subscription ID is rejected in Production
-        // with BAD_REQUEST. Gated on `pair == nil` so it never shadows a real Dev
-        // pair's predicates (registerSubscriptions is idempotent on subscription ID) —
-        // and on `pendingInvite == nil`, because an in-flight remote invite registers
-        // real-predicate subscriptions under the same IDs before the pair completes.
-        if pair == nil && pendingInvite == nil {
-            try? await CloudKitService.shared.registerSubscriptions(
-                pairKey: "schema-seed",
-                myDeviceID: "schema-seed-device"
-            )
-        }
-        #endif
-
-        if let pair {
-            SharedSettings.partnerName = pair.partnerName
-            #if DEBUG
-            // The unpaired seeder above writes placeholder-predicate subs under
-            // the real subscription IDs. registerSubscriptions is idempotent on
-            // ID, so without this purge the placeholders would survive pairing
-            // and silently swallow real-pair pushes in Dev.
-            try? await CloudKitService.shared.purgeSeededSubscriptions()
-            #endif
-            // Re-register subscriptions in case they were dropped
-            try? await CloudKitService.shared.registerSubscriptions(
-                pairKey: pair.pairKey,
-                myDeviceID: pair.myDeviceID
-            )
+        if pair != nil || pendingInvite != nil {
+            SharedSettings.partnerName = pair?.partnerName
+            // Subscriptions are on our own zone and carry no pair-specific predicate,
+            // so an outstanding invite needs them registered too: the joiner's profile
+            // record is what closes the handshake, and its push arrives on the same
+            // subscription a completed pair uses.
+            try? await CloudKitService.shared.registerSubscriptions()
             refreshSubscriptionDiagnostics()
-        } else {
+        }
+        if pair == nil {
             // A pending remote invite may have been accepted while this app was gone —
             // the silent push never reaches a force-quit app, so reconcile on launch.
             await reconcilePendingInvite()
@@ -243,7 +219,9 @@ final class AppState {
         guard let pair else { return }
 
         if alert.senderDeviceID == pair.myDeviceID {
-            // It's an update to one of my outgoing alerts (seen / acknowledged).
+            // Shouldn't arrive any more — our own alerts live in the partner's zone and
+            // nothing subscribes there — but harmless to keep for a record fetched some
+            // other way.
             if pendingOutgoing?.id == alert.id {
                 pendingOutgoing = alert
                 if alert.state == .seen { Haptics.tick() }
@@ -264,6 +242,24 @@ final class AppState {
                 log.error("markAlertSeen: \(error.localizedDescription)")
             }
         }
+        pushWatchSnapshot()
+    }
+
+    /// The partner told us what they did with an alert we sent. The notice is the push
+    /// carrier; the alert record in their zone stays canonical, so this updates only the
+    /// live pill rather than trying to be a second source of truth.
+    func applyOutgoingStatus(alertRecordName: String, state: Constants.AlertState, emoji: String?) async {
+        guard var outgoing = pendingOutgoing, outgoing.id.recordName == alertRecordName else { return }
+        guard state != outgoing.state else { return }
+
+        outgoing.state = state
+        if let emoji { outgoing.ackEmoji = emoji }
+        switch state {
+        case .seen: Haptics.tick()
+        case .acknowledged: Haptics.success()
+        case .sent: break
+        }
+        pendingOutgoing = outgoing
         pushWatchSnapshot()
     }
 
