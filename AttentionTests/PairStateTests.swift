@@ -277,4 +277,29 @@ final class PairStateTests: XCTestCase {
         LegacyPairing.clear()
         XCTAssertNil(LegacyPairing.pairKey())
     }
+
+    func testLegacyPairingExistsWithoutTouchingTheKeychain() {
+        writeLegacyV2Blob()
+        secrets.removeSecret(for: Constants.Keychain.pairKeyAccount)
+        // The distinction the pre-unlock window depends on: the pairing is still there
+        // even when its key can't be read yet.
+        XCTAssertTrue(LegacyPairing.exists)
+        XCTAssertNil(LegacyPairing.pairKey())
+    }
+
+    func testLegacyPairingDoesNotExistOnAFreshInstall() {
+        XCTAssertFalse(LegacyPairing.exists)
+    }
+
+    func testLegacyPairingExistsForAV1Blob() {
+        writeLegacyV1Blob()
+        XCTAssertTrue(LegacyPairing.exists)
+    }
+
+    func testClearingLegacyPairingsClearsExists() {
+        writeLegacyV1Blob()
+        writeLegacyV2Blob()
+        LegacyPairing.clear()
+        XCTAssertFalse(LegacyPairing.exists)
+    }
 }

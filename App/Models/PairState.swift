@@ -114,7 +114,18 @@ enum LegacyPairing {
         var partnerName: String
     }
 
-    /// The pre-2.0 pair key, or nil if this device never had one.
+    /// Whether this device ever had a pre-2.0 pairing. Deliberately does not touch the
+    /// keychain: an `AfterFirstUnlock` item is unreadable until the first unlock after a
+    /// reboot, and a push can launch this app before then. "No key right now" and "never
+    /// had a pairing" have to stay distinguishable, or a background launch at the wrong
+    /// moment looks like an install that never paired.
+    static var exists: Bool {
+        UserDefaults.standard.data(forKey: storageKeyV2) != nil
+            || UserDefaults.standard.data(forKey: storageKeyV1) != nil
+    }
+
+    /// The pre-2.0 pair key. Nil when there was no pairing *or* when the keychain can't
+    /// be read yet — callers pair this with `exists` to tell those apart.
     static func pairKey() -> String? {
         if UserDefaults.standard.data(forKey: storageKeyV2) != nil,
            let key = PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) {

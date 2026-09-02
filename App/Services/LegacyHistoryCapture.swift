@@ -25,8 +25,16 @@ enum LegacyHistoryCapture {
 
         // An install with no pre-2.0 pairing has nothing in the public database that
         // belongs to it, so there is nothing to come back for.
-        guard let pairKey = LegacyPairing.pairKey() else {
+        guard LegacyPairing.exists else {
             LegacyHistoryCaptureState(phase: .done).save()
+            return
+        }
+        // A pairing that's there but unreadable is not the same thing. Before the first
+        // unlock after a reboot — which a background launch from a push can hit — the
+        // keychain hands back nothing, and recording "done" there would discard the
+        // history for good.
+        guard let pairKey = LegacyPairing.pairKey() else {
+            log.notice("Pre-2.0 pair key not readable yet; will retry next launch")
             return
         }
         // Marking this pending without the key stashed would strand the capture: the
@@ -51,9 +59,10 @@ enum LegacyHistoryCapture {
         guard var state = LegacyHistoryCaptureState.load(), state.phase == .pending else { return }
 
         guard let pairKey = PairSecrets.store.secret(for: Constants.Keychain.legacyHistoryKeyAccount) else {
-            // Stashing the key is what makes the capture possible; without it there is
-            // nothing to retry against.
-            finish(&state)
+            // Same pre-unlock window as prepare(): the item can exist and still read as
+            // nil. Counting it as a failed attempt retries on the next launch, and the
+            // attempt limit still stops a genuinely missing key retrying forever.
+            record(failure: "stashed key not readable", into: &state)
             return
         }
 
