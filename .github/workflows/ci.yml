@@ -2,9 +2,7 @@ name: CI
 
 on:
   push:
-    # `develop/*` is an integration branch that reaches `main` as one merge at the
-    # end, so without this nothing compiles its commits until that merge.
-    branches: [main, 'develop/**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
