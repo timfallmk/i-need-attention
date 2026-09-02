@@ -4,7 +4,7 @@ Thanks for your interest in this project.
 
 A few things to know up front:
 
-- **This is a personal-use app distributed via TestFlight only.** It is not on the App Store, has no roadmap, and is maintained on a hobby basis.
+- **This is a personal-use app, distributed via TestFlight with an App Store release in preparation.** It has no roadmap and is maintained on a hobby basis.
 - **Contributions are welcome but may not be merged.** I might decline a PR if it adds maintenance burden, conflicts with the personal-use scope, or just doesn't fit what I want from this project. Please don't take it personally.
 
 ## Before you start

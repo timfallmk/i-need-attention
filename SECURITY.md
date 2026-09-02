@@ -28,7 +28,6 @@ In scope:
 
 Out of scope:
 
-- App Store distribution issues (the app is TestFlight-only and is not intended for the App Store).
 - Server-side CloudKit availability, rate-limiting, or quota issues — that's Apple's surface.
 - Issues that require physical access to an unlocked device.
 - Social-engineering attacks on the in-person QR exchange (the threat model assumes pairing happens between two trusted humans in the same room).

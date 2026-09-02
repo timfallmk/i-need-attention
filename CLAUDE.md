@@ -202,6 +202,8 @@ When opening a PR:
 
 ## Releasing
 
+**App Store submission is being prepared.** It was previously out of scope — the app has shipped TestFlight-only since 1.0.0 — and several files still describe it that way; CONTRIBUTING.md and SECURITY.md both need the same correction. None of the mechanics below change: an App Store release is an App Store Connect concern layered on the same Xcode Cloud archive that already feeds TestFlight.
+
 **Releases are automated through Xcode Cloud and have been since 1.0.0.** Shipping is a tag push, not a manual Xcode Archive. `SETUP.md` §10–11 is the canonical reference; `docs/xcode-cloud-build-plan.md` has the rationale and the App Store Connect workflow config. The essentials, so we don't relearn them every time:
 
 - **To ship:** merge to `main`, bump `MARKETING_VERSION` in `project.yml` if user-visible, then `gh release create <version> --generate-notes`. Creating the GitHub Release (or any tag) fires the **Release** workflow in App Store Connect → Xcode Cloud, which archives and distributes to TestFlight. The trigger is **Any Tags**; keep tags semver.
@@ -234,7 +236,6 @@ When opening a PR:
 
 ## Out of scope (for this codebase)
 
-- App Store distribution (this is TestFlight-internal forever)
 - More than 2 devices per pair
 - Server-side rate limiting (out-of-band, requires actual backend)
 - ~~Encrypted alert payloads~~ — **done in 2.0.** This entry once read "the `pairKey` is the trust boundary, not the wire format", which was false: the pairKey was a plaintext field on a record every authenticated iCloud client could read, so it bounded nothing. Contents are now sealed with `PairCrypto` under a key derived from it, in zones only the pair can reach. What that does *not* buy: protection against a compromised device. The key is on both phones — the right place for the boundary in a two-person app, but a boundary.
