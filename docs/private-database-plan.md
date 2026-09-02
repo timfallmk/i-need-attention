@@ -102,12 +102,16 @@ Does not give:
 
 Four questions. **All four have now been answered, and all four favourably** — see the results recorded below. They are kept here in their original form so the answers can be read against what was actually asked.
 
-1. **Does a participant's write into the owner's zone fire the owner's private-database subscription?** The whole inbox model rests on this. If it does not, the design collapses back to shared-database subscriptions and the original risk returns.
-2. **Can that subscription produce a visible (mutable-content) push?** This is what lets the NSE render a banner with the app force-quit — the app's core property. The `Ack` record type exists today only because the *public* database rejects `firesOnRecordUpdate` with a visible push; whether that restriction applies to private databases is unconfirmed.
+1. **Does a participant's write into the owner's zone fire the owner's private-database subscription?** The whole inbox model rests on this — if it does not, the design collapses back to shared-database subscriptions and the original risk returns.
+   → **Yes.** Confirmed in both directions.
+2. **Can that subscription produce a visible (mutable-content) push?** This is what lets the NSE render a banner with the app force-quit — the app's core property. The `Ack` record type exists today only because the *public* database rejects `firesOnRecordUpdate` with a visible push, and whether that restriction reached private databases was the question.
+   → **It does not reach them.** The shape is accepted and stored, and a banner renders with the app force-quit.
 3. **Does programmatic share acceptance require user-consent UI?** Steps 2 and 4 of the handshake assume `CKFetchShareMetadataOperation` → `CKAcceptSharesOperation` works from a URL the app extracted itself. If the system insists on its own confirmation sheet, step 4 stops being invisible and the UX claim above weakens.
+   → **No sheet.** Acceptance is headless.
 4. **Can B invite A by `userRecordID` learned from `share_A`'s owner?** If not, `share_B` needs a bearer URL delivered through `zone_A` — workable, but a second bearer token then exists briefly.
+   → **The identity is readable.** Inviting by it is not yet exercised — see the gaps recorded below.
 
-**Spike:** a throwaway branch, two iCloud accounts, two real devices. Question 2 is the one that can sink the approach; question 1 decides whether the inbox model is worth having at all.
+**Spike, as originally scoped:** a throwaway branch, two iCloud accounts, two real devices. Question 2 was the one that could sink the approach; question 1 decided whether the inbox model was worth having at all. In the event it took a single-account probe and a two-account app, and neither survives — the results below are what remains of them.
 
 ~~If question 2 answers badly, the fallback is to keep a single content-free record in the public database purely as a push trigger.~~ **Not needed** — question 2 answered well. Recorded here only so the discarded option is visible: it would have cost the metadata privacy that motivates the move.
 
