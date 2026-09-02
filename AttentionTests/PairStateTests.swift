@@ -20,13 +20,33 @@ final class PairStateTests: XCTestCase {
 
     private func removeStoredBlobs() {
         UserDefaults.standard.removeObject(forKey: PairState.storageKey)
-        UserDefaults.standard.removeObject(forKey: PairState.legacyStorageKey)
+        LegacyPairing.clear()
     }
 
-    /// Writes the pre-2.0 shape: all five fields, pair key included, in UserDefaults.
-    private func writeLegacyBlob(_ state: PairState) {
-        let data = try! JSONEncoder().encode(state)
-        UserDefaults.standard.set(data, forKey: PairState.legacyStorageKey)
+    /// The pre-2.0 v1 shape: all five fields, pair key included, in UserDefaults.
+    private func writeLegacyV1Blob(pairKey: String = "legacy-key") {
+        let blob: [String: String] = [
+            "pairKey": pairKey,
+            "myDeviceID": "device-A",
+            "myName": "Alice",
+            "partnerDeviceID": "device-B",
+            "partnerName": "Bob"
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: blob)
+        UserDefaults.standard.set(data, forKey: LegacyPairing.storageKeyV1)
+    }
+
+    /// The pre-2.0 v2 shape: non-secret fields in UserDefaults, key in the store.
+    private func writeLegacyV2Blob(pairKey: String = "legacy-key") {
+        let blob: [String: String] = [
+            "myDeviceID": "device-A",
+            "myName": "Alice",
+            "partnerDeviceID": "device-B",
+            "partnerName": "Bob"
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: blob)
+        UserDefaults.standard.set(data, forKey: LegacyPairing.storageKeyV2)
+        secrets.setSecret(pairKey, for: Constants.Keychain.pairKeyAccount)
     }
 
     private func makePairState(
@@ -174,52 +194,87 @@ final class PairStateTests: XCTestCase {
         XCTAssertNil(secrets.secret(for: Constants.Keychain.pairKeyAccount))
     }
 
-    // MARK: - Migration from the pre-2.0 blob
+    // MARK: - Per-direction state
 
-    func testLegacyBlobIsLoaded() {
-        let legacy = makePairState(pairKey: "legacy-key", partnerName: "Erin")
-        writeLegacyBlob(legacy)
-        XCTAssertEqual(PairState.load(), legacy)
+    func testANewPairingIsNotCompleteInEitherDirection() {
+        let state = makePairState()
+        XCTAssertNil(state.outgoingZone)
+        XCTAssertFalse(state.partnerCanReach)
+        XCTAssertFalse(state.isComplete)
     }
 
-    func testLegacyBlobIsMigratedToSplitStorage() {
-        writeLegacyBlob(makePairState(pairKey: "legacy-key"))
-        _ = PairState.load()
-        XCTAssertNil(UserDefaults.standard.data(forKey: PairState.legacyStorageKey))
-        XCTAssertNotNil(UserDefaults.standard.data(forKey: PairState.storageKey))
-        XCTAssertEqual(secrets.secret(for: Constants.Keychain.pairKeyAccount), "legacy-key")
+    func testAcceptingTheirShareAloneDoesNotCompleteThePair() {
+        var state = makePairState()
+        state.outgoingZone = ZoneRef(zoneName: "inbox", ownerName: "partner")
+        XCTAssertFalse(state.isComplete)
     }
 
-    func testMigratedStateSurvivesASecondLoad() {
-        let legacy = makePairState(pairKey: "legacy-key")
-        writeLegacyBlob(legacy)
-        _ = PairState.load()
-        XCTAssertEqual(PairState.load(), legacy)
+    func testTheirAcceptAloneDoesNotCompleteThePair() {
+        var state = makePairState()
+        state.partnerCanReach = true
+        XCTAssertFalse(state.isComplete)
     }
 
-    func testLegacyBlobIsKeptWhenTheSecretStoreRefusesTheWrite() {
-        let legacy = makePairState(pairKey: "legacy-key")
-        writeLegacyBlob(legacy)
-        secrets.writesSucceed = false
-
-        XCTAssertEqual(PairState.load(), legacy)
-        XCTAssertNotNil(UserDefaults.standard.data(forKey: PairState.legacyStorageKey))
-
-        secrets.writesSucceed = true
-        XCTAssertEqual(PairState.load(), legacy)
-        XCTAssertNil(UserDefaults.standard.data(forKey: PairState.legacyStorageKey))
+    func testBothDirectionsCompleteThePair() {
+        var state = makePairState()
+        state.outgoingZone = ZoneRef(zoneName: "inbox", ownerName: "partner")
+        state.partnerCanReach = true
+        XCTAssertTrue(state.isComplete)
     }
 
-    func testSplitStorageIsPreferredOverAStaleLegacyBlob() {
-        makePairState(pairKey: "current-key", partnerName: "Current").save()
-        writeLegacyBlob(makePairState(pairKey: "stale-key", partnerName: "Stale"))
-        XCTAssertEqual(PairState.load()?.pairKey, "current-key")
-        XCTAssertEqual(PairState.load()?.partnerName, "Current")
+    func testPerDirectionStateSurvivesSaveAndLoad() {
+        var state = makePairState()
+        state.outgoingZone = ZoneRef(zoneName: "inbox", ownerName: "partner")
+        state.partnerCanReach = true
+        state.save()
+
+        let loaded = PairState.load()
+        XCTAssertEqual(loaded?.outgoingZone, ZoneRef(zoneName: "inbox", ownerName: "partner"))
+        XCTAssertEqual(loaded?.partnerCanReach, true)
+        XCTAssertEqual(loaded?.isComplete, true)
     }
 
-    func testClearRemovesTheLegacyBlobToo() {
-        writeLegacyBlob(makePairState())
-        PairState.clear()
+    func testZoneRefRoundTripsThroughACloudKitZoneID() {
+        let ref = ZoneRef(zoneName: "inbox", ownerName: "_abc")
+        XCTAssertEqual(ZoneRef(ref.zoneID), ref)
+    }
+
+    // MARK: - Pre-2.0 pairings are not resurrected
+
+    func testAV1PairingDoesNotLoadAsAPair() {
+        writeLegacyV1Blob()
         XCTAssertNil(PairState.load())
+    }
+
+    func testAV2PairingDoesNotLoadAsAPair() {
+        writeLegacyV2Blob()
+        XCTAssertNil(PairState.load())
+    }
+
+    func testLegacyPairKeyIsReadableFromAV1Blob() {
+        writeLegacyV1Blob(pairKey: "v1-key")
+        XCTAssertEqual(LegacyPairing.pairKey(), "v1-key")
+    }
+
+    func testLegacyPairKeyIsReadableFromAV2Blob() {
+        writeLegacyV2Blob(pairKey: "v2-key")
+        XCTAssertEqual(LegacyPairing.pairKey(), "v2-key")
+    }
+
+    func testLegacyPairKeyIsNilWhenThereWasNoPreviousPairing() {
+        XCTAssertNil(LegacyPairing.pairKey())
+    }
+
+    func testLegacyPairKeyIsNilWhenAV2BlobHasNoStoredKey() {
+        writeLegacyV2Blob()
+        secrets.removeSecret(for: Constants.Keychain.pairKeyAccount)
+        XCTAssertNil(LegacyPairing.pairKey())
+    }
+
+    func testClearingLegacyPairingsLeavesNothingToRead() {
+        writeLegacyV1Blob()
+        writeLegacyV2Blob()
+        LegacyPairing.clear()
+        XCTAssertNil(LegacyPairing.pairKey())
     }
 }
