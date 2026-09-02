@@ -65,7 +65,7 @@ struct PairingFlowView: View {
         VStack(spacing: 28) {
             Spacer(minLength: 8)
 
-            if CutoverNotice.needsRepair {
+            if appState.needsRepairAfterCutover {
                 cutoverNotice
             }
 
