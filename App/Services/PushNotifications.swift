@@ -115,15 +115,30 @@ final class PushNotifications: NSObject {
             return .noData
         }
 
-        if queryNotification.subscriptionID == Constants.SubscriptionID.pairUpdates {
-            // The joiner's half of the handshake landing in our own zone. Nothing to do
-            // once paired: from 2.0 a partner's renamed self arrives on their next
-            // alert rather than on a shared record, and reconcile self-guards anyway.
+        if queryNotification.subscriptionID == Constants.SubscriptionID.pairProfile {
+            // The partner introducing themselves — which closes the handshake — or
+            // renaming themselves. Both land on the same record; which one it is depends
+            // only on whether we're paired yet, and both calls self-guard.
             await appState.reconcilePendingInvite()
+            await appState.refreshPartnerName()
             return .newData
         }
 
         guard let pair = appState.pair else { return .noData }
+
+        if queryNotification.subscriptionID == Constants.SubscriptionID.outgoingStatus
+            || queryNotification.subscriptionID == Constants.SubscriptionID.outgoingAck {
+            // A status notice about an alert *we* sent. The notice names the alert; the
+            // alert itself still lives in the partner's zone and stays canonical.
+            guard let notice = await CloudKitService.shared.fetchStatusNotice(recordID: recordID, pair: pair) else {
+                return .noData
+            }
+            await appState.applyOutgoingStatus(alertRecordName: notice.alertRecordName,
+                                               state: notice.state,
+                                               emoji: notice.emoji)
+            return .newData
+        }
+
         do {
             let alert = try await CloudKitService.shared.fetchAlert(recordID: recordID, pair: pair)
             await appState.handleIncomingChange(alert)

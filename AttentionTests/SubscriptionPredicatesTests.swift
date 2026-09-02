@@ -13,52 +13,47 @@ final class SubscriptionPredicatesTests: XCTestCase {
         XCTAssertEqual(actual.predicateFormat, expected.predicateFormat, message, file: file, line: line)
     }
 
-    func testIncomingAlertsExcludesOwnDeviceInThisPair() {
+    // MARK: - Zone-scoped subscriptions
+
+    func testIncomingAlertsMatchesEverythingInTheZone() {
+        assertStructure(SubscriptionPredicates.incomingAlerts(), matches: NSPredicate(value: true))
+    }
+
+    func testOutgoingStatusMatchesEverythingInTheZone() {
+        assertStructure(SubscriptionPredicates.outgoingStatus(), matches: NSPredicate(value: true))
+    }
+
+    func testPairProfileMatchesEverythingInTheZone() {
+        assertStructure(SubscriptionPredicates.pairProfile(), matches: NSPredicate(value: true))
+    }
+
+    // MARK: - The one predicate that still filters
+
+    func testOutgoingAckMatchesOnlyAcknowledged() {
         assertStructure(
-            SubscriptionPredicates.incomingAlerts(pairKey: "PK", myDeviceID: "ME"),
+            SubscriptionPredicates.outgoingAck(),
             matches: NSPredicate(
-                format: "%K == %@ AND %K != %@",
-                Constants.AlertField.pairKey, "PK",
-                Constants.AlertField.senderDeviceID, "ME"
+                format: "%K == %@",
+                Constants.AlertStatusField.state, Constants.AlertState.acknowledged.rawValue
             )
         )
     }
 
-    func testOutgoingStatusMatchesOnlyOwnAlerts() {
-        assertStructure(
-            SubscriptionPredicates.outgoingStatus(pairKey: "PK", myDeviceID: "ME"),
-            matches: NSPredicate(
-                format: "%K == %@ AND %K == %@",
-                Constants.AlertField.pairKey, "PK",
-                Constants.AlertField.senderDeviceID, "ME"
-            )
-        )
+    /// The ack banner is the whole reason this predicate exists: matching "seen" too
+    /// would pop a banner every time the partner's phone merely displayed the alert.
+    func testOutgoingAckDoesNotMatchSeen() {
+        let seen = ["state": Constants.AlertState.seen.rawValue]
+        XCTAssertFalse(SubscriptionPredicates.outgoingAck().evaluate(with: seen))
     }
 
-    func testOutgoingAckMatchesAckRecipient() {
-        assertStructure(
-            SubscriptionPredicates.outgoingAck(pairKey: "PK", myDeviceID: "ME"),
-            matches: NSPredicate(
-                format: "%K == %@ AND %K == %@",
-                Constants.AckField.pairKey, "PK",
-                Constants.AckField.recipientDeviceID, "ME"
-            )
-        )
+    func testOutgoingAckMatchesAnAcknowledgedRecord() {
+        let acked = ["state": Constants.AlertState.acknowledged.rawValue]
+        XCTAssertTrue(SubscriptionPredicates.outgoingAck().evaluate(with: acked))
     }
 
-    func testPairUpdatesScopedToPairKeyOnly() {
-        assertStructure(
-            SubscriptionPredicates.pairUpdates(pairKey: "PK"),
-            matches: NSPredicate(format: "%K == %@", Constants.PairField.pairKey, "PK")
-        )
-    }
-
-    /// The classic bug is swapping incoming (`!=`) and outgoing-status (`==`) — pin that the
-    /// two never render identically, independent of the exact-structure tests above.
-    func testIncomingAndOutgoingStatusDiffer() {
-        XCTAssertNotEqual(
-            SubscriptionPredicates.incomingAlerts(pairKey: "PK", myDeviceID: "ME").predicateFormat,
-            SubscriptionPredicates.outgoingStatus(pairKey: "PK", myDeviceID: "ME").predicateFormat
-        )
+    /// `state` is the field name the schema declares queryable; a rename here would
+    /// silently stop the banner rather than fail to build.
+    func testOutgoingAckUsesTheStateField() {
+        XCTAssertTrue(SubscriptionPredicates.outgoingAck().predicateFormat.contains(Constants.AlertStatusField.state))
     }
 }

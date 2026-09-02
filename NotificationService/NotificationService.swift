@@ -1,20 +1,26 @@
 import CloudKit
 import UserNotifications
 
-/// Runs on receipt of every CloudKit push routed through the extension. Two flavors:
+/// Runs on receipt of every CloudKit push routed through the extension. Two flavors,
+/// both arriving on a subscription to this device's *own* inbox zone in the private
+/// database:
 ///
-///   - `incoming-alerts-v1`: a partner-sent "needs attention" Alert record — friendly
+///   - `incoming-alerts-v2`: the partner wrote an Alert into our zone — friendly
 ///     title/body, ack actions in the pull-down, time-sensitive (or critical)
 ///     interruption level.
-///   - `outgoing-ack-v2`: my partner just created an Ack record naming me as recipient —
-///     informational banner with the partner's name + their ack emoji. Interruption
+///   - `outgoing-ack-v3`: the partner left an AlertStatus saying they acknowledged
+///     something we sent — informational banner with their name and emoji. Interruption
 ///     level is `.timeSensitive` when `SharedSettings.timeSensitiveEnabled` is on,
 ///     `.active` otherwise; downgraded to `.passive` when ack banners are disabled.
-///     The record type is `Ack`, not `Alert`; see
-///     CloudKitService.makeOutgoingAckSubscription for why.
 ///
-/// Both flavors fetch the freshest record on the slow path so we don't ship stale
-/// title/body when desiredKeys has been pruned by CloudKit's per-subscription payload cap.
+/// Both fetch the record rather than reading the push payload. The fields worth showing
+/// are ciphertext from 2.0, so the subscriptions carry no `desiredKeys` — there is
+/// nothing useful to put in a payload CloudKit may truncate anyway.
+///
+/// Decryption needs the pair key, which this process reaches through the App Group
+/// keychain (`PairSecrets.store`). Without it the extension still delivers a banner,
+/// just an anonymous one: a push that arrives before the first unlock after a reboot
+/// must not turn into silence.
 final class NotificationService: UNNotificationServiceExtension {
     private var contentHandler: ((UNNotificationContent) -> Void)?
     private var bestAttemptContent: UNMutableNotificationContent?
@@ -63,15 +69,15 @@ final class NotificationService: UNNotificationServiceExtension {
             mutable.badge = 1
         }
 
-        // Fast path: read what we can from the desiredKeys payload, present immediately.
-        applyContent(from: queryNotification, to: mutable, isAck: isAck)
+        // Something readable up front, in case the fetch is slow or fails outright.
+        applyFallbackContent(to: mutable, isAck: isAck)
 
-        // Slow path: fetch full record to validate critical flag / pull ackEmoji, then deliver.
+        let pairKey = PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount)
         let container = CKContainer(identifier: Constants.cloudKitContainerID)
-        container.publicCloudDatabase.fetch(withRecordID: recordID) { [weak self] record, _ in
+        container.privateCloudDatabase.fetch(withRecordID: recordID) { [weak self] record, _ in
             guard let self else { return }
             if let record {
-                self.apply(record: record, to: mutable, isAck: isAck)
+                self.apply(record: record, to: mutable, isAck: isAck, pairKey: pairKey)
             }
             contentHandler(mutable)
         }
@@ -85,52 +91,53 @@ final class NotificationService: UNNotificationServiceExtension {
 
     // MARK: - Helpers
 
-    private func applyContent(from notification: CKQueryNotification, to content: UNMutableNotificationContent, isAck: Bool) {
-        let fields = notification.recordFields ?? [:]
+    /// What the banner says before the record arrives. The partner's name is cached in
+    /// the App Group, so this is not as bare as it looks — and it is what ships if the
+    /// fetch fails, which for this app is much better than nothing.
+    private func applyFallbackContent(to content: UNMutableNotificationContent, isAck: Bool) {
+        let partnerName = UntrustedText.name(SharedSettings.partnerName, fallback: "Partner")
+        content.title = partnerName
+        content.body = isAck ? ackBody(emoji: nil) : "needs attention"
+    }
+
+    private func apply(record: CKRecord, to content: UNMutableNotificationContent, isAck: Bool, pairKey: String?) {
         let partnerName = UntrustedText.name(SharedSettings.partnerName, fallback: "Partner")
 
         if isAck {
-            let emoji = fields[Constants.AckField.emoji] as? String
             content.title = partnerName
-            content.body = ackBody(emoji: emoji)
-        } else {
-            let senderName = UntrustedText.name(fields[Constants.AlertField.senderName] as? String,
-                                                fallback: partnerName)
-            let message = UntrustedText.message(fields[Constants.AlertField.message] as? String,
-                                                fallback: "needs attention")
-            let senderRequestedCritical = (fields[Constants.AlertField.critical] as? Int ?? 0) == 1
-            content.title = senderName
-            content.body = message
-            applyPriority(senderRequestedCritical: senderRequestedCritical, to: content)
+            content.body = ackBody(emoji: opened(record, Constants.AlertStatusField.ackEmojiSealed, pairKey))
+            // The notice names the alert it answers; the ack actions apply to that
+            // record, not to this one.
+            if let alertRecordName = record[Constants.AlertStatusField.alertRecordName] as? String {
+                var ui = content.userInfo
+                ui["recordName"] = alertRecordName
+                content.userInfo = ui
+            }
+            return
         }
 
-        if let recordID = notification.recordID {
-            var ui = content.userInfo
-            ui["recordName"] = recordID.recordName
-            content.userInfo = ui
-        }
-    }
+        content.title = UntrustedText.name(opened(record, Constants.AlertField.senderNameSealed, pairKey),
+                                           fallback: partnerName)
+        content.body = UntrustedText.message(opened(record, Constants.AlertField.messageSealed, pairKey),
+                                             fallback: "needs attention")
+        let senderRequestedCritical = (record[Constants.AlertField.critical] as? Int ?? 0) == 1
+        applyPriority(senderRequestedCritical: senderRequestedCritical, to: content)
 
-    private func apply(record: CKRecord, to content: UNMutableNotificationContent, isAck: Bool) {
-        if isAck {
-            let emoji = record[Constants.AckField.emoji] as? String
-            content.title = UntrustedText.name(SharedSettings.partnerName, fallback: "Partner")
-            content.body = ackBody(emoji: emoji)
-        } else {
-            content.title = UntrustedText.name(record[Constants.AlertField.senderName] as? String,
-                                               fallback: content.title)
-            content.body = UntrustedText.message(record[Constants.AlertField.message] as? String,
-                                                 fallback: content.body)
-            let senderRequestedCritical = (record[Constants.AlertField.critical] as? Int ?? 0) == 1
-            applyPriority(senderRequestedCritical: senderRequestedCritical, to: content)
-        }
         var ui = content.userInfo
         ui["recordName"] = record.recordID.recordName
         content.userInfo = ui
     }
 
-    /// Sanitizes here rather than at the two call sites so the fast path and the slow path
-    /// cannot drift apart. `emoji` is a public-database field like the rest.
+    /// Nil when the key isn't reachable — before the first unlock after a reboot, say.
+    /// The caller falls back to the partner's cached name and a generic body rather than
+    /// dropping a push it can't fully read.
+    private func opened(_ record: CKRecord, _ field: String, _ pairKey: String?) -> String? {
+        guard let pairKey, let sealed = record[field] as? Data else { return nil }
+        return PairCrypto.opened(sealed, pairKey: pairKey, field: field)
+    }
+
+    /// Sanitizes here rather than at the call sites so the fallback body and the decrypted
+    /// one cannot drift apart.
     private func ackBody(emoji: String?) -> String {
         if let emoji = UntrustedText.emoji(emoji) {
             return "Got back to you \(emoji)"
