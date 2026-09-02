@@ -26,6 +26,11 @@ licensed under [CC BY 3.0 Unported](https://creativecommons.org/licenses/by/3.0/
 Changes made: converted from WAV to IMA4 CAF using `afconvert -d ima4 -f caff`.
 No trimming or normalization was applied.
 
+CC BY requires this attribution to reach end users, not just live in the repo, so
+it is mirrored in `App/Models/OpenSourceLicenses.swift` and shown under
+Settings → Open Source. `OpenSourceLicensesTests` guards it. If you replace the
+sound, update both places.
+
 To re-derive `needs-attention.caf`:
 1. Download `Chord2_Rev.wav` from the URL above.
 2. Run: `afconvert Chord2_Rev.wav needs-attention.caf -d ima4 -f caff -v`

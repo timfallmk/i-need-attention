@@ -12,8 +12,8 @@ struct OpenSourceComponent: Identifiable {
     let licenseName: String
     /// Where the upstream lives; shown as a tappable link when present.
     let url: URL?
-    /// Verbatim license / permission notice. Reproduced in full because most
-    /// permissive licenses require the notice to travel with copies.
+    /// Verbatim license text or attribution notice — whichever the license in
+    /// question actually requires to travel with copies of the work.
     let licenseText: String
 
     var id: String { name }
@@ -23,7 +23,7 @@ enum OpenSourceLicenses {
     /// Everything that needs attribution. The app otherwise links only Apple
     /// system frameworks (SwiftUI, CloudKit, UserNotifications, …), which carry
     /// no attribution requirement and are intentionally not listed here.
-    static let all: [OpenSourceComponent] = [unicodeEmojiData]
+    static let all: [OpenSourceComponent] = [unicodeEmojiData, notificationSound]
 
     /// The emoji catalog (`App/Helpers/EmojiCatalog.swift`) — the picker's emoji
     /// list, names, and search keywords — is generated from Unicode's
@@ -75,6 +75,39 @@ enum OpenSourceLicenses {
         not be used in advertising or otherwise to promote the sale, use or other
         dealings in these Data Files or Software without prior written
         authorization of the copyright holder.
+        """
+    )
+
+    /// The bundled alert tone (`App/Resources/needs-attention.caf`) is a format
+    /// conversion of a CC BY 3.0 work, so the attribution has to reach end users —
+    /// a notice in the repo alone doesn't discharge it for a shipped binary.
+    ///
+    /// Unlike the Unicode entry above, CC BY does not require its full legal code to
+    /// travel with the work: §4(a) is satisfied by naming the author, the title, the
+    /// associated URI, any modifications made, and a URI for the license itself.
+    /// That is exactly what this notice carries.
+    static let notificationSound = OpenSourceComponent(
+        name: "Notification Sound",
+        summary: "The alert tone played when your partner needs your attention.",
+        licenseName: "CC BY 3.0 Unported",
+        url: URL(string: "https://creativecommons.org/licenses/by/3.0/"),
+        licenseText: """
+        "Chord2_Rev.wav" by Aarni Koskela (akx)
+
+        Source:
+        https://github.com/akx/Notifications/blob/master/WAV/Chord2_Rev.wav
+
+        Licensed under the Creative Commons Attribution 3.0 Unported
+        (CC BY 3.0) license:
+        https://creativecommons.org/licenses/by/3.0/
+
+        Changes made: converted from WAV to IMA4 CAF using
+        afconvert -d ima4 -f caff. No trimming or normalization was applied.
+
+        This notice is provided under section 4(a) of that license, which
+        requires credit to the original author, the title of the work, the
+        associated URI, an indication of any modifications made, and a URI
+        for the license itself.
         """
     )
 }

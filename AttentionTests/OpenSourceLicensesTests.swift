@@ -51,4 +51,30 @@ final class OpenSourceLicensesTests: XCTestCase {
             )
         }
     }
+
+    func testNotificationSoundAttributionIsPresentAndIntact() {
+        let sound = OpenSourceLicenses.notificationSound
+        XCTAssertTrue(OpenSourceLicenses.all.contains { $0.id == sound.id })
+
+        // CC BY 3.0 §4(a) conditions the grant on crediting the original author,
+        // the title of the work, the URI associated with it, an indication of any
+        // modification, and a URI for the license. Each fragment below pins one of
+        // those, so dropping any single required element fails the test rather than
+        // silently shipping an under-attributed binary.
+        let requiredFragments = [
+            "Chord2_Rev.wav",
+            "Aarni Koskela",
+            "https://github.com/akx/Notifications",
+            "Creative Commons Attribution 3.0 Unported",
+            "https://creativecommons.org/licenses/by/3.0/",
+            "Changes made:",
+            "afconvert",
+        ]
+        for fragment in requiredFragments {
+            XCTAssertTrue(
+                sound.licenseText.contains(fragment),
+                "CC BY attribution is missing required text: \(fragment)"
+            )
+        }
+    }
 }
