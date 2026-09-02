@@ -64,13 +64,19 @@ Go to <https://icloud.developer.apple.com/dashboard> → select your container �
 
 - [ ] Click **Import Schema…** and upload or paste the contents of `cloudkit-schema.ckdb`
 - [ ] If the import fails due to an existing schema conflict (e.g. you already created `Pair` manually), click **Reset Environment…** first (development only — no data loss since you haven't used the app yet), then import again
-- [ ] If you previously imported an older schema, re-import to pick up the **`Ack`** record type (used by the `outgoing-ack-v2` subscription that delivers a banner to the sender when the partner acknowledges). Under **Record Types** you should see three: `Pair`, `Alert`, `Ack`. Under **Indexes** verify `Ack.pairKey` and `Ack.recipientDeviceID` both show `QUERYABLE`; add them manually if not.
-- [ ] After import, click **Security Roles** in the left sidebar and verify:
-  - `_world`: **no permissions at all** for `Pair`, `Alert`, and `Ack`. Granting `_world` Read makes every record readable by an **unauthenticated** client — including each Pair's `pairKey`, the value the app treats as identifying a pair. Clearing the grant closes anonymous access; it does not make the pairKey secret from authenticated users (see the third bullet). If the imported schema or an older container still shows `_world: Read`, clear it.
-  - `_icloud`: **Create + Read + Write** for `Pair`, `Alert`, and `Ack` — set manually if missing. Every device running the app is signed into iCloud, so this is what the app actually uses.
-  - Note what this does and does not buy you: it stops anonymous reads. It does not stop a signed-in iCloud user from reading other pairs, because CloudKit security roles are per-record-type and have no row-level scoping. The pairKey is a lookup value, not an access control.
-- [ ] **Seed subscription triggers**: in Xcode, select the **Attention** scheme + a real iPhone signed into your personal iCloud account (not the simulator), then **Cmd-R** to run. There's no separate "Debug" scheme — the Attention scheme's Run action is configured for the Debug build configuration (see `project.yml:33-34`), so Cmd-R is a Debug launch. The `#if DEBUG` block in `AppState.bootstrap()` calls `registerSubscriptions` against Development, and CloudKit auto-creates a `_sub_trigger_<subscriptionID>` record per subscription as a side effect. These aren't in `cloudkit-schema.ckdb`; they're created on first save and must exist in Production before TestFlight builds can register subscriptions (without them, `SubscriptionCreate` is rejected with `BAD_REQUEST` because Production is schema-locked). The seeded subs use placeholder predicates and are inert — they get purged automatically on the next paired Debug launch (see `CloudKitService.purgeSeededSubscriptions`), so paired Dev testing on the same device still works.
-- [ ] Click **Deploy Schema Changes…** and promote to **Production** when you're ready to ship to TestFlight (development environment is what Xcode debug builds use; TestFlight/release builds use production). The first deploy after a fresh import covers the user-visible record types; the deploy *after seeding* covers the new `_sub_trigger_*` rows. Both deploys are normal — re-run **Deploy Schema Changes…** any time you add a new subscription type.
+- [ ] Under **Record Types** you should see five: `Alert`, `PairProfile`, `AlertStatus`, and the two pre-2.0 leftovers `Pair` and `Ack`
+- [ ] Under **Indexes**, verify `AlertStatus.state` shows `QUERYABLE` — the subscription that delivers the "they got back to you" banner filters on it, and without the index that banner silently never arrives
+
+### What 2.0 changed here, and what it means for this page
+
+From 2.0 the app's records live in **per-user private database zones**, not in the public database. Each person owns one zone and shares it with their partner, so access is enforced by CloudKit per zone rather than by a lookup value everyone can read. Two consequences for setup:
+
+- **Security roles barely matter any more.** They apply to the public database, and the app now writes nothing there. What remains is the one-time read of pre-2.0 history on first launch after upgrading, which needs `_icloud: Read` on `Alert` to keep working. Leave `_world` with **no permissions at all** — it was the hole that made every pair's `pairKey` readable by an unauthenticated client, and nothing needs it.
+- **Private-zone record types still have to be deployed.** Development is what Xcode debug builds use; TestFlight and release builds use Production, which is schema-locked. Run a Debug build once, pair it, then deploy.
+
+- [ ] Click **Deploy Schema Changes…** and promote to **Production** before shipping to TestFlight
+
+> **Unverified, and the most likely thing to bite you:** pre-2.0 the app carried a DEBUG-only seeder that made CloudKit auto-create a `_sub_trigger_<subscriptionID>` record for each subscription, because Production rejects schema mutations from devices and would otherwise refuse every new subscription ID with `BAD_REQUEST`. That seeder wrote to the public database and has been removed. Whether private-zone query subscriptions need the same Development-then-deploy dance is **not something this repo has confirmed**. If TestFlight builds come up with no pushes and Console shows `SubscriptionCreate` rejections, that is what happened: register the subscriptions once from a Debug build on a device, then **Deploy Schema Changes…** again.
 
 ## 5. First build directly to a phone (sanity check before publishing)
 
@@ -95,6 +101,8 @@ If you hit "couldn't find provisioning profile" — go back to Signing & Capabil
 **Remotely (shared link):** on phone A tap **Show Code** → **Or share the link** and send it via iMessage or AirDrop. Phone B taps the link (or copies it and uses **Got an invite link? Paste it** on the pairing screen) and confirms in the "Pair with…" sheet. Phone A completes automatically — via silent push if the app is alive, or the next time it's opened. The invite survives closing the app; an unaccepted one can be re-shared or cancelled from the pairing screen.
 
 > Transport note: the link *is* the pairing secret. iMessage and AirDrop are end-to-end/peer encrypted — effectively as safe as the in-person QR. Plain SMS is cleartext over carrier infrastructure; avoid it.
+
+**What "Finishing setup" means.** From 2.0 pairing is two shares, not one. Scanning gets phone B into phone A's zone immediately, and B's own share travels back over that channel with no second scan — but that return trip takes a moment, and until it lands A cannot send. So the phone that *showed* the code may sit on a "Finishing setup" screen briefly, and the phone that *scanned* may show a banner saying it can reach its partner but not yet the other way round. Both clear themselves; both offer a manual re-check. If one persists, backgrounding and reopening the app is the whole remedy.
 
 ## 6a. (Optional) Add the watch complication
 
@@ -149,7 +157,9 @@ To ship a release:
 
 Notes:
 
-- **Release notes are auto-generated** with `--generate-notes` — the "What's Changed" PR list, as used by every release since 1.0.0. No hand-written notes needed; pass `--notes "…"` instead only for a custom one-liner. The notes are just the GitHub changelog — Xcode Cloud triggers on the tag and ignores them. TestFlight's "What to Test" is a separate, optional field in App Store Connect.
+- **Release notes are auto-generated** with `--generate-notes` — the "What's Changed" PR list, as used by every release since 1.0.0. No hand-written notes needed; pass `--notes "…"` instead only for a custom one-liner. The notes are just the GitHub changelog — Xcode Cloud triggers on the tag and ignores them.
+
+- **TestFlight's "What to Test" comes from a tracked file**, not only from the App Store Connect field. Xcode Cloud picks up `TestFlight/WhatToTest.en-US.txt` from the project root and shows it as the build's tester notes, so it is reviewed in a pull request like anything else. Editing the field in App Store Connect by hand still works and overrides nothing — the file is simply the version that travels with the code.
 
 - **You do not need to run `xcodegen generate` locally for a release.** The build runner regenerates the project from `project.yml` on every build via the post-clone hook. Local `xcodegen` is only for building in Xcode yourself.
 - **You do not bump `CURRENT_PROJECT_VERSION` (the build number).** Xcode Cloud assigns the build number at archive time; the value in `project.yml` is ignored at distribution. It sat at `1` across 1.1.0–1.2.2 without issue.
@@ -158,6 +168,8 @@ Notes:
 See `docs/xcode-cloud-build-plan.md` for the full rationale and the App Store Connect workflow configuration.
 
 ## 12. Solo testing with AttentionCLI
+
+> **Superseded by 2.0.** `pair invite` and `pair join` now fail with an explanation rather than minting invites no phone can act on. Joining means accepting a `CKShare`, which needs an iCloud entitlement a macOS `tool` target cannot embed — the same limitation tracked in issue #60, which already stopped this tool reaching CloudKit at all. The rest of this section describes the pre-2.0 tool and is kept for whoever picks up #60.
 
 `AttentionCLI` is a macOS command-line tool that impersonates the second device of a pair. It talks to the same CloudKit container as the iOS app so the full alert → APNs → NSE → ack → status-flip loop is end-to-end real — no second phone or partner needed.
 
