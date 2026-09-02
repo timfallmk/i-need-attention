@@ -94,6 +94,42 @@ DEFINE SCHEMA
         GRANT CREATE TO "_icloud"
     );
 
+    /* CloudKit's own record types, copied verbatim from a Dashboard export.
+       Importing replaces the entire development environment, so a file that omits
+       these is asking CloudKit to delete them — which it refuses with "invalid attempt
+       to delete cloudkit managed record type", and the import fails whole.
+
+       `Users` is always present. `cloudkit.share` appears the first time a container
+       uses CKShare, which for this one was the 2.0 spike, so it postdates every earlier
+       version of this file — that is why imports used to succeed without it. Do not
+       edit either block; re-export and re-copy if CloudKit ever changes them. */
+    RECORD TYPE Users (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        roles           LIST<INT64>,
+        GRANT WRITE TO "_creator",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE "cloudkit.share" (
+        "___createTime"               TIMESTAMP,
+        "___createdBy"                REFERENCE,
+        "___etag"                     STRING,
+        "___modTime"                  TIMESTAMP,
+        "___modifiedBy"               REFERENCE,
+        "___recordID"                 REFERENCE,
+        "cloudkit.thumbnailImageData" BYTES,
+        "cloudkit.title"              STRING,
+        "cloudkit.type"               STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
     RECORD TYPE Ack (
         "___createTime"     TIMESTAMP,
         "___createdBy"      REFERENCE,
