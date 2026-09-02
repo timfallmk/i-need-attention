@@ -373,17 +373,17 @@ private struct ShowCodeView: View {
             self.invite = pending.invite
             self.qrImage = QRCode.image(from: pending.invite.qrPayload)
             self.phase = .waiting
-            startPolling(pairKey: pending.pairKey)
+            startPolling()
             return
         }
 
         do {
-            let result = try await PairingService.shared.startInviting(myName: displayName)
+            let invite = try await PairingService.shared.startInviting(myName: displayName)
             appState.refreshPendingInvite()
-            self.invite = result.invite
-            self.qrImage = QRCode.image(from: result.invite.qrPayload)
+            self.invite = invite
+            self.qrImage = QRCode.image(from: invite.qrPayload)
             self.phase = .waiting
-            startPolling(pairKey: result.invite.pairKey)
+            startPolling()
         } catch {
             Haptics.warning()
             phase = .failed(error.localizedDescription)
@@ -391,13 +391,13 @@ private struct ShowCodeView: View {
     }
 
     @MainActor
-    private func startPolling(pairKey: String) {
+    private func startPolling() {
         pollingTask = Task {
             do {
                 // Effectively screen-lifetime: the task is cancelled on dismissal, and a
                 // remote invite that outlives this screen completes via push/reconcile —
                 // so a short timeout would surface a spurious failure.
-                let state = try await PairingService.shared.waitForJoiner(pairKey: pairKey, timeout: 3600)
+                let state = try await PairingService.shared.waitForJoiner(timeout: 3600)
                 await MainActor.run {
                     Haptics.success()
                     appState.applyPair(state)

@@ -134,18 +134,25 @@ enum LegacyPairing {
 
 /// Encoded into the QR code shown by the inviting device (and, identically, into the
 /// shareable `attention://pair` link).
+///
+/// Carries two things the joiner needs: the share URL that lets them into the
+/// inviter's inbox zone, and the pair key that decrypts what they find there. They
+/// travel together because neither is useful alone — the share bounds *who* can read
+/// the zone, the key bounds *what* they can make of it.
 struct PairingInvite: Codable, Identifiable {
     let pairKey: String
     let inviterDeviceID: String
     let inviterName: String
+    let shareURL: URL
 
     var qrPayload: String {
-        // attention://pair?k=<pairKey>&id=<deviceID>&n=<name>
+        // attention://pair?k=<pairKey>&s=<shareURL>&id=<deviceID>&n=<name>
         var components = URLComponents()
         components.scheme = "attention"
         components.host = "pair"
         components.queryItems = [
             URLQueryItem(name: "k", value: pairKey),
+            URLQueryItem(name: "s", value: shareURL.absoluteString),
             URLQueryItem(name: "id", value: inviterDeviceID),
             URLQueryItem(name: "n", value: inviterName)
         ]
@@ -167,16 +174,21 @@ struct PairingInvite: Codable, Identifiable {
             map[item.name] = value
         }
         guard let key = map["k"], let id = map["id"] else { return nil }
+        // Accepting a share means joining whatever zone the URL names, so a scanned
+        // code doesn't get to point this anywhere it likes.
+        guard let raw = map["s"], let shareURL = URL(string: raw), shareURL.isCloudKitShare else {
+            return nil
+        }
         // The name renders in the "Pair with …?" sheet, so a link or a wall of ad copy
         // here is a spam vector carried by the invite itself.
         let name = UntrustedText.name(map["n"], fallback: "Friend")
-        return PairingInvite(pairKey: key, inviterDeviceID: id, inviterName: name)
+        return PairingInvite(pairKey: key, inviterDeviceID: id, inviterName: name, shareURL: shareURL)
     }
 
     /// Identity for SwiftUI sheet presentation: one invite per pairKey.
     var id: String { pairKey }
 
-    static func generate(myDeviceID: String, myName: String) -> PairingInvite {
+    static func generate(myDeviceID: String, myName: String, shareURL: URL) -> PairingInvite {
         var bytes = [UInt8](repeating: 0, count: 16)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         let key: String
@@ -191,6 +203,6 @@ struct PairingInvite: Codable, Identifiable {
             // all-zero key the previous implementation could produce.
             key = (UUID().uuidString + UUID().uuidString).replacingOccurrences(of: "-", with: "")
         }
-        return PairingInvite(pairKey: key, inviterDeviceID: myDeviceID, inviterName: myName)
+        return PairingInvite(pairKey: key, inviterDeviceID: myDeviceID, inviterName: myName, shareURL: shareURL)
     }
 }

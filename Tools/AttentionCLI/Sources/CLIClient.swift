@@ -186,6 +186,7 @@ enum CLIError: LocalizedError {
     case noState
     case invalidPayload
     case qrCodeFailed
+    case supersededByPrivateZones
 
     var errorDescription: String? {
         switch self {
@@ -195,6 +196,13 @@ enum CLIError: LocalizedError {
         case .noState:           return "No pair state found. Run 'pair invite' or 'pair join' first."
         case .invalidPayload:    return "Invalid payload URL."
         case .qrCodeFailed:      return "Failed to generate QR code PNG."
+        case .supersededByPrivateZones:
+            return """
+                Pairing moved to per-user private CloudKit zones in 2.0, and this tool \
+                can't take part: joining means accepting a CKShare, which needs an \
+                iCloud entitlement a macOS `tool` target can't carry. Rebuilding it as \
+                an app bundle is tracked in issue #60.
+                """
         }
     }
 }

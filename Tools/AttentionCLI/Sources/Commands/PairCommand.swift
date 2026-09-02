@@ -25,83 +25,18 @@ enum PairCommand {
     // MARK: - invite
 
     private static func invite(_ args: Args) async throws {
-        let name = args["name"] ?? defaultName()
-        let myDeviceID = UUID().uuidString
-        let invite = PairingInvite.generate(myDeviceID: myDeviceID, myName: name)
-
-        let client = CLIClient()
-        print("Creating pair record on iCloud…")
-        _ = try await client.createPair(invite: invite)
-
-        let stateDir = CLIState.stateDirectory
-        try FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
-        // Enforce 0700 unconditionally — createDirectory(attributes:) only sets perms
-        // on a newly created directory and won't tighten an already-existing one.
-        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: stateDir.path)
-        let pngURL = stateDir.appendingPathComponent("invite.png")
-        try generateQRCode(from: invite.qrPayload, to: pngURL)
-        // invite.png encodes the pairKey; restrict to owner read/write only.
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: pngURL.path)
-
-        let openProc = Process()
-        openProc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        openProc.arguments = [pngURL.path]
-        // Non-fatal: headless / SSH sessions have no GUI. The payload and path are printed below.
-        try? openProc.run()
-
-        print("Payload:  \(invite.qrPayload)")
-        print("QR image: \(pngURL.path)")
-        print("Waiting for partner to scan (timeout 120s)…")
-
-        let deadline = Date().addingTimeInterval(120)
-        while Date() < deadline {
-            try await Task.sleep(nanoseconds: 2_000_000_000)
-            guard let updated = try await client.fetchPair(pairKey: invite.pairKey) else { continue }
-            let deviceB = (updated[Constants.PairField.deviceB] as? String) ?? ""
-            let nameB   = (updated[Constants.PairField.nameB]   as? String) ?? ""
-            guard !deviceB.isEmpty else { continue }
-            let state = CLIState(
-                pairKey: invite.pairKey,
-                myDeviceID: myDeviceID,
-                myName: name,
-                partnerDeviceID: deviceB,
-                partnerName: nameB
-            )
-            try state.save()
-            print("Joined by \(nameB) (\(deviceB))")
-            return
-        }
-        fputs("Timed out waiting for partner (120s).\n", stderr)
-        exit(1)
+        // 2.0 pairing hands out a CKShare URL for this device's inbox zone. This tool has
+        // no zone to share and no way to accept one, so it can't mint a usable invite —
+        // failing here beats printing a QR code that no phone can act on.
+        throw CLIError.supersededByPrivateZones
     }
-
-    // MARK: - join
 
     private static func join(_ args: Args) async throws {
-        guard let payload = args["payload"] else {
-            fputs("usage: attention-cli pair join --payload <attention://...> [--name NAME]\n", stderr)
-            exit(1)
-        }
-        let name = args["name"] ?? defaultName()
-        guard let invite = PairingInvite.from(qrPayload: payload) else { throw CLIError.invalidPayload }
-
-        let myDeviceID = UUID().uuidString
-        let client = CLIClient()
-        guard let record = try await client.fetchPair(pairKey: invite.pairKey) else { throw CLIError.pairNotFound }
-        _ = try await client.joinPair(record: record, joinerDeviceID: myDeviceID, joinerName: name)
-
-        let state = CLIState(
-            pairKey: invite.pairKey,
-            myDeviceID: myDeviceID,
-            myName: name,
-            partnerDeviceID: invite.inviterDeviceID,
-            partnerName: invite.inviterName
-        )
-        try state.save()
-        print("Joined pair with \(invite.inviterName)")
+        // Joining now means accepting a CKShare, which needs the iCloud entitlement a
+        // macOS `tool` target can't embed — the same limitation that already stops this
+        // tool reaching CloudKit at all (issue #60).
+        throw CLIError.supersededByPrivateZones
     }
-
-    // MARK: - status
 
     private static func status() {
         guard let state = CLIState.load() else {

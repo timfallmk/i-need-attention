@@ -1,20 +1,26 @@
 import Foundation
 
 /// An invite the local device created but the partner hasn't accepted yet. Persisted so
-/// the inviter can share the link, leave, and still complete pairing later — via the
-/// pair-update silent push when the app is alive, or the launch/foreground reconcile
-/// otherwise. Cleared on completion or user-initiated cancel.
+/// the inviter can share the link, leave, and still finish pairing later — the joiner's
+/// half of the handshake lands in our own inbox zone, and the launch/foreground
+/// reconcile picks it up whenever we next run.
+///
+/// v3 is the 2.0 shape. Earlier versions described a half-empty `Pair` record in the
+/// public database, which no longer exists; like a pre-2.0 `PairState`, one of those is
+/// not resurrected — it would offer a QR code nobody can act on.
 struct PendingInvite: Codable, Equatable {
     var pairKey: String
     var myDeviceID: String
     var myName: String
-    var recordName: String     // CKRecord.ID.recordName of the half-empty Pair record
+    /// The bearer link to our inbox zone that the QR code encodes. Held so the invite
+    /// can be redisplayed without minting a second share.
+    var shareURL: URL
     var createdAt: Date
 
-    static let storageKey = "attention.pendingInvite.v2"
+    static let storageKey = "attention.pendingInvite.v3"
 
-    /// The pre-2.0 blob, which carried the pair key in the clear.
-    static let legacyStorageKey = "attention.pendingInvite.v1"
+    /// Pre-2.0 shapes, cleared rather than migrated.
+    static let legacyStorageKeys = ["attention.pendingInvite.v2", "attention.pendingInvite.v1"]
 
     /// Invites older than this are surfaced as expired in the UI (renew or cancel).
     /// They still work server-side — staleness is a UX signal, not a security boundary.
@@ -27,7 +33,10 @@ struct PendingInvite: Codable, Equatable {
     /// The shareable invite this pending record was created from. The URL payload is
     /// identical to what the QR encodes.
     var invite: PairingInvite {
-        PairingInvite(pairKey: pairKey, inviterDeviceID: myDeviceID, inviterName: myName)
+        PairingInvite(pairKey: pairKey,
+                      inviterDeviceID: myDeviceID,
+                      inviterName: myName,
+                      shareURL: shareURL)
     }
 
     /// The half of `PendingInvite` that isn't secret and stays in `UserDefaults`.
@@ -37,23 +46,23 @@ struct PendingInvite: Codable, Equatable {
     private struct Stored: Codable {
         var myDeviceID: String
         var myName: String
-        var recordName: String
+        var shareURL: URL
         var createdAt: Date
     }
 
     static func load() -> PendingInvite? {
-        if let data = UserDefaults.standard.data(forKey: storageKey),
-           let stored = try? JSONDecoder().decode(Stored.self, from: data),
-           let pairKey = PairSecrets.store.secret(for: Constants.Keychain.pendingInviteKeyAccount) {
-            return PendingInvite(
-                pairKey: pairKey,
-                myDeviceID: stored.myDeviceID,
-                myName: stored.myName,
-                recordName: stored.recordName,
-                createdAt: stored.createdAt
-            )
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let stored = try? JSONDecoder().decode(Stored.self, from: data),
+              let pairKey = PairSecrets.store.secret(for: Constants.Keychain.pendingInviteKeyAccount) else {
+            return nil
         }
-        return migrateLegacy()
+        return PendingInvite(
+            pairKey: pairKey,
+            myDeviceID: stored.myDeviceID,
+            myName: stored.myName,
+            shareURL: stored.shareURL,
+            createdAt: stored.createdAt
+        )
     }
 
     /// Conditional on the key landing, for the reason `PairState.save()` gives: a
@@ -63,7 +72,7 @@ struct PendingInvite: Codable, Equatable {
         let stored = Stored(
             myDeviceID: myDeviceID,
             myName: myName,
-            recordName: recordName,
+            shareURL: shareURL,
             createdAt: createdAt
         )
         guard let data = try? JSONEncoder().encode(stored),
@@ -77,18 +86,8 @@ struct PendingInvite: Codable, Equatable {
     static func clear() {
         PairSecrets.store.removeSecret(for: Constants.Keychain.pendingInviteKeyAccount)
         UserDefaults.standard.removeObject(forKey: storageKey)
-        UserDefaults.standard.removeObject(forKey: legacyStorageKey)
-    }
-
-    /// See `PairState.migrateLegacy` — same shape, same reason for only dropping the
-    /// plaintext copy once the key reads back.
-    private static func migrateLegacy() -> PendingInvite? {
-        guard let data = UserDefaults.standard.data(forKey: legacyStorageKey),
-              let invite = try? JSONDecoder().decode(PendingInvite.self, from: data) else { return nil }
-        invite.save()
-        if PairSecrets.store.secret(for: Constants.Keychain.pendingInviteKeyAccount) == invite.pairKey {
-            UserDefaults.standard.removeObject(forKey: legacyStorageKey)
+        for key in legacyStorageKeys {
+            UserDefaults.standard.removeObject(forKey: key)
         }
-        return invite
     }
 }

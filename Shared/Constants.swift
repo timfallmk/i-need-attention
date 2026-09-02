@@ -7,6 +7,21 @@ enum Constants {
         static let pair = "Pair"
         static let alert = "Alert"
         static let ack = "Ack"
+        /// Written by the joiner into the inviter's inbox zone to close the handshake.
+        static let handshake = "PairHandshake"
+    }
+
+    /// The joiner's half of the pairing handshake. It travels as a record in the zone
+    /// the joiner has just been given write access to, rather than as a second QR code:
+    /// accepting the first share is what creates the channel this arrives on.
+    enum Handshake {
+        /// Fixed, so a retried write replaces the previous attempt instead of adding a
+        /// second record. One zone only ever has one joiner.
+        static let recordName = "handshake"
+
+        static let deviceID = "deviceID"
+        static let name = "name"
+        static let shareURL = "shareURL"
     }
 
     enum PairField {
