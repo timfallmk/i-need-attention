@@ -197,7 +197,7 @@ When opening a PR:
 - App Store distribution (this is TestFlight-internal forever)
 - More than 2 devices per pair
 - Server-side rate limiting (out-of-band, requires actual backend)
-- Encrypted alert payloads — *no longer out of scope.* This entry used to read "the `pairKey` is the trust boundary, not the wire format", which is false: the pairKey is a readable field on a world-readable record, so it bounds nothing. Encrypting the payload under a key derived from it is now one of the options under consideration.
+- Encrypted alert payloads — *no longer out of scope.* This entry used to read "the `pairKey` is the trust boundary, not the wire format", which is false: the pairKey is a plaintext field on a record that every authenticated iCloud client can read, so it bounds nothing. Encrypting the payload under a key derived from it is now one of the options under consideration.
 
 ## Useful commands
 
