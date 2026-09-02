@@ -16,7 +16,12 @@ DEFINE SCHEMA
 
         deviceID         STRING,
         nameSealed       BYTES,
-        shareURLSealed   BYTES
+        shareURLSealed   BYTES,
+
+        /* When this person finished archiving their pre-2.0 history. Their partner
+           reads it before purging the shared public records — those belong to the pair,
+           and deleting them on one device would destroy the other's only copy. */
+        legacyHistoryCapturedAt TIMESTAMP
     );
 
     /* AlertStatus is the receiver telling the sender what they did with an alert. It

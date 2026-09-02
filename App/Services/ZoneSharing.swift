@@ -116,6 +116,16 @@ extension CloudKitService {
     }
 }
 
+/// What the partner has told us about themselves, read out of the zone we own.
+struct PartnerProfile {
+    let deviceID: String
+    let name: String
+    /// Set only on the joiner's first write, carrying the share of their zone back.
+    let shareURL: URL?
+    /// When they finished archiving their pre-2.0 history, or nil if they haven't.
+    let legacyHistoryCapturedAt: Date?
+}
+
 // MARK: - Profile records
 
 extension CloudKitService {
@@ -151,9 +161,26 @@ extension CloudKitService {
         _ = try await db.save(record)
     }
 
+    /// Records that this device has finished archiving its pre-2.0 history, by stamping
+    /// the profile it keeps in the partner's zone. Their device reads it before deleting
+    /// the shared public records — see `purgeLegacyPublicRecords`.
+    ///
+    /// Fetch-then-modify so it never clobbers the name or share URL already there, and a
+    /// no-op if the profile hasn't been written yet: pairing writes it, and nothing can
+    /// be purged before that anyway.
+    func markLegacyHistoryCaptured(in zoneID: CKRecordZone.ID, at date: Date = Date()) async throws {
+        let db = database(for: zoneID)
+        let recordID = CKRecord.ID(recordName: Constants.Profile.recordName, zoneID: zoneID)
+        guard let record = try? await db.record(for: recordID) else { return }
+        guard record[Constants.Profile.legacyHistoryCapturedAt] == nil else { return }
+
+        record[Constants.Profile.legacyHistoryCapturedAt] = date as CKRecordValue
+        _ = try await db.save(record)
+    }
+
     /// The partner's profile, read out of the zone we own. Returns nil while they haven't
     /// written one — which for the inviter is the whole time an invite is outstanding.
-    func fetchPartnerProfile(pairKey: String) async -> (deviceID: String, name: String, shareURL: URL?)? {
+    func fetchPartnerProfile(pairKey: String) async -> PartnerProfile? {
         let zoneID = Self.inboxZoneID
         let recordID = CKRecord.ID(recordName: Constants.Profile.recordName, zoneID: zoneID)
         guard let record = try? await privateDB.record(for: recordID),
@@ -172,7 +199,12 @@ extension CloudKitService {
                                          pairKey: pairKey, field: Constants.Profile.shareURLSealed)
             .flatMap(URL.init(string:))
             .flatMap { $0.isCloudKitShare ? $0 : nil }
-        return (deviceID, name, shareURL)
+        return PartnerProfile(
+            deviceID: deviceID,
+            name: name,
+            shareURL: shareURL,
+            legacyHistoryCapturedAt: record[Constants.Profile.legacyHistoryCapturedAt] as? Date
+        )
     }
 
     /// Whether anyone has accepted this device's share — i.e. whether the partner can

@@ -110,6 +110,7 @@ final class PairingService {
                                       name: state.myName,
                                       shareURL: nil,
                                       pairKey: state.pairKey)
+        await stampLegacyCaptureIfSettled(zoneID: partnerZoneID)
         return state
     }
 
@@ -198,10 +199,23 @@ final class PairingService {
             partnerCanReach: false
         )
         guard state.save() else { throw AttentionError.shareNotAccepted }
+        await stampLegacyCaptureIfSettled(zoneID: inviterZoneID)
         // Idempotent by subscription ID, and needed now rather than at next launch:
         // without it the first alert the inviter sends would arrive silently.
         try? await cloud.registerSubscriptions()
         return state
+    }
+
+    /// Tells the partner we have no outstanding claim on the pre-2.0 public records, so
+    /// they can purge them.
+    ///
+    /// A device with history of its own stamps this when its capture finishes. One with
+    /// none — a fresh install, or somebody pairing with a new partner — would otherwise
+    /// never stamp at all, and a partner who *does* have history would wait forever for
+    /// a signal that was never coming. Nothing to archive is exactly as good as archived.
+    private func stampLegacyCaptureIfSettled(zoneID: CKRecordZone.ID) async {
+        guard LegacyHistoryCaptureState.load()?.phase == .done else { return }
+        try? await cloud.markLegacyHistoryCaptured(in: zoneID)
     }
 
     // MARK: - Reconciling the half-formed state

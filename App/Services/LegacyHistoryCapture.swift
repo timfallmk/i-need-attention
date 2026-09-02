@@ -14,6 +14,14 @@ import os.log
 /// somewhere every signed-in iCloud account can read; it does nothing by itself about
 /// the plaintext names, messages and pair keys already sitting there. Archiving first is
 /// what makes removing them cleanup rather than data loss — never reorder these.
+///
+/// And the delete waits for the partner. Those records are the pair's, not the property
+/// of whoever upgraded first: one device deleting them takes away the other's only copy
+/// of a history they both lived. So each side stamps its own profile record when it has
+/// archived, and purges only once it can see the other's stamp. Whoever finishes second
+/// releases both. If the partner never upgrades, the records simply stay — plaintext
+/// lingering in a database is a smaller harm than deleting someone's history out from
+/// under them, and the deliberate case belongs to a future "erase my data".
 @MainActor
 enum LegacyHistoryCapture {
     private static let log = Logger(subsystem: "com.timfallmk.attention", category: "LegacyHistory")
@@ -96,6 +104,22 @@ enum LegacyHistoryCapture {
                 state.phase = .purging
                 state.failedAttempts = 0
                 state.save()
+            }
+
+            // The public records belong to the pair, not to whoever upgraded first.
+            // Deleting them before the partner has archived their own copy destroys the
+            // only copy they will ever have, so this waits — indefinitely if it must.
+            guard let pair = PairState.load(), let theirZone = pair.outgoingZone else {
+                log.notice("Not re-paired yet; holding the pre-2.0 purge")
+                return
+            }
+            // Ours first, so the partner isn't waiting on us while we wait on them.
+            try await cloud.markLegacyHistoryCaptured(in: theirZone.zoneID)
+
+            guard let profile = await cloud.fetchPartnerProfile(pairKey: pair.pairKey),
+                  profile.legacyHistoryCapturedAt != nil else {
+                log.notice("Partner hasn't archived their pre-2.0 history yet; holding the purge")
+                return
             }
 
             if try await cloud.purgeLegacyPublicRecords(pairKey: pairKey) {
