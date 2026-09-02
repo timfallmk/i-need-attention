@@ -11,6 +11,39 @@ enum Constants {
         /// tells the other who they are. Closes the pairing handshake on first write and
         /// carries display-name changes after that.
         static let profile = "PairProfile"
+
+        /// "I saw / acknowledged the alert you sent", written by the receiver into the
+        /// *sender's* inbox zone. See `AlertStatusField` for why it exists at all.
+        static let alertStatus = "AlertStatus"
+    }
+
+    /// The receiver's response to an alert, delivered as a record in the sender's own
+    /// zone rather than as an update to the alert itself.
+    ///
+    /// The alert lives in the receiver's zone, so updating it in place tells the sender
+    /// nothing: CloudKit allows only `CKDatabaseSubscription` in the shared database,
+    /// and those notifications name a database rather than a record — an extension
+    /// would have to run a full change-token fetch to discover what moved. A record in
+    /// the sender's *own* zone is reachable by an ordinary private-database query
+    /// subscription, which is the mechanism the spike verified delivers a visible push
+    /// to a force-quit app.
+    ///
+    /// So the Alert record stays canonical — the receiver still updates it, and that is
+    /// what history and reconciliation read — and this exists purely to be pushed.
+    enum AlertStatusField {
+        /// Ties the notice back to the Alert it answers.
+        static let alertRecordName = "alertRecordName"
+        /// `seen` or `acknowledged`. Queryable so the ack subscription can filter to the
+        /// one that deserves a banner.
+        static let state = "state"
+        static let ackEmojiSealed = "ackEmojiSealed"
+
+        /// Derived from the alert's record name so a retry replaces the previous notice
+        /// instead of adding a second — one banner per alert however many times the
+        /// receiver taps, retries, or has a push redelivered.
+        static func recordName(for alertRecordName: String) -> String {
+            "status-\(alertRecordName)"
+        }
     }
 
     /// What one person tells their partner about themselves. The record lives in the

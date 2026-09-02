@@ -19,6 +19,28 @@ DEFINE SCHEMA
         shareURLSealed   BYTES
     );
 
+    /* AlertStatus is the receiver telling the sender what they did with an alert. It
+       is written into the sender's own inbox zone rather than as an update to the
+       alert, because the alert lives in the receiver's zone and CloudKit allows only
+       CKDatabaseSubscription in the shared database — those notifications name a
+       database, not a record, so nothing could turn one into a banner. A record in the
+       sender's own zone is reachable by an ordinary private-database query
+       subscription. The Alert record stays canonical; this exists to be pushed.
+       `state` is queryable so the ack subscription can filter to the one that deserves
+       a visible banner. */
+    RECORD TYPE AlertStatus (
+        "___createTime"  TIMESTAMP,
+        "___createdBy"   REFERENCE,
+        "___etag"        STRING,
+        "___modTime"     TIMESTAMP,
+        "___modifiedBy"  REFERENCE,
+        "___recordID"    REFERENCE,
+
+        alertRecordName  STRING,
+        state            STRING QUERYABLE,
+        ackEmojiSealed   BYTES
+    );
+
     RECORD TYPE Alert (
         "___createTime"  TIMESTAMP SORTABLE,
         "___createdBy"   REFERENCE,
