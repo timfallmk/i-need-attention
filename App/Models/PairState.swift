@@ -62,7 +62,10 @@ struct PairingInvite: Codable, Identifiable {
             map[item.name] = value
         }
         guard let key = map["k"], let id = map["id"] else { return nil }
-        return PairingInvite(pairKey: key, inviterDeviceID: id, inviterName: map["n"] ?? "Friend")
+        // The name renders in the "Pair with …?" sheet, so a link or a wall of ad copy
+        // here is a spam vector carried by the invite itself.
+        let name = UntrustedText.name(map["n"], fallback: "Friend")
+        return PairingInvite(pairKey: key, inviterDeviceID: id, inviterName: name)
     }
 
     /// Identity for SwiftUI sheet presentation: one invite per pairKey.

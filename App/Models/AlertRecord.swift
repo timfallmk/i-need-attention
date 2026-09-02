@@ -26,8 +26,11 @@ struct AlertRecord: Identifiable, Equatable {
         self.id = record.recordID
         self.pairKey = pairKey
         self.senderDeviceID = senderDeviceID
-        self.senderName = record[Constants.AlertField.senderName] as? String ?? ""
-        self.message = record[Constants.AlertField.message] as? String ?? "needs attention"
+        // Untrusted: any signed-in iCloud user can write these fields. Bound them here,
+        // at the single parse site, rather than at each of the views that render them.
+        self.senderName = UntrustedText.name(record[Constants.AlertField.senderName] as? String ?? "")
+        self.message = UntrustedText.message(record[Constants.AlertField.message] as? String,
+                                             fallback: "needs attention")
         self.createdAt = record.creationDate ?? Date()
         self.state = state
         self.seenAt = record[Constants.AlertField.seenAt] as? Date

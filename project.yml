@@ -201,6 +201,7 @@ targets:
       - path: Shared/WatchSnapshot.swift
       - path: Shared/SharedSettings.swift
       - path: Shared/SubscriptionPredicates.swift
+      - path: Shared/UntrustedText.swift
       - path: App/Models/PairState.swift
       - path: App/Models/PendingInvite.swift
       - path: App/Models/SnoozeState.swift
