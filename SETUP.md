@@ -64,7 +64,9 @@ Go to <https://icloud.developer.apple.com/dashboard> → select your container �
 
 - [ ] Click **Import Schema…** and upload or paste the contents of `cloudkit-schema.ckdb`
 - [ ] If the import fails due to an existing schema conflict (e.g. you already created `Pair` manually), click **Reset Environment…** first (development only — no data loss since you haven't used the app yet), then import again
-- [ ] Under **Record Types** you should see five: `Alert`, `PairProfile`, `AlertStatus`, and the two pre-2.0 leftovers `Pair` and `Ack`
+
+> **If it fails with "invalid attempt to delete cloudkit managed record type":** importing *replaces* the whole development environment, so any record type CloudKit manages for itself has to be in the file or the import reads as a request to delete it. `cloudkit-schema.ckdb` carries `Users` and `cloudkit.share` for exactly this reason. If CloudKit ever adds another one, don't guess at its declaration — click **Export Schema**, copy the managed blocks out of the export verbatim, and paste them into the file.
+- [ ] Under **Record Types** you should see seven: `Alert`, `PairProfile`, `AlertStatus`, the two pre-2.0 leftovers `Pair` and `Ack`, and CloudKit's own `Users` and `cloudkit.share`
 - [ ] Under **Indexes**, verify `AlertStatus.state` shows `QUERYABLE` — the subscription that delivers the "they got back to you" banner filters on it, and without the index that banner silently never arrives
 
 ### What 2.0 changed here, and what it means for this page
