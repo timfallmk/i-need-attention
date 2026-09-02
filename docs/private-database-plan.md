@@ -79,6 +79,39 @@ The read must happen at first launch regardless, before the public grants are re
 
 Recommendation: the local snapshot. For ping-and-ack records, a per-device snapshot is indistinguishable from synced history in practice and removes a class of dedupe bugs. **Not yet decided.**
 
+## Pairing transport: the share mode is the decision that matters
+
+`CKShare` offers two participant models, and one of them silently undoes this whole exercise:
+
+- **`publicPermission`** — any user holding the share URL can join. This is the `pairKey` problem again with Apple hosting it: possession of a string equals access. Choosing this would close anonymous read and reopen the same bearer-credential weakness one layer up.
+- **Named participants** — specific iCloud identities are invited, each with its own permission level, and only those Apple IDs can accept.
+
+**Decision: named participants.** It binds the pair to *identity* rather than to possession of a secret, which is a stronger boundary than the app has ever had, and it enforces the two-device limit through CloudKit instead of by hand in `joinPair`.
+
+Effects on out-of-band pairing, which `remote-pair-sharing-plan.md` introduced:
+
+- **Link transport improves.** The share URL is real HTTPS, so every transport renders it as a tappable link. The "Got an invite link? Paste it" fallback exists precisely because custom-scheme URLs do not render as links in some transports; that need goes away.
+- **The remote flow improves.** Invite by iCloud address, partner receives a genuine invitation, partner accepts — rather than relaying an `attention://` string and hoping the transport cooperates.
+- **QR is unresolved.** `attention://pair?k=…` scanned by the Camera app unambiguously opens this app. An `icloud.com/share/…` QR may offer Safari instead. Whether iOS routes it to the app when installed is **a spike item** — do not assume either way.
+- **`CKSharingSupported = true`** must be added to the Info.plist, which now means `project.yml` (the generated plists are untracked as of #59), plus a SETUP.md step.
+
+## Debugging after the cutover
+
+In Production, private-database data is invisible to the developer. TestFlight and App Store users run against Production, so after 2.0 the author can read **their own pair and nothing else**. The CloudKit Dashboard shows private data only for the signed-in developer account, and only in Development.
+
+This is not a side effect to be worked around — it is the same property as the fix. The author's ability to read any pair existed *because* every authenticated client could read any pair. There is no arrangement that keeps one and removes the other.
+
+The need also shrinks: yesterday's spam `Pair` records mattered partly because they shared a namespace with real ones. Once each pair is isolated, another user's junk is unreachable.
+
+What replaces it. The codebase already has the seed of this pattern — `SharedSettings.outgoingAckSubscriptionUnavailable` and `outgoingAckSubscriptionFailureReason` exist precisely to capture a failure the author cannot otherwise observe:
+
+1. **User-side diagnostics export.** Account status, zone and share state, subscription registration results, the last N alert state transitions with timestamps but no message content, captured error strings, app and build version. Shareable from Settings.
+2. **A two-account test pair** owned by the developer, as the primary development loop.
+3. **`os_log` / sysdiagnose**, already structured, already `.public` on CloudKit error descriptions.
+4. **`Tools/AttentionCLI` (issue #60) becomes coherent.** After the cutover it can only ever act as the developer's own account against the developer's own private data. It stops being a tool capable of reading every user's records — which was itself part of the problem — so this argues for repairing it rather than deleting it.
+
+**The diagnostics export is a prerequisite, not a follow-up.** Once 2.0 ships there is no way to diagnose it in the field. It has to be in the release, and ideally landed and exercised before the cutover work is merged.
+
 ## Surface that changes
 
 `CloudKitService` is roughly fifteen methods, every one of them against `publicDB`:
@@ -100,12 +133,13 @@ Probably unaffected: the watch, which never talks to CloudKit and goes through `
 
 1. **Spike the push question.** Throwaway branch, real device, second iCloud account. Everything below is contingent on the result.
 2. Decide the history question above.
-3. `PairState` v2 + first-launch read of old public history into a local cache.
-4. Zone creation, `CKShare` creation, share acceptance; rewrite `PairingService`.
-5. Rewrite `CloudKitService` against the shared zone.
-6. Subscriptions and NSE, per the spike.
-7. Re-pair UI and the mixed-version messaging.
-8. Schema file, `SETUP.md`, `CLAUDE.md`.
-9. `MARKETING_VERSION` → 2.0.0.
+3. **Diagnostics export.** Prerequisite, not follow-up — after the cutover there is no other way to see a field failure. Land it before the rewrite so it is exercised on a known-good build.
+4. `PairState` v2 + first-launch read of old public history into a local cache.
+5. Zone creation, `CKShare` creation, share acceptance; rewrite `PairingService`.
+6. Rewrite `CloudKitService` against the shared zone.
+7. Subscriptions and NSE, per the spike.
+8. Re-pair UI and the mixed-version messaging.
+9. Schema file, `SETUP.md`, `CLAUDE.md`.
+10. `MARKETING_VERSION` → 2.0.0.
 
-Steps 3 onward are not worth starting until step 1 answers.
+Steps 4 onward are not worth starting until step 1 answers. Step 3 is independent of the spike and can proceed in parallel.
