@@ -254,12 +254,25 @@ final class PairingService {
         return updated
     }
 
-    /// Wipes local pairing state. The zone stays: it is ours, it holds records the
-    /// partner may still be reading, and deleting it is a separate, louder act than
-    /// unpairing this device.
+    /// Wipes local pairing state and tears down the zone this pairing used.
+    ///
+    /// The zone used to survive an unpair, on the reasoning that it held records the
+    /// partner might still be reading. That was the wrong trade: a zone-wide share hands
+    /// its participant the whole zone, so a surviving zone is one the *next* partner's
+    /// share would hand over wholesale — every alert the previous partner sent, with the
+    /// plaintext structural fields (who, when, answered, how fast) readable even though
+    /// the contents stay sealed under a key they never had.
+    ///
+    /// So it goes, and `AppState.unpair` copies it into `PairingArchive` first. The cost
+    /// is the partner's remote copy of what they sent us; their own archive is the answer
+    /// to that, and it is a smaller harm than leaking a past relationship to a new one.
     func unpair() async {
         try? await cloud.removeAllSubscriptions()
         try? await cloud.revokeInboxShare()
+        try? await cloud.deleteInboxZone()
+        // A fresh name for whatever pairing comes next. Not `clear()` — that falls back
+        // to the fixed legacy name, which is precisely the zone just deleted.
+        InboxZone.rotate()
         PairState.clear()
     }
 }

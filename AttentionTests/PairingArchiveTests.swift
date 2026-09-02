@@ -1,0 +1,167 @@
+import XCTest
+
+final class PairingArchiveTests: XCTestCase {
+
+    override func setUp() {
+        super.setUp()
+        PairingArchive.clear()
+        InboxZone.clear()
+    }
+
+    override func tearDown() {
+        PairingArchive.clear()
+        InboxZone.clear()
+        super.tearDown()
+    }
+
+    private func row(_ recordName: String, createdAt: Date = Date(), state: Constants.AlertState = .sent) -> AlertRecord {
+        var archived = ArchivedAlert(.preview(state: state))
+        archived.recordName = recordName
+        archived.createdAt = createdAt
+        return AlertRecord(archived: archived)
+    }
+
+    // MARK: - Persistence
+
+    func testLoadReturnsEmptyArchiveWhenNothingSaved() {
+        XCTAssertTrue(PairingArchive.load().pairings.isEmpty)
+    }
+
+    func testAbsorbCreatesAPairingAndRoundTrips() {
+        PairingArchive.absorb([row("a"), row("b")], pairingID: "zone-1", partnerName: "Bob")
+
+        let loaded = PairingArchive.load()
+        XCTAssertEqual(loaded.pairings.count, 1)
+        XCTAssertEqual(loaded.pairings.first?.id, "zone-1")
+        XCTAssertEqual(loaded.pairings.first?.partnerName, "Bob")
+        XCTAssertEqual(loaded.pairings.first?.alerts.count, 2)
+    }
+
+    func testAbsorbIsIdempotentByRecordName() {
+        PairingArchive.absorb([row("a")], pairingID: "zone-1", partnerName: "Bob")
+        PairingArchive.absorb([row("a")], pairingID: "zone-1", partnerName: "Bob")
+
+        XCTAssertEqual(PairingArchive.load().pairings.first?.alerts.count, 1)
+    }
+
+    /// A re-fetched alert may have gained an acknowledgement since the copy we hold.
+    func testAbsorbTakesTheNewerCopyOfAnExistingRow() {
+        PairingArchive.absorb([row("a", state: .sent)], pairingID: "zone-1", partnerName: "Bob")
+        PairingArchive.absorb([row("a", state: .acknowledged)], pairingID: "zone-1", partnerName: "Bob")
+
+        let alerts = PairingArchive.load().pairings.first?.alerts
+        XCTAssertEqual(alerts?.count, 1)
+        XCTAssertEqual(alerts?.first?.state, Constants.AlertState.acknowledged.rawValue)
+    }
+
+    func testAbsorbKeepsPairingsSeparate() {
+        PairingArchive.absorb([row("a")], pairingID: "zone-1", partnerName: "Bob")
+        PairingArchive.absorb([row("b")], pairingID: "zone-2", partnerName: "Carol")
+
+        let loaded = PairingArchive.load()
+        XCTAssertEqual(loaded.pairings.count, 2)
+        XCTAssertEqual(Set(loaded.pairings.map(\.partnerName)), ["Bob", "Carol"])
+        XCTAssertEqual(loaded.pairings.first { $0.id == "zone-1" }?.alerts.map(\.recordName), ["a"])
+        XCTAssertEqual(loaded.pairings.first { $0.id == "zone-2" }?.alerts.map(\.recordName), ["b"])
+    }
+
+    func testAbsorbPicksUpARename() {
+        PairingArchive.absorb([row("a")], pairingID: "zone-1", partnerName: "Bob")
+        PairingArchive.absorb([row("b")], pairingID: "zone-1", partnerName: "Robert")
+
+        XCTAssertEqual(PairingArchive.load().pairings.first?.partnerName, "Robert")
+    }
+
+    func testAbsorbIgnoresAnEmptyFetchForAnUnknownPairing() {
+        PairingArchive.absorb([], pairingID: "zone-1", partnerName: "Bob")
+        XCTAssertTrue(PairingArchive.load().pairings.isEmpty)
+    }
+
+    func testAlertsAreStoredNewestFirst() {
+        let old = Date(timeIntervalSince1970: 1_000)
+        let recent = Date(timeIntervalSince1970: 2_000)
+        PairingArchive.absorb([row("old", createdAt: old), row("recent", createdAt: recent)],
+                              pairingID: "zone-1", partnerName: "Bob")
+
+        XCTAssertEqual(PairingArchive.load().pairings.first?.alerts.map(\.recordName), ["recent", "old"])
+    }
+
+    func testStartedAtTracksTheEarliestAlert() {
+        let recent = Date(timeIntervalSince1970: 2_000)
+        let old = Date(timeIntervalSince1970: 1_000)
+        PairingArchive.absorb([row("recent", createdAt: recent)], pairingID: "zone-1", partnerName: "Bob")
+        PairingArchive.absorb([row("old", createdAt: old)], pairingID: "zone-1", partnerName: "Bob")
+
+        XCTAssertEqual(PairingArchive.load().pairings.first?.startedAt, old)
+    }
+
+    // MARK: - Closing
+
+    func testCloseStampsAnEndDate() {
+        PairingArchive.absorb([row("a")], pairingID: "zone-1", partnerName: "Bob")
+        PairingArchive.close(pairingID: "zone-1", at: Date(timeIntervalSince1970: 5_000))
+
+        XCTAssertEqual(PairingArchive.load().pairings.first?.endedAt, Date(timeIntervalSince1970: 5_000))
+        XCTAssertEqual(PairingArchive.load().pairings.first?.isOpen, false)
+    }
+
+    func testCloseIsIdempotent() {
+        PairingArchive.absorb([row("a")], pairingID: "zone-1", partnerName: "Bob")
+        PairingArchive.close(pairingID: "zone-1", at: Date(timeIntervalSince1970: 5_000))
+        PairingArchive.close(pairingID: "zone-1", at: Date(timeIntervalSince1970: 9_000))
+
+        XCTAssertEqual(PairingArchive.load().pairings.first?.endedAt, Date(timeIntervalSince1970: 5_000))
+    }
+
+    /// Rows survive an unpair — that is the whole reason the archive exists.
+    func testClosingKeepsTheRows() {
+        PairingArchive.absorb([row("a"), row("b")], pairingID: "zone-1", partnerName: "Bob")
+        PairingArchive.close(pairingID: "zone-1")
+
+        XCTAssertEqual(PairingArchive.load().pairings.first?.alerts.count, 2)
+    }
+
+    func testCloseOnAnUnknownPairingDoesNothing() {
+        PairingArchive.close(pairingID: "never-existed")
+        XCTAssertTrue(PairingArchive.load().pairings.isEmpty)
+    }
+}
+
+final class InboxZoneTests: XCTestCase {
+
+    override func setUp() {
+        super.setUp()
+        InboxZone.clear()
+    }
+
+    override func tearDown() {
+        InboxZone.clear()
+        super.tearDown()
+    }
+
+    /// Devices paired before zones were per-pairing own one under the fixed name and
+    /// have a live share on it. Changing what they resolve to would strand them.
+    func testFallsBackToTheLegacyNameBeforeAnyRotation() {
+        XCTAssertEqual(InboxZone.currentName, Constants.Zone.legacyInbox)
+        XCTAssertFalse(InboxZone.isMinted)
+    }
+
+    func testRotateMintsAFreshNameAndPersistsIt() {
+        let minted = InboxZone.rotate()
+
+        XCTAssertTrue(InboxZone.isMinted)
+        XCTAssertEqual(InboxZone.currentName, minted)
+        XCTAssertNotEqual(minted, Constants.Zone.legacyInbox)
+        XCTAssertTrue(minted.hasPrefix("attention-inbox-"))
+    }
+
+    /// Successive pairings must never collide: a reused name is a reused zone, which is
+    /// the leak per-pairing zones exist to close.
+    func testEachRotationIsDistinct() {
+        let first = InboxZone.rotate()
+        let second = InboxZone.rotate()
+
+        XCTAssertNotEqual(first, second)
+        XCTAssertEqual(InboxZone.currentName, second)
+    }
+}

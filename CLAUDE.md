@@ -56,7 +56,9 @@ Tools/AttentionCLI/      macOS dev tool impersonating the second pair device for
 
 ### Data model (per-user private zones)
 
-Each person owns one **inbox zone** (`attention-inbox-v1`) in their own private database and shares it with their partner. You write into *their* zone; what arrives for you lands in the zone you own. Nobody owns "the pair", access is enforced by CloudKit per zone rather than by a value everyone can read, and deleting your own zone ends only the direction you receive.
+Each person owns one **inbox zone** in their own private database and shares it with their partner. You write into *their* zone; what arrives for you lands in the zone you own. Nobody owns "the pair", access is enforced by CloudKit per zone rather than by a value everyone can read, and deleting your own zone ends only the direction you receive.
+
+The zone is **per pairing, not per install** — `InboxZone` mints a fresh name at each pairing and `unpair()` deletes the old one. A zone-wide share grants its participant the *whole* zone, so a reused zone would hand each new partner every record the previous one left behind: sealed contents, but plaintext `senderDeviceID`, `state`, timestamps and `critical`, which is to say how often someone asked for you and whether you answered. Devices paired before this keep `attention-inbox-v1` (`Constants.Zone.legacyInbox`) until their first unpair.
 
 ```
 ── in the zone you own (private database) ──
@@ -205,6 +207,8 @@ When opening a PR:
 ## Things that look weird but are deliberate
 
 - **`CloudKitService` uses `@unchecked Sendable`**: it owns immutable `CKContainer`/`CKDatabase` references, and Apple's CloudKit framework is documented as thread-safe. Marking it `Sendable` lets it be referenced from any actor without warnings.
+- **`PairingArchive` is the canonical history, and CloudKit is not**: your history has two owners. Alerts you *received* are in the zone you own; alerts you *sent* are in your partner's zone, where you are a guest — they can delete them, and unpairing takes your read access with it. So CloudKit holds the current pairing's working set and `App/Models/PairingArchive.swift` holds the record, grouped by pairing (the zone name is the pairing's identity — already minted once per pairing, already persisted, nothing extra to store). It is folded in on every successful history fetch rather than only at unpair, because a partner who tears their zone down first would otherwise take the sent half with them. It never leaves the device. `LegacyHistoryArchive` stays separate on purpose: it is a frozen one-shot against a database that no longer exists, with its own retry budget and its own stashed key, and it has already run on real devices.
+
 - **Cooldown is in-memory only**: `AppState.cooldownEnds` is not persisted across launches. The cooldown is a UI guard against fat-finger double-taps, not a rate limit. Killing and relaunching the app intentionally bypasses it.
 - **The watch press always sends with `critical: false`**: the watch UI doesn't have a long-press affordance; only the phone can send criticals.
 - **`SharedSettings.acceptCriticalAlerts` defaults to `false`**: opt-in is the right default for an alert that pierces silent mode.

@@ -25,6 +25,15 @@ final class CloudKitService: @unchecked Sendable {
     /// alerts are written into it.
     let sharedDB: CKDatabase
 
+    /// Zone names this process has already created. `ensureInboxZone` is called from
+    /// seven places across a single pairing handshake — three times in `startInviting`,
+    /// four in `completePairing` — and each call was a full `modifyRecordZones` round
+    /// trip against a zone that demonstrably already existed. That is most of why the
+    /// handshake felt slow. Held behind a lock rather than left bare: this type is
+    /// `@unchecked Sendable` precisely because it had no shared mutable state, and this
+    /// is the one piece it now has.
+    let ensuredZones = EnsuredZones()
+
     private init() {
         self.container = CKContainer(identifier: Constants.cloudKitContainerID)
         self.publicDB = container.publicCloudDatabase
@@ -108,9 +117,10 @@ final class CloudKitService: @unchecked Sendable {
 
     // MARK: - Alert record
 
-    /// The inbox zone this device owns — where the partner's alerts to us land.
+    /// The inbox zone this device owns — where the partner's alerts to us land. The
+    /// name is per-pairing (see `InboxZone`), so this is a lookup rather than a constant.
     static var inboxZoneID: CKRecordZone.ID {
-        CKRecordZone.ID(zoneName: Constants.Zone.inbox, ownerName: CKCurrentUserDefaultName)
+        CKRecordZone.ID(zoneName: InboxZone.currentName, ownerName: CKCurrentUserDefaultName)
     }
 
     /// Which database a zone is reached through. Our own inbox zone is in the private
@@ -559,6 +569,29 @@ final class CloudKitService: @unchecked Sendable {
         info.shouldSendContentAvailable = true
         sub.notificationInfo = info
         return sub
+    }
+}
+
+/// Lock-guarded set of zone names known to exist on the server. Correctness only
+/// depends on it never holding a name that *doesn't* exist, so it is populated after a
+/// successful create and emptied whenever a zone is deleted.
+final class EnsuredZones: @unchecked Sendable {
+    private var names: Set<String> = []
+    private let lock = NSLock()
+
+    func contains(_ name: String) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return names.contains(name)
+    }
+
+    func insert(_ name: String) {
+        lock.lock(); defer { lock.unlock() }
+        names.insert(name)
+    }
+
+    func forget(_ name: String) {
+        lock.lock(); defer { lock.unlock() }
+        names.remove(name)
     }
 }
 

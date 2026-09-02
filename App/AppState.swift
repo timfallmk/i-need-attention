@@ -460,6 +460,18 @@ final class AppState {
     }
 
     func unpair() async {
+        // The last read that will ever succeed against the partner's zone. Half of this
+        // pairing's history lives there — the alerts we sent — and leaving the share is
+        // what makes it unreachable, so the sweep has to come before the teardown.
+        if let pair {
+            let pairingID = InboxZone.currentName
+            if let live = try? await CloudKitService.shared.fetchRecentAlerts(
+                pair: pair, limit: PairingArchive.sweepLimit
+            ) {
+                PairingArchive.absorb(live, pairingID: pairingID, partnerName: pair.partnerName)
+            }
+            PairingArchive.close(pairingID: pairingID)
+        }
         await PairingService.shared.unpair()
         pair = nil
         pendingOutgoing = nil

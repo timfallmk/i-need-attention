@@ -190,7 +190,10 @@ enum Constants {
     /// their own private database rather than to a shared one, and neither user owns
     /// "the pair": deleting your own zone ends only the direction you receive.
     enum Zone {
-        static let inbox = "attention-inbox-v1"
+        /// The fixed name every 2.0 install used before zones became per-pairing. Still
+        /// the name a device already paired under keeps; `InboxZone` mints a fresh one
+        /// only after an unpair. Nothing outside `InboxZone` should read this.
+        static let legacyInbox = "attention-inbox-v1"
     }
 
     enum AppGroup {
