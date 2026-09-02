@@ -1,0 +1,145 @@
+import CryptoKit
+import Foundation
+
+/// What a user can send the author when something is wrong.
+///
+/// After the move to private databases the author can no longer look at anyone's records,
+/// so a field failure is only visible through what the app reports about itself. That makes
+/// this the whole debugging surface rather than a convenience.
+///
+/// The type holds fingerprints and booleans and nothing else — there is no field a name, a
+/// message, an emoji or a pair key could be stored in. Redaction happens when the report is
+/// built rather than when it is rendered, so a future caller cannot leak by formatting
+/// carelessly.
+struct DiagnosticsReport: Equatable {
+    enum Direction: String, Equatable {
+        case incoming
+        case outgoing
+    }
+
+    /// One alert reduced to its timing and lifecycle. Deliberately carries no content:
+    /// `hadEmoji` records that an emoji was chosen, never which one.
+    struct Event: Equatable {
+        var direction: Direction
+        var state: String
+        var createdAt: Date
+        var seenAt: Date?
+        var acknowledgedAt: Date?
+        var critical: Bool
+        var hadEmoji: Bool
+    }
+
+    var appVersion: String
+    var buildVersion: String
+    var systemVersion: String
+    var generatedAt: Date
+
+    var accountStatus: String
+    var pairFingerprint: String?
+    var myDeviceFingerprint: String?
+    var partnerDeviceFingerprint: String?
+    var hasPartnerName: Bool
+
+    var notificationAuthorization: String
+    var acceptCriticalAlerts: Bool
+    var timeSensitiveEnabled: Bool
+    var customSoundEnabled: Bool
+    var ackBannersEnabled: Bool
+
+    var ackSubscriptionUnavailable: Bool
+    var ackSubscriptionFailureReason: String?
+
+    var events: [Event]
+
+    /// Eight characters of the same SHA-256 that `PairCrypto.lookupHash` produces, so a
+    /// pair fingerprint here lines up with the lookup value on the records themselves.
+    /// Enough to tell two reports from the same pair apart from two unrelated ones;
+    /// nowhere near enough to recover the input.
+    static func fingerprint(of value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        let digest = Data(SHA256.hash(data: Data(value.utf8)))
+        let encoded = digest.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return String(encoded.prefix(8))
+    }
+
+    /// CloudKit error descriptions are safe to keep locally but not to hand to someone
+    /// else: a subscription save that fails can echo the predicate back, and the predicate
+    /// carries the pair key. Strip it before the text leaves the device.
+    static func redactedFailureReason(_ raw: String?, pairKey: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return nil }
+        guard let pairKey, !pairKey.isEmpty else { return raw }
+        return raw.replacingOccurrences(of: pairKey, with: "<pairKey>")
+    }
+
+    /// Plain text, fixed section order, so two reports from the same install can be diffed.
+    func render() -> String {
+        var out: [String] = []
+        out.append("Attention diagnostics")
+        out.append("Generated: \(Self.timestamp(generatedAt))")
+        out.append("")
+
+        out.append("[App]")
+        out.append("Version: \(appVersion) (\(buildVersion))")
+        out.append("System: \(systemVersion)")
+        out.append("")
+
+        out.append("[Pairing]")
+        out.append("iCloud account: \(accountStatus)")
+        out.append("Pair: \(pairFingerprint ?? "not paired")")
+        out.append("This device: \(myDeviceFingerprint ?? "unknown")")
+        out.append("Partner device: \(partnerDeviceFingerprint ?? "unknown")")
+        out.append("Partner name set: \(hasPartnerName ? "yes" : "no")")
+        out.append("")
+
+        out.append("[Notifications]")
+        out.append("Authorization: \(notificationAuthorization)")
+        out.append("Accept critical: \(acceptCriticalAlerts ? "on" : "off")")
+        out.append("Time sensitive: \(timeSensitiveEnabled ? "on" : "off")")
+        out.append("Custom sound: \(customSoundEnabled ? "on" : "off")")
+        out.append("Ack banners: \(ackBannersEnabled ? "on" : "off")")
+        out.append("")
+
+        out.append("[Subscriptions]")
+        out.append("Ack subscription: \(ackSubscriptionUnavailable ? "UNAVAILABLE" : "ok")")
+        if let reason = ackSubscriptionFailureReason {
+            out.append("Last failure: \(reason)")
+        }
+        out.append("")
+
+        out.append("[Recent alerts] (\(events.count))")
+        if events.isEmpty {
+            out.append("none")
+        } else {
+            for event in events {
+                out.append(Self.line(for: event))
+            }
+        }
+
+        return out.joined(separator: "\n")
+    }
+
+    private static func line(for event: Event) -> String {
+        var parts = [
+            timestamp(event.createdAt),
+            event.direction.rawValue,
+            event.state
+        ]
+        if event.critical { parts.append("critical") }
+        if let seenAt = event.seenAt { parts.append("seen=\(timestamp(seenAt))") }
+        if let ackedAt = event.acknowledgedAt { parts.append("acked=\(timestamp(ackedAt))") }
+        if event.hadEmoji { parts.append("emoji") }
+        return parts.joined(separator: "  ")
+    }
+
+    /// ISO 8601 rather than a localized style: this text is read by a developer comparing
+    /// it against server-side timing, not by the person who exported it.
+    private static func timestamp(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter.string(from: date)
+    }
+}
