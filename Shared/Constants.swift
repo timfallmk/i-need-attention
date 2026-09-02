@@ -33,15 +33,27 @@ enum Constants {
     }
 
     enum AlertField {
+        /// Pre-2.0 only. Zone membership is the boundary from 2.0, so new records don't
+        /// carry it — but the history capture still parses records that do.
         static let pairKey = "pairKey"
         static let senderDeviceID = "senderDeviceID"
-        static let senderName = "senderName"
-        static let message = "message"
         static let state = "state"
         static let seenAt = "seenAt"
         static let acknowledgedAt = "acknowledgedAt"
-        static let ackEmoji = "ackEmoji"
         static let critical = "critical"
+
+        /// Pre-2.0 plaintext. Still read, never written.
+        static let senderName = "senderName"
+        static let message = "message"
+        static let ackEmoji = "ackEmoji"
+
+        /// 2.0 ciphertext, sealed under a key derived from the pair key. Separate field
+        /// names rather than a changed type on the old ones: CloudKit's schema is
+        /// per-record-type across the whole container, so `senderName` is a String
+        /// there for good, and the archived pre-2.0 records still need reading.
+        static let senderNameSealed = "senderNameSealed"
+        static let messageSealed = "messageSealed"
+        static let ackEmojiSealed = "ackEmojiSealed"
     }
 
     enum AlertState: String {

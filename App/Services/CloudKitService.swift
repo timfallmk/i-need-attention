@@ -108,44 +108,64 @@ final class CloudKitService: @unchecked Sendable {
 
     // MARK: - Alert record
 
+    /// The inbox zone this device owns — where the partner's alerts to us land.
+    static var inboxZoneID: CKRecordZone.ID {
+        CKRecordZone.ID(zoneName: Constants.Zone.inbox, ownerName: CKCurrentUserDefaultName)
+    }
+
+    /// Which database a zone is reached through. Our own inbox zone is in the private
+    /// database; the partner's, which we joined by accepting their share, is in the
+    /// shared one. `CKCurrentUserDefaultName` is the owner name CloudKit gives a zone
+    /// this account owns, so it is the discriminator.
+    private func database(for zoneID: CKRecordZone.ID) -> CKDatabase {
+        zoneID.ownerName == CKCurrentUserDefaultName ? privateDB : sharedDB
+    }
+
+    /// Alerts we send are written into the *partner's* inbox zone, so their device sees
+    /// the change in its own private database. Ours is the mirror image: what arrives
+    /// for us lands in the zone we own.
     @discardableResult
-    func sendAlert(
-        pairKey: String,
-        senderDeviceID: String,
-        senderName: String,
-        message: String,
-        critical: Bool
-    ) async throws -> AlertRecord {
-        let record = CKRecord(recordType: Constants.RecordType.alert)
-        record[Constants.AlertField.pairKey] = pairKey as CKRecordValue
-        record[Constants.AlertField.senderDeviceID] = senderDeviceID as CKRecordValue
-        record[Constants.AlertField.senderName] = senderName as CKRecordValue
-        record[Constants.AlertField.message] = message as CKRecordValue
+    func sendAlert(pair: PairState, message: String, critical: Bool) async throws -> AlertRecord {
+        guard let zone = pair.outgoingZone else { throw AttentionError.pairIncomplete }
+
+        let record = CKRecord(recordType: Constants.RecordType.alert,
+                              recordID: CKRecord.ID(recordName: UUID().uuidString, zoneID: zone.zoneID))
+        record[Constants.AlertField.senderDeviceID] = pair.myDeviceID as CKRecordValue
         record[Constants.AlertField.state] = Constants.AlertState.sent.rawValue as CKRecordValue
         record[Constants.AlertField.critical] = (critical ? 1 : 0) as CKRecordValue
+        try AlertRecord.seal(name: pair.myName, message: message, ackEmoji: nil,
+                             into: record, pairKey: pair.pairKey)
 
-        let saved = try await publicDB.save(record)
-        guard let model = AlertRecord(record: saved) else {
+        let saved = try await sharedDB.save(record)
+        guard let model = AlertRecord(record: saved, pairKey: pair.pairKey) else {
             throw AttentionError.malformedRecord
         }
         return model
     }
 
-    func markAlertSeen(recordID: CKRecord.ID) async throws -> AlertRecord {
-        let record = try await publicDB.record(for: recordID)
+    func markAlertSeen(recordID: CKRecord.ID, pair: PairState) async throws -> AlertRecord {
+        let db = database(for: recordID.zoneID)
+        let record = try await db.record(for: recordID)
         record[Constants.AlertField.state] = Constants.AlertState.seen.rawValue as CKRecordValue
         record[Constants.AlertField.seenAt] = Date() as CKRecordValue
-        let saved = try await publicDB.save(record)
-        guard let model = AlertRecord(record: saved) else { throw AttentionError.malformedRecord }
+        let saved = try await db.save(record)
+        guard let model = AlertRecord(record: saved, pairKey: pair.pairKey) else {
+            throw AttentionError.malformedRecord
+        }
         return model
     }
 
-    /// Idempotent: a second call on an already-acked Alert skips the update and the
-    /// Ack-record save is a no-op (the deterministic Ack recordID makes the second
-    /// save trip `.serverRecordChanged`, which we swallow). One banner per Alert,
-    /// even under repeated taps, retries, or duplicated push delivery.
-    func acknowledgeAlert(recordID: CKRecord.ID, emoji: String?) async throws -> AlertRecord {
-        let record = try await publicDB.record(for: recordID)
+    /// Idempotent: a second call on an already-acked Alert leaves the record alone.
+    ///
+    /// The companion `Ack` record is gone. It existed only because the *public*
+    /// database rejects a visible push on `firesOnRecordUpdate`, so the sender's banner
+    /// had to be triggered by a creation instead. Private-database subscriptions carry
+    /// no such restriction — the spike confirmed a visible push on update, rendered with
+    /// the app force-quit — so the Alert update now does both jobs and acknowledging
+    /// costs one write instead of two.
+    func acknowledgeAlert(recordID: CKRecord.ID, emoji: String?, pair: PairState) async throws -> AlertRecord {
+        let db = database(for: recordID.zoneID)
+        let record = try await db.record(for: recordID)
         let alreadyAcked = (record[Constants.AlertField.state] as? String) == Constants.AlertState.acknowledged.rawValue
 
         let saved: CKRecord
@@ -155,84 +175,90 @@ final class CloudKitService: @unchecked Sendable {
             record[Constants.AlertField.state] = Constants.AlertState.acknowledged.rawValue as CKRecordValue
             record[Constants.AlertField.acknowledgedAt] = Date() as CKRecordValue
             if let emoji {
-                record[Constants.AlertField.ackEmoji] = emoji as CKRecordValue
+                record[Constants.AlertField.ackEmojiSealed] =
+                    try PairCrypto.seal(emoji, pairKey: pair.pairKey,
+                                        field: Constants.AlertField.ackEmojiSealed) as CKRecordValue
             }
-            saved = try await publicDB.save(record)
+            saved = try await db.save(record)
         }
-        guard let model = AlertRecord(record: saved) else { throw AttentionError.malformedRecord }
-
-        // Companion Ack record so the original sender's outgoing-ack-v2 subscription
-        // (firesOnRecordCreation) fires. Source of truth for the in-app indicator
-        // remains the Alert update above; the Ack record exists purely to trigger the
-        // visible banner.
-        //
-        // Deterministic recordID derived from the Alert's recordName: a second save
-        // attempt for the same Alert hits `.serverRecordChanged` (which we swallow) so
-        // we get exactly one Ack-creation event — and exactly one banner — regardless
-        // of how many times the caller invokes this method. Crucially this also
-        // recovers from a partial-failure case where a previous call wrote the Alert
-        // but failed to save the Ack: the next call still attempts the Ack write
-        // because `alreadyAcked` doesn't gate it.
-        if let pairKey = saved[Constants.AlertField.pairKey] as? String,
-           let originalSenderID = saved[Constants.AlertField.senderDeviceID] as? String,
-           !pairKey.isEmpty, !originalSenderID.isEmpty {
-            let ackRecordID = CKRecord.ID(recordName: "ack-\(recordID.recordName)")
-            let ack = CKRecord(recordType: Constants.RecordType.ack, recordID: ackRecordID)
-            ack[Constants.AckField.pairKey] = pairKey as CKRecordValue
-            ack[Constants.AckField.recipientDeviceID] = originalSenderID as CKRecordValue
-            if let emoji {
-                ack[Constants.AckField.emoji] = emoji as CKRecordValue
-            }
-            ack[Constants.AckField.alertRecordName] = recordID.recordName as CKRecordValue
-            do {
-                _ = try await publicDB.save(ack)
-            } catch let error as CKError where error.code == .serverRecordChanged {
-                // Already created on a previous ack — subscription already fired, no-op.
-            } catch {
-                log.error("ack record save failed: \(String(describing: error), privacy: .public)")
-            }
+        guard let model = AlertRecord(record: saved, pairKey: pair.pairKey) else {
+            throw AttentionError.malformedRecord
         }
         return model
     }
 
-    func fetchAlert(recordID: CKRecord.ID) async throws -> AlertRecord {
-        let record = try await publicDB.record(for: recordID)
-        guard let model = AlertRecord(record: record) else { throw AttentionError.malformedRecord }
+    func fetchAlert(recordID: CKRecord.ID, pair: PairState) async throws -> AlertRecord {
+        let record = try await database(for: recordID.zoneID).record(for: recordID)
+        guard let model = AlertRecord(record: record, pairKey: pair.pairKey) else {
+            throw AttentionError.malformedRecord
+        }
         return model
     }
 
-    /// Latest alert in a pair, optionally filtered to a specific sender.
-    /// Pass `senderDeviceID` to fetch the most recent outgoing or incoming alert independently.
-    func fetchMostRecentAlert(pairKey: String, senderDeviceID: String? = nil) async throws -> AlertRecord? {
-        let predicate: NSPredicate
-        if let senderDeviceID {
-            predicate = NSPredicate(
-                format: "%K == %@ AND %K == %@",
-                Constants.AlertField.pairKey, pairKey,
-                Constants.AlertField.senderDeviceID, senderDeviceID
-            )
-        } else {
-            predicate = NSPredicate(format: "%K == %@", Constants.AlertField.pairKey, pairKey)
-        }
-        let query = CKQuery(recordType: Constants.RecordType.alert, predicate: predicate)
+    /// Newest alert the partner sent us — everything in the zone we own arrived from
+    /// them, so the zone itself is the filter the `senderDeviceID` predicate used to be.
+    func fetchMostRecentIncoming(pair: PairState) async throws -> AlertRecord? {
+        try await newestAlert(in: Self.inboxZoneID, pair: pair)
+    }
+
+    /// Newest alert we sent, read back out of the partner's zone so their seen/ack
+    /// updates to it are visible.
+    func fetchMostRecentOutgoing(pair: PairState) async throws -> AlertRecord? {
+        guard let zone = pair.outgoingZone else { return nil }
+        return try await newestAlert(in: zone.zoneID, pair: pair)
+    }
+
+    private func newestAlert(in zoneID: CKRecordZone.ID, pair: PairState) async throws -> AlertRecord? {
+        let query = CKQuery(recordType: Constants.RecordType.alert, predicate: NSPredicate(value: true))
         query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        let (results, _) = try await publicDB.records(matching: query, resultsLimit: 1)
+        let (results, _) = try await database(for: zoneID)
+            .records(matching: query, inZoneWith: zoneID, resultsLimit: 1)
         for (_, result) in results {
-            if case .success(let record) = result { return AlertRecord(record: record) }
+            if case .success(let record) = result {
+                return AlertRecord(record: record, pairKey: pair.pairKey)
+            }
         }
         return nil
     }
 
-    /// Recent alerts in a pair, newest first, both directions. Used by the history view.
+    /// Recent alerts in both directions, newest first. Used by the history view.
     /// Read-only; malformed records are skipped rather than failing the whole fetch.
-    func fetchRecentAlerts(pairKey: String, limit: Int = 30) async throws -> [AlertRecord] {
+    /// A failure to read one zone doesn't hide the other — half the history beats none.
+    func fetchRecentAlerts(pair: PairState, limit: Int = 30) async throws -> [AlertRecord] {
+        var zones = [Self.inboxZoneID]
+        if let outgoing = pair.outgoingZone {
+            zones.append(outgoing.zoneID)
+        }
+
+        var alerts: [AlertRecord] = []
+        for zoneID in zones {
+            let query = CKQuery(recordType: Constants.RecordType.alert, predicate: NSPredicate(value: true))
+            query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            do {
+                let (results, _) = try await database(for: zoneID)
+                    .records(matching: query, inZoneWith: zoneID, resultsLimit: limit)
+                alerts += results.compactMap { _, result in
+                    guard case .success(let record) = result else { return nil }
+                    return AlertRecord(record: record, pairKey: pair.pairKey)
+                }
+            } catch {
+                log.error("history fetch failed for one zone: \(String(describing: error), privacy: .public)")
+            }
+        }
+        return alerts.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// The pre-2.0 public-database history, read once by `LegacyHistoryCapture` before
+    /// the cutover strands it. Parsed with no pair key because those records predate
+    /// encryption — their fields are plaintext, which is the problem 2.0 exists to fix.
+    func fetchLegacyPublicAlerts(pairKey: String, limit: Int) async throws -> [AlertRecord] {
         let predicate = NSPredicate(format: "%K == %@", Constants.AlertField.pairKey, pairKey)
         let query = CKQuery(recordType: Constants.RecordType.alert, predicate: predicate)
         query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let (results, _) = try await publicDB.records(matching: query, resultsLimit: limit)
         return results.compactMap { _, result in
             guard case .success(let record) = result else { return nil }
-            return AlertRecord(record: record)
+            return AlertRecord(record: record, pairKey: nil)
         }
     }
 
@@ -478,6 +504,7 @@ enum AttentionError: LocalizedError {
     case inviteCleanupFailed
     case shareUnavailable
     case shareNotAccepted
+    case pairIncomplete
 
     var errorDescription: String? {
         switch self {
@@ -489,6 +516,7 @@ enum AttentionError: LocalizedError {
         case .inviteCleanupFailed: return "Couldn't clean up the previous invite. Check your connection and try again."
         case .shareUnavailable:  return "That pairing link is no longer valid. Ask the other phone to show a new one."
         case .shareNotAccepted:  return "Couldn't finish connecting to the other phone. Check your connection and try again."
+        case .pairIncomplete:    return "Still finishing setup with the other phone. Try again in a moment."
         }
     }
 }
