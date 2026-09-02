@@ -2,8 +2,24 @@ import CloudKit
 import Foundation
 import os.log
 
-/// Coordinates the two sides of the pairing handshake. Reads/writes go through
+/// Coordinates the four-step pairing handshake. Reads and writes go through
 /// `CloudKitService`; persistence lives in `PairState` / `PendingInvite`.
+///
+/// ```
+/// 1. A taps Invite   creates zone_A + share_A; QR encodes the share URL and the key
+/// 2. B scans         accepts share_A — B can now write into zone_A
+///    ──────────────── machine-to-machine from here ────────────────
+/// 3. B (no UI)       creates zone_B + share_B; leaves it as a record in zone_A
+/// 4. A (no UI)       finds that record and accepts share_B
+/// ```
+///
+/// Only the first share is user-visible. By step 3 the devices already have a channel,
+/// so the second share travels over it rather than over a second QR code — and because
+/// B knows A's identity from `share_A`'s owner, `share_B` names A directly instead of
+/// being another bearer link.
+///
+/// Step 2 makes B→A live before A→B, so the pair is one-directional in between. That
+/// window is real and is tracked, not assumed away: see `PairState.isComplete`.
 @MainActor
 final class PairingService {
     static let shared = PairingService()
@@ -11,152 +27,179 @@ final class PairingService {
     private let cloud = CloudKitService.shared
     private init() {}
 
-    /// Inviter side: generate a fresh secret, write the half-empty Pair record, return the
-    /// invite the QR view should display. Also persists a `PendingInvite` and registers
-    /// subscriptions under the new pairKey so the joiner's completion can reach this device
-    /// via the pair-update silent push even after the Show Code screen is gone. Any previous
-    /// pending invite is cancelled first, so "renew" is just starting a new invite.
-    func startInviting(myName: String) async throws -> (invite: PairingInvite, record: CKRecord) {
+    // MARK: - Inviter
+
+    /// Step 1. Mints a fresh secret and a fresh bearer link to this device's inbox zone,
+    /// and persists both so the invite survives leaving the screen. Any previous invite
+    /// is cancelled first — which revokes its share — so "renew" is just a new invite,
+    /// and the old QR code stops working rather than lingering as a live credential.
+    func startInviting(myName: String) async throws -> PairingInvite {
         if let previous = PendingInvite.load() {
-            // The old invite's subscriptions must be gone before registering the new
-            // pairKey under the same subscription IDs — fail fast rather than mint an
-            // invite whose pushes would be swallowed by the old predicates.
             guard await cancelInvite(previous) else {
                 throw AttentionError.inviteCleanupFailed
             }
         }
-        #if DEBUG
-        // Unpaired Dev installs may carry schema-seed placeholders under the same IDs;
-        // they'd shadow the invite's real predicates (registration skips existing IDs).
-        try? await cloud.purgeSeededSubscriptions()
-        #endif
+
+        try await cloud.ensureInboxZone()
+        // A share left over from an earlier partner or invite would come back from
+        // inboxShare unchanged, still carrying whoever it was minted for.
+        try await cloud.revokeInboxShare()
+        let share = try await cloud.inboxShare(publicPermission: .readWrite)
+        guard let shareURL = share.url else {
+            throw AttentionError.shareUnavailable
+        }
+
         let invite = PairingInvite.generate(myDeviceID: DeviceIdentity.id,
-                                            myName: UntrustedText.name(myName))
-        let record = try await cloud.createPair(invite: invite)
-        PendingInvite(
+                                            myName: UntrustedText.name(myName),
+                                            shareURL: shareURL)
+        guard PendingInvite(
             pairKey: invite.pairKey,
             myDeviceID: invite.inviterDeviceID,
             myName: invite.inviterName,
-            recordName: record.recordID.recordName,
+            shareURL: shareURL,
             createdAt: Date()
-        ).save()
-        // Best-effort: the push is the fast path; the launch/foreground reconcile (and the
-        // registration inside the completion helper) covers a failure here.
-        do {
-            try await cloud.registerSubscriptions(pairKey: invite.pairKey, myDeviceID: invite.inviterDeviceID)
-        } catch {
-            log.error("invite-time subscription registration failed: \(error.localizedDescription)")
+        ).save() else {
+            throw AttentionError.inviteCleanupFailed
         }
-        return (invite, record)
+        return invite
     }
 
-    /// Inviter side: poll the Pair record until `deviceB` is filled, or time out.
-    /// Keyed by pairKey so a persisted invite can resume polling without the original record.
-    func waitForJoiner(pairKey: String, timeout: TimeInterval = 120) async throws -> PairState {
+    /// Step 4, driven by whatever notices first — the invite screen's poll, a
+    /// foreground reconcile, or (from step 8) a push. Returns nil while the joiner
+    /// hasn't arrived, which is the ordinary case for an outstanding invite.
+    ///
+    /// The handshake record can only have been written by an accepted participant in
+    /// our zone, so finding one is itself proof that our share was accepted — which is
+    /// why `partnerCanReach` is set without a separate check.
+    @discardableResult
+    func completeInviterPairing() async throws -> PairState? {
+        guard let pending = PendingInvite.load() else { return nil }
+
+        let zoneID = try await cloud.ensureInboxZone()
+        guard let handshake = await cloud.fetchHandshake(in: zoneID) else { return nil }
+
+        let (partnerZoneID, _) = try await cloud.acceptShare(at: handshake.shareURL)
+
+        let state = PairState(
+            pairKey: pending.pairKey,
+            myDeviceID: pending.myDeviceID,
+            myName: pending.myName,
+            partnerDeviceID: handshake.deviceID,
+            partnerName: handshake.name,
+            outgoingZone: ZoneRef(partnerZoneID),
+            partnerCanReach: true
+        )
+        guard state.save() else { throw AttentionError.shareNotAccepted }
+        PendingInvite.clear()
+        return state
+    }
+
+    /// Poll for the joiner while the invite screen is up. The reconcile path covers the
+    /// case where the user leaves it.
+    func waitForJoiner(timeout: TimeInterval = 120) async throws -> PairState {
         let start = Date()
         while Date().timeIntervalSince(start) < timeout {
-            if let fresh = try await cloud.fetchPair(pairKey: pairKey),
-               let state = try await completeInviterPairing(from: fresh) {
-                return state
-            }
+            if let state = try await completeInviterPairing() { return state }
             try await Task.sleep(nanoseconds: 2_000_000_000)
         }
         throw AttentionError.pairNotFound
     }
 
-    /// Shared inviter-side completion: if the record's joiner slot is filled, build and save
-    /// the local `PairState`, register subscriptions, and clear the pending invite. Returns
-    /// nil when the joiner hasn't arrived yet. Used by the Show Code poll, the pair-update
-    /// push handler, and the launch/foreground reconcile.
-    func completeInviterPairing(from record: CKRecord) async throws -> PairState? {
-        guard let pairKey = record[Constants.PairField.pairKey] as? String,
-              let deviceB = record[Constants.PairField.deviceB] as? String,
-              !deviceB.isEmpty else {
-            return nil
-        }
-        let state = PairState(
-            pairKey: pairKey,
-            myDeviceID: DeviceIdentity.id,
-            myName: record[Constants.PairField.nameA] as? String ?? "",
-            partnerDeviceID: deviceB,
-            partnerName: record[Constants.PairField.nameB] as? String ?? "Friend"
-        )
-        state.save()
-        PendingInvite.clear()
-        // Idempotent by subscription ID — a no-op when the invite-time registration stuck.
-        try await cloud.registerSubscriptions(pairKey: pairKey, myDeviceID: state.myDeviceID)
-        return state
-    }
-
-    /// Inviter side: abandon a pending invite. Removes the subscriptions registered under
-    /// the invite's pairKey (so they can't squat on the subscription IDs a later pair
-    /// needs — registration is idempotent by ID and would skip them), deletes the
-    /// half-empty Pair record, and only then clears local state. Ordering matters: the
-    /// persisted invite is the retry handle, so it survives a failed cleanup.
-    ///
-    /// Cancel only ever runs unpaired, where this app has no subscriptions worth keeping,
-    /// so the blunt `removeAllSubscriptions` (the same call unpair uses) is exactly right —
-    /// no predicate inspection needed. Returns false when cleanup failed and the invite
-    /// was kept for retry. The record delete stays best-effort: an orphaned record is
-    /// unreachable without its pairKey.
+    /// Abandon a pending invite, revoking its share so the bearer link it published
+    /// stops working. Ordering matters: the persisted invite is the retry handle, so it
+    /// only clears once the revoke has actually happened. Returns false when cleanup
+    /// failed and the invite was kept for another try.
     @discardableResult
     func cancelInvite(_ pending: PendingInvite) async -> Bool {
         do {
-            try await cloud.removeAllSubscriptions()
+            try await cloud.revokeInboxShare()
         } catch {
-            log.error("invite subscription cleanup failed: \(error.localizedDescription)")
+            log.error("invite share revoke failed: \(error.localizedDescription)")
             return false
-        }
-        do {
-            try await cloud.deletePair(recordName: pending.recordName)
-        } catch {
-            log.error("invite record delete failed: \(error.localizedDescription)")
         }
         PendingInvite.clear()
         return true
     }
 
-    /// Joiner side: take a scanned QR payload (or tapped invite link — same wire format,
-    /// same untrusted-input parser), validate, and complete the handshake.
+    // MARK: - Joiner
+
+    /// Steps 2 and 3. Takes a scanned QR payload (or a tapped invite link — same wire
+    /// format, same untrusted-input parser), accepts the inviter's share, then puts a
+    /// share of our own zone back through the channel that just opened.
     func completePairing(payload: String, myName: String) async throws -> PairState {
         guard let invite = PairingInvite.from(qrPayload: payload) else {
             throw AttentionError.pairNotFound
         }
-        // Joining someone else's pair abandons any invite we were offering ourselves.
-        // Its subscriptions were registered under our invite's pairKey at invite time
-        // and would shadow this pair's registration (idempotent-by-ID), silently
-        // breaking pushes — so clean up first, and fail fast if we can't.
+        // Joining someone else's pair abandons any invite we were offering ourselves —
+        // and revokes its share, so a code we handed out earlier can't still be used.
         if let ownPending = PendingInvite.load() {
             guard await cancelInvite(ownPending) else {
                 throw AttentionError.inviteCleanupFailed
             }
         }
-        guard let record = try await cloud.fetchPair(pairKey: invite.pairKey) else {
-            throw AttentionError.pairNotFound
+
+        let (inviterZoneID, inviterUserID) = try await cloud.acceptShare(at: invite.shareURL)
+
+        // share_B names the inviter rather than carrying a bearer token: their identity
+        // came back with the share we just accepted. A failure to look them up would
+        // otherwise leave the pair permanently one-directional, so it isn't swallowed.
+        try await cloud.ensureInboxZone()
+        // Same reason as the inviter side: an existing share is returned as it stands,
+        // so it would never come to name this partner.
+        try await cloud.revokeInboxShare()
+        let ourShare = try await cloud.inboxShare(publicPermission: .none,
+                                                  inviting: inviterUserID)
+        guard let ourShareURL = ourShare.url else {
+            throw AttentionError.shareUnavailable
         }
-        let updated = try await cloud.joinPair(
-            record: record,
-            joinerDeviceID: DeviceIdentity.id,
-            joinerName: UntrustedText.name(myName)
+
+        let myName = UntrustedText.name(myName)
+        try await cloud.writeHandshake(
+            into: inviterZoneID,
+            deviceID: DeviceIdentity.id,
+            name: myName,
+            shareURL: ourShareURL
         )
+
+        // We can send immediately; they can't until they accept what we just left them.
         let state = PairState(
             pairKey: invite.pairKey,
             myDeviceID: DeviceIdentity.id,
             myName: myName,
             partnerDeviceID: invite.inviterDeviceID,
-            partnerName: invite.inviterName
+            partnerName: invite.inviterName,
+            outgoingZone: ZoneRef(inviterZoneID),
+            partnerCanReach: false
         )
-        state.save()
-        // also persist our own name onto the record now that we joined
-        _ = updated
-        try await cloud.registerSubscriptions(pairKey: invite.pairKey, myDeviceID: state.myDeviceID)
+        guard state.save() else { throw AttentionError.shareNotAccepted }
         return state
     }
 
-    /// Wipes local pairing and CloudKit subscriptions. Doesn't delete the Pair record from
-    /// the server — the other phone may still want to use it until it also unpairs.
+    // MARK: - Reconciling the half-formed state
+
+    /// Refreshes the direction this device can't observe directly. The joiner has no
+    /// way to be told that the inviter accepted their share, so it asks: the share's
+    /// participants are the source of truth and `partnerCanReach` is only a cache.
+    ///
+    /// Returns the updated state when something changed, so callers can persist it
+    /// without writing on every foreground.
+    func refreshPartnerReachability(_ state: PairState) async -> PairState? {
+        guard !state.partnerCanReach else { return nil }
+        guard await cloud.partnerHasAcceptedInboxShare() else { return nil }
+
+        var updated = state
+        updated.partnerCanReach = true
+        guard updated.save() else { return nil }
+        log.notice("Partner accepted our share; both directions live")
+        return updated
+    }
+
+    /// Wipes local pairing state. The zone stays: it is ours, it holds records the
+    /// partner may still be reading, and deleting it is a separate, louder act than
+    /// unpairing this device.
     func unpair() async {
         try? await cloud.removeAllSubscriptions()
+        try? await cloud.revokeInboxShare()
         PairState.clear()
     }
 }

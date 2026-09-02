@@ -116,13 +116,10 @@ final class PushNotifications: NSObject {
         }
 
         if queryNotification.subscriptionID == Constants.SubscriptionID.pairUpdates {
-            if appState.pair == nil {
-                // Unpaired but subscribed = a pending remote invite; this push is the
-                // joiner filling their slot. Complete the pairing.
-                await appState.reconcilePendingInvite()
-            } else {
-                await appState.refreshPairFromCloud()
-            }
+            // The joiner's half of the handshake landing in our own zone. Nothing to do
+            // once paired: from 2.0 a partner's renamed self arrives on their next
+            // alert rather than on a shared record, and reconcile self-guards anyway.
+            await appState.reconcilePendingInvite()
             return .newData
         }
 

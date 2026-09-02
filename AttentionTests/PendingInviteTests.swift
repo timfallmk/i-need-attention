@@ -20,15 +20,19 @@ final class PendingInviteTests: XCTestCase {
 
     private func removeStoredBlobs() {
         UserDefaults.standard.removeObject(forKey: PendingInvite.storageKey)
-        UserDefaults.standard.removeObject(forKey: PendingInvite.legacyStorageKey)
+        for key in PendingInvite.legacyStorageKeys {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
     }
+
+    private let shareURL = URL(string: "https://www.icloud.com/share/0ABCdef")!
 
     private func makeInvite(createdAt: Date = Date()) -> PendingInvite {
         PendingInvite(
             pairKey: "test-pair-key",
             myDeviceID: "device-123",
             myName: "Tim",
-            recordName: "record-abc",
+            shareURL: shareURL,
             createdAt: createdAt
         )
     }
@@ -132,15 +136,30 @@ final class PendingInviteTests: XCTestCase {
         XCTAssertNil(secrets.secret(for: Constants.Keychain.pendingInviteKeyAccount))
     }
 
-    // MARK: - Migration from the pre-2.0 blob
+    // MARK: - Pre-2.0 invites are not resurrected
 
-    func testLegacyBlobIsMigratedToSplitStorage() {
-        let legacy = makeInvite()
-        let data = try! JSONEncoder().encode(legacy)
-        UserDefaults.standard.set(data, forKey: PendingInvite.legacyStorageKey)
+    func testALegacyInviteDoesNotLoad() {
+        let blob: [String: String] = [
+            "pairKey": "legacy-key",
+            "myDeviceID": "device-123",
+            "myName": "Tim",
+            "recordName": "record-abc"
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: blob)
+        UserDefaults.standard.set(data, forKey: PendingInvite.legacyStorageKeys[0])
+        XCTAssertNil(PendingInvite.load())
+    }
 
-        XCTAssertEqual(PendingInvite.load(), legacy)
-        XCTAssertNil(UserDefaults.standard.data(forKey: PendingInvite.legacyStorageKey))
-        XCTAssertEqual(secrets.secret(for: Constants.Keychain.pendingInviteKeyAccount), legacy.pairKey)
+    func testClearRemovesLegacyInvitesToo() {
+        UserDefaults.standard.set(Data("{}".utf8), forKey: PendingInvite.legacyStorageKeys[0])
+        UserDefaults.standard.set(Data("{}".utf8), forKey: PendingInvite.legacyStorageKeys[1])
+        PendingInvite.clear()
+        for key in PendingInvite.legacyStorageKeys {
+            XCTAssertNil(UserDefaults.standard.data(forKey: key))
+        }
+    }
+
+    func testDerivedInviteCarriesTheShareURL() {
+        XCTAssertEqual(makeInvite().invite.shareURL, shareURL)
     }
 }

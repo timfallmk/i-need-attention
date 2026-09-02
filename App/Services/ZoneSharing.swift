@@ -113,3 +113,69 @@ extension CloudKitService {
         }
     }
 }
+
+// MARK: - Handshake records
+
+extension CloudKitService {
+
+    /// The joiner's half of the handshake, written into the inviter's inbox zone. Only
+    /// an accepted participant can write here, which is why the inviter can treat the
+    /// record's existence as proof that its own share was accepted.
+    func writeHandshake(into zoneID: CKRecordZone.ID,
+                        deviceID: String,
+                        name: String,
+                        shareURL: URL) async throws {
+        let recordID = CKRecord.ID(recordName: Constants.Handshake.recordName, zoneID: zoneID)
+        // Fetch-then-modify rather than a blind save: a retry after a partial failure
+        // would otherwise fail with "record to insert already exists".
+        let record = (try? await sharedDB.record(for: recordID))
+            ?? CKRecord(recordType: Constants.RecordType.handshake, recordID: recordID)
+
+        record[Constants.Handshake.deviceID] = deviceID as CKRecordValue
+        record[Constants.Handshake.name] = name as CKRecordValue
+        record[Constants.Handshake.shareURL] = shareURL.absoluteString as CKRecordValue
+        _ = try await sharedDB.save(record)
+    }
+
+    /// The inviter reading what the joiner left. Returns nil while the joiner hasn't
+    /// arrived, which is the ordinary case for as long as the invite is outstanding.
+    func fetchHandshake(in zoneID: CKRecordZone.ID) async -> (deviceID: String, name: String, shareURL: URL)? {
+        let recordID = CKRecord.ID(recordName: Constants.Handshake.recordName, zoneID: zoneID)
+        guard let record = try? await privateDB.record(for: recordID),
+              let deviceID = record[Constants.Handshake.deviceID] as? String,
+              let raw = record[Constants.Handshake.shareURL] as? String,
+              let shareURL = URL(string: raw), shareURL.isCloudKitShare else {
+            return nil
+        }
+        // Written by the partner, so it gets the same treatment as any other name that
+        // arrives over the wire.
+        let name = UntrustedText.name(record[Constants.Handshake.name] as? String, fallback: "Friend")
+        return (deviceID, name, shareURL)
+    }
+
+    /// Whether anyone has accepted this device's share — i.e. whether the partner can
+    /// write into our inbox zone. The share's participants are the source of truth;
+    /// `PairState.partnerCanReach` is only a cache of this.
+    func partnerHasAcceptedInboxShare() async -> Bool {
+        guard let share = try? await inboxShare() else { return false }
+        return share.participants.contains {
+            $0.role != .owner && $0.acceptanceStatus == .accepted
+        }
+    }
+
+    /// Revokes the outstanding bearer link by deleting the zone-wide share. Used when an
+    /// invite is cancelled or renewed — otherwise the old QR code would keep working —
+    /// and before minting a share for a new partner, since `inboxShare` returns an
+    /// existing share as it stands and would never add the new participant to it.
+    ///
+    /// Not atomic, so deleting a share that was never created reports a per-record
+    /// failure that this ignores rather than throwing. Callers treat a throw as "the
+    /// old link may still be live", which a missing share is not.
+    func revokeInboxShare() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: Constants.Zone.inbox, ownerName: CKCurrentUserDefaultName)
+        let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: zoneID)
+        _ = try await privateDB.modifyRecords(saving: [], deleting: [shareID],
+                                              savePolicy: .ifServerRecordUnchanged,
+                                              atomically: false)
+    }
+}

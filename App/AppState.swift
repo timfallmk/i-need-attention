@@ -105,8 +105,6 @@ final class AppState {
                 myDeviceID: pair.myDeviceID
             )
             refreshSubscriptionDiagnostics()
-            // Pick up any partner-name change that happened while we were killed
-            await refreshPairFromCloud()
         } else {
             // A pending remote invite may have been accepted while this app was gone —
             // the silent push never reaches a force-quit app, so reconcile on launch.
@@ -395,9 +393,7 @@ final class AppState {
         pendingInvite = PendingInvite.load()
         guard pair == nil, let pending = pendingInvite else { return }
         do {
-            guard let record = try await CloudKitService.shared.fetchPair(pairKey: pending.pairKey),
-                  let state = try await PairingService.shared.completeInviterPairing(from: record)
-            else { return }
+            guard let state = try await PairingService.shared.completeInviterPairing() else { return }
             Haptics.success()
             pendingInvite = nil
             applyPair(state)
@@ -515,54 +511,18 @@ final class AppState {
 
     // MARK: - Display name sync
 
-    /// Pushes the current `settings.displayName` to the Pair record so the partner sees
-    /// the updated name. Also updates the local copy in `pair.myName`.
+    /// Records a display-name change locally. There is no shared record to push it to
+    /// any more: every alert carries its sender's name, so the partner picks up the new
+    /// one the next time this device presses the button.
     func syncMyDisplayName() async {
         guard var pair else { return }
         let newName = UntrustedText.name(settings.displayName)
         guard !newName.isEmpty, newName != pair.myName else { return }
-        do {
-            try await CloudKitService.shared.updatePairName(
-                pairKey: pair.pairKey,
-                myDeviceID: pair.myDeviceID,
-                newName: newName
-            )
-            pair.myName = newName
-            pair.save()
-            self.pair = pair
-            Haptics.light()
-            pushWatchSnapshot()
-        } catch {
-            log.error("updatePairName: \(error.localizedDescription)")
-        }
+        pair.myName = newName
+        pair.save()
+        self.pair = pair
+        Haptics.light()
+        pushWatchSnapshot()
     }
 
-    /// Refetches the Pair record from CloudKit and updates the local partnerName if the
-    /// partner has renamed themselves. Triggered by the Pair update silent push.
-    func refreshPairFromCloud() async {
-        guard var pair else { return }
-        do {
-            guard let record = try await CloudKitService.shared.fetchPair(pairKey: pair.pairKey) else { return }
-            let deviceA = (record[Constants.PairField.deviceA] as? String) ?? ""
-            let deviceB = (record[Constants.PairField.deviceB] as? String) ?? ""
-            let nameA = (record[Constants.PairField.nameA] as? String) ?? ""
-            let nameB = (record[Constants.PairField.nameB] as? String) ?? ""
-            let partnerName: String
-            if deviceA == pair.myDeviceID {
-                partnerName = nameB
-            } else if deviceB == pair.myDeviceID {
-                partnerName = nameA
-            } else {
-                return
-            }
-            guard !partnerName.isEmpty, partnerName != pair.partnerName else { return }
-            pair.partnerName = partnerName
-            pair.save()
-            self.pair = pair
-            SharedSettings.partnerName = partnerName
-            pushWatchSnapshot()
-        } catch {
-            log.error("refreshPair: \(error.localizedDescription)")
-        }
-    }
 }

@@ -86,3 +86,15 @@ enum UntrustedText {
         return out
     }
 }
+
+extension URL {
+    /// CloudKit share URLs are `https://www.icloud.com/share/…`. A scanned QR code is
+    /// untrusted input and accepting a share means joining whatever zone it names, so
+    /// the destination is bounded here rather than at the call to CloudKit.
+    ///
+    /// The suffix check is on a leading dot so `icloud.com.evil.example` doesn't pass.
+    var isCloudKitShare: Bool {
+        guard scheme == "https", let host = host()?.lowercased() else { return false }
+        return host == "icloud.com" || host.hasSuffix(".icloud.com")
+    }
+}
