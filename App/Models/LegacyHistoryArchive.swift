@@ -58,6 +58,11 @@ struct LegacyHistoryCaptureState: Codable, Equatable {
     enum Phase: String, Codable {
         /// The source key is stashed and the fetch hasn't succeeded yet.
         case pending
+        /// Archived locally, and now deleting the public-database originals. A separate
+        /// phase because the delete has to retry on its own: the archive is safe by this
+        /// point, so a failure here costs cleanup rather than history, but leaving
+        /// plaintext in a world-readable database is the thing 2.0 exists to stop.
+        case purging
         /// Captured, or given up on, or there was never anything to capture.
         case done
     }

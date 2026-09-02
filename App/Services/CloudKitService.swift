@@ -321,6 +321,51 @@ final class CloudKitService: @unchecked Sendable {
         }
     }
 
+    /// Deletes this pair's pre-2.0 records from the public database, once the local
+    /// archive holds them.
+    ///
+    /// 2.0 stops new data going somewhere every signed-in iCloud account can read. It
+    /// does nothing by itself about what is already there — sender names, messages, and
+    /// the `pairKey` on the Pair record, all in the clear, all still readable. Archiving
+    /// them locally is what makes deleting them safe rather than destructive.
+    ///
+    /// Scoped by `pairKey`, so it only ever touches records this pair wrote. Both
+    /// devices will attempt it; whoever gets there second finds nothing and is done.
+    ///
+    /// Returns true when a full pass found nothing left to delete. A pass that deleted
+    /// something returns false whether or not more remains — the caller retries, and
+    /// converging on an empty pass is cheaper than trying to count.
+    @discardableResult
+    func purgeLegacyPublicRecords(pairKey: String) async throws -> Bool {
+        let targets: [(recordType: String, field: String)] = [
+            (Constants.RecordType.alert, Constants.AlertField.pairKey),
+            (Constants.RecordType.ack, Constants.AckField.pairKey),
+            (Constants.RecordType.pair, Constants.PairField.pairKey)
+        ]
+
+        var deletedAnything = false
+        for target in targets {
+            let predicate = NSPredicate(format: "%K == %@", target.field, pairKey)
+            let query = CKQuery(recordType: target.recordType, predicate: predicate)
+            let (results, _) = try await publicDB.records(matching: query, resultsLimit: 200)
+
+            let ids = results.compactMap { id, result -> CKRecord.ID? in
+                guard case .success = result else { return nil }
+                return id
+            }
+            guard !ids.isEmpty else { continue }
+
+            // Not atomic: a record another device deleted a moment ago should not fail
+            // the batch for the rest.
+            _ = try await publicDB.modifyRecords(saving: [], deleting: ids,
+                                                 savePolicy: .ifServerRecordUnchanged,
+                                                 atomically: false)
+            log.notice("Purged \(ids.count, privacy: .public) pre-2.0 \(target.recordType, privacy: .public) records")
+            deletedAnything = true
+        }
+        return !deletedAnything
+    }
+
     // MARK: - Subscriptions
 
     /// Registers (idempotently) the four query subscriptions this app needs, all of them
