@@ -65,9 +65,10 @@ final class AppState {
 
     func bootstrap() async {
         // Before anything else, and synchronously: the pre-2.0 history is reachable
-        // only while this device still holds the pre-2.0 pair key, and re-pairing
-        // under 2.0 replaces it. The fetch itself can wait until the end of launch.
-        LegacyHistoryCapture.prepare(existingPair: pair)
+        // only while this device still holds the pre-2.0 pair key, and pairing under
+        // 2.0 overwrites the keychain account it sits in. The fetch itself can wait
+        // until the end of launch.
+        LegacyHistoryCapture.prepare()
 
         await refreshICloudStatus()
 

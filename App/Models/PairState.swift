@@ -1,11 +1,16 @@
 import Foundation
 import Security
 
-/// What the local device knows about its pairing once the handshake is complete.
+/// What the local device knows about its pairing.
 ///
-/// Split storage since 2.0: the four non-secret fields are JSON in `UserDefaults`,
-/// the pair key is a keychain item (`PairSecrets.store`). Pre-2.0 installs wrote all
-/// five to `attention.pair.v1`; `load()` migrates those on first read.
+/// From 2.0 the two directions are tracked separately, because the handshake makes
+/// them live at different moments: the joiner can send as soon as they accept the
+/// inviter's share, while the inviter cannot send until the joiner's share comes back
+/// over that same channel and is accepted. A pair is only "paired" once both hold.
+///
+/// Storage is split three ways: the non-secret fields are JSON in `UserDefaults`, the
+/// pair key is a keychain item (`PairSecrets.store`), and the records themselves live
+/// in CloudKit zones this state points at.
 struct PairState: Codable, Equatable {
     var pairKey: String        // 22-char URL-safe base64, the shared secret
     var myDeviceID: String     // copy of DeviceIdentity.id at time of pairing
@@ -13,10 +18,21 @@ struct PairState: Codable, Equatable {
     var partnerDeviceID: String
     var partnerName: String
 
-    static let storageKey = "attention.pair.v2"
+    /// The partner's inbox zone, in our shared database, once we have accepted their
+    /// share. Non-nil is exactly what "we can send" means — alerts are written here.
+    var outgoingZone: ZoneRef?
 
-    /// The pre-2.0 blob, which carried the pair key in the clear.
-    static let legacyStorageKey = "attention.pair.v1"
+    /// Whether the partner has accepted our share and can therefore write into our
+    /// own inbox zone. Cached from the share's participants; refreshed, not trusted.
+    var partnerCanReach: Bool = false
+
+    /// Both directions live. Until this holds the UI says "finishing setup" rather
+    /// than "paired", and must not offer a send button that would do nothing.
+    var isComplete: Bool { outgoingZone != nil && partnerCanReach }
+
+    /// v3 is the 2.0 shape. v1 and v2 described pairings in the public database, which
+    /// 2.0 abandons — `LegacyPairing` reads those, and only to salvage their history.
+    static let storageKey = "attention.pair.v3"
 
     /// The half of `PairState` that isn't secret and stays in `UserDefaults`.
     private struct Stored: Codable {
@@ -24,27 +40,31 @@ struct PairState: Codable, Equatable {
         var myName: String
         var partnerDeviceID: String
         var partnerName: String
+        var outgoingZone: ZoneRef?
+        var partnerCanReach: Bool
     }
 
     /// Returns nil when the keychain has no key for a stored pairing. Real causes are
     /// a push handled before the first unlock after a reboot (the item is
     /// `AfterFirstUnlock`) and a fresh device where iCloud Keychain hasn't synced yet.
     /// Both read as "not paired", which is accurate while it lasts: without the key
-    /// nothing can be sent, read or decrypted. Neither is destructive — the v2 blob
+    /// nothing can be sent, read or decrypted. Neither is destructive — the v3 blob
     /// stays put, so a later launch that can reach the key loads normally.
     static func load() -> PairState? {
-        if let data = UserDefaults.standard.data(forKey: storageKey),
-           let stored = try? JSONDecoder().decode(Stored.self, from: data),
-           let pairKey = PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) {
-            return PairState(
-                pairKey: pairKey,
-                myDeviceID: stored.myDeviceID,
-                myName: stored.myName,
-                partnerDeviceID: stored.partnerDeviceID,
-                partnerName: stored.partnerName
-            )
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let stored = try? JSONDecoder().decode(Stored.self, from: data),
+              let pairKey = PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) else {
+            return nil
         }
-        return migrateLegacy()
+        return PairState(
+            pairKey: pairKey,
+            myDeviceID: stored.myDeviceID,
+            myName: stored.myName,
+            partnerDeviceID: stored.partnerDeviceID,
+            partnerName: stored.partnerName,
+            outgoingZone: stored.outgoingZone,
+            partnerCanReach: stored.partnerCanReach
+        )
     }
 
     /// The `UserDefaults` half is written only once the key is stored, so a keychain
@@ -56,7 +76,9 @@ struct PairState: Codable, Equatable {
             myDeviceID: myDeviceID,
             myName: myName,
             partnerDeviceID: partnerDeviceID,
-            partnerName: partnerName
+            partnerName: partnerName,
+            outgoingZone: outgoingZone,
+            partnerCanReach: partnerCanReach
         )
         guard let data = try? JSONEncoder().encode(stored),
               PairSecrets.store.setSecret(pairKey, for: Constants.Keychain.pairKeyAccount) else {
@@ -69,21 +91,44 @@ struct PairState: Codable, Equatable {
     static func clear() {
         PairSecrets.store.removeSecret(for: Constants.Keychain.pairKeyAccount)
         UserDefaults.standard.removeObject(forKey: storageKey)
-        UserDefaults.standard.removeObject(forKey: legacyStorageKey)
+    }
+}
+
+/// A pre-2.0 pairing, read only to salvage the history it left in the public database.
+///
+/// These are *not* migrated into a `PairState`: 2.0 moves records into per-user private
+/// zones under a new key, so an old pairing describes storage the app no longer uses.
+/// Surfacing one as a live pair would show a paired device that cannot send anything.
+enum LegacyPairing {
+    /// v1 carried the pair key in the clear alongside the rest; v2 split it into the
+    /// keychain, so for v2 the blob's presence is all that has to be decoded — the key
+    /// itself comes from the store. Both are read, newest first.
+    static let storageKeyV2 = "attention.pair.v2"
+    static let storageKeyV1 = "attention.pair.v1"
+
+    private struct StoredV1: Codable {
+        var pairKey: String
+        var myDeviceID: String
+        var myName: String
+        var partnerDeviceID: String
+        var partnerName: String
     }
 
-    /// Reached both by a genuine pre-2.0 install and by a migration that wrote the
-    /// v2 blob but failed to store the key — in which case retrying is right, and
-    /// dropping the v1 copy before the key reads back would have unpaired the device
-    /// permanently.
-    private static func migrateLegacy() -> PairState? {
-        guard let data = UserDefaults.standard.data(forKey: legacyStorageKey),
-              let state = try? JSONDecoder().decode(PairState.self, from: data) else { return nil }
-        state.save()
-        if PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) == state.pairKey {
-            UserDefaults.standard.removeObject(forKey: legacyStorageKey)
+    /// The pre-2.0 pair key, or nil if this device never had one.
+    static func pairKey() -> String? {
+        if UserDefaults.standard.data(forKey: storageKeyV2) != nil,
+           let key = PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) {
+            return key
         }
-        return state
+        guard let data = UserDefaults.standard.data(forKey: storageKeyV1),
+              let stored = try? JSONDecoder().decode(StoredV1.self, from: data) else { return nil }
+        return stored.pairKey
+    }
+
+    /// Dropped once the history capture is finished with them, successfully or not.
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: storageKeyV2)
+        UserDefaults.standard.removeObject(forKey: storageKeyV1)
     }
 }
 
