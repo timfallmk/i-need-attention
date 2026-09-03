@@ -6,15 +6,15 @@ YOU HAVE TO PAIR AGAIN, ONCE. Your old pairing can't carry over — it describes
 
 WHAT TO TRY
 
-1. Pair again. One of you taps Show Code, the other taps Scan Code. The shared-link route works too.
+1. Pair again. One of you taps Show Code, the other taps Scan Code. The shared-link route works too, including pasting the link if it doesn't arrive as something tappable.
 
-2. Watch for "Finishing setup". Pairing is now two handshakes, and the second one happens by itself a moment after the first. The phone that SHOWED the code may sit on a "Finishing setup" screen briefly; the phone that SCANNED may show a banner saying it can reach its partner but not the other way round yet. Both should clear on their own within a few seconds. Please say so if either one sticks — that is the single most useful thing you can report.
+2. Watch for "Finishing setup". Pairing is now two handshakes, and the second one happens by itself a moment after the first. The phone that SHOWED the code may sit on a "Finishing setup" screen briefly; the phone that SCANNED may show a banner saying it can reach its partner but not the other way round yet. Both should clear within a few seconds without you doing anything. Please say so if either one sticks — that is the single most useful thing you can report.
 
-3. Send in both directions, and acknowledge. Check the sender's status pill flips to the emoji you chose.
+3. Send in both directions, and acknowledge. Check the sender's status pill flips to Seen and then to the emoji you chose, while you are looking at it — you shouldn't have to leave the app and come back.
 
-4. Force-quit the app on one phone, then have the other send. The banner must still arrive, and pulling it down must still offer the ack buttons. Do the same for an acknowledgement: force-quit the SENDER's app, acknowledge from the other phone, and confirm the "got back to you" banner arrives.
+4. Force-quit the app on one phone, then have the other send. The banner must still arrive, must show the sender's real name rather than just "Attention", and pulling it down must still offer the ack buttons — tapping one should register on the other phone. Do the same for an acknowledgement: force-quit the SENDER's app, acknowledge from the other phone, and confirm the "got back to you" banner arrives.
 
-5. Open History. Alerts from before this build should still be listed, alongside anything new.
+5. Open History. It is now grouped by pairing, newest first, with a heading naming who you were talking to and when. Everything from before this build should be in its own section at the bottom, alongside anything new above it.
 
 6. Rename yourself in Settings. Your partner should see the new name without either of you doing anything else.
 
@@ -23,3 +23,7 @@ WHAT TO TRY
 KNOWN ROUGH EDGES
 
 - The first launch does a one-time copy of your old history. If you are offline then, it retries on later launches.
+
+- If one of you unpairs, the other phone doesn't notice. It keeps showing the button, and sending fails with an unhelpful error. Unpair on both phones if you ever want to start over.
+
+- History from before this build can't tell one old pairing from another, so if you two ever re-paired in the past, all of it appears under one heading.
