@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Please Give Me Attention</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Please Give Me Attention</p>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated 3 September 2026</p>
+</header>
+
+<nav class="crumbs"><a href="./">&larr; Back</a></nav>
+
+<p class="lede">This app has no servers. There is no account to create, no analytics, no
+advertising, and no third-party code that phones home. The developer cannot read your
+messages, cannot see how often you use the app, and has no way to identify you.</p>
+
+<p>What follows is the long version, because the short version is the kind of claim
+anyone can make. Everything here is verifiable in
+<a href="https://github.com/timfallmk/i-need-attention">the source code</a>, which is
+public.</p>
+
+<h2>What the app is</h2>
+
+<p>Two people pair their phones by scanning a QR code in person. Either can then press a
+button, and the other's phone shows a notification. The other person can acknowledge it.
+That is the entire product, and it is the reason the data involved is so small.</p>
+
+<h2>Where your data lives</h2>
+
+<p><strong>In your own iCloud account, and your partner's.</strong> The app uses Apple's
+CloudKit. Each of you owns a private storage zone in your own iCloud account and shares
+it with the other person. When you press the button, a record is written into
+<em>their</em> zone; what arrives for you lands in the zone you own.</p>
+
+<p>Nobody else has access. Not other users of the app, and not the developer, who
+operates no server and holds no credentials to your iCloud account. Apple hosts the
+storage, so Apple's own <a href="https://www.apple.com/legal/privacy/">privacy
+policy</a> applies to that layer.</p>
+
+<h2>What is stored, and whether it is encrypted</h2>
+
+<p>Before anything is written to iCloud, the human-readable parts are encrypted on your
+device with ChaCha20-Poly1305, under a key derived (HKDF-SHA256) from a secret created
+when you paired. That secret exists only on the two paired phones. It travels once, in
+the QR code you scan in person, and is never sent to any server.</p>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>What</th><th>Where</th><th>Readable by the storage provider?</th></tr></thead>
+<tbody>
+<tr><td>Your display name</td><td>iCloud</td><td>No — encrypted</td></tr>
+<tr><td>Message text on an alert</td><td>iCloud</td><td>No — encrypted</td></tr>
+<tr><td>Acknowledgement emoji</td><td>iCloud</td><td>No — encrypted</td></tr>
+<tr><td>Alert state (sent / seen / acknowledged)</td><td>iCloud</td><td>Yes</td></tr>
+<tr><td>Timestamps</td><td>iCloud</td><td>Yes</td></tr>
+<tr><td>A random per-install identifier</td><td>iCloud</td><td>Yes</td></tr>
+<tr><td>Whether an alert was marked urgent</td><td>iCloud</td><td>Yes</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The unencrypted fields are structural: the app has to sort and filter on them, and
+encrypting them would break that. They contain no text you typed. The per-install
+identifier is a random value generated on your device — it is not your Apple ID, your
+phone number, your device serial, or an advertising identifier, and it is not linked to
+your identity anywhere.</p>
+
+<div class="callout">
+<p><strong>The honest limit.</strong> Encryption protects your content from the storage
+provider. It does not protect you from the other person, who by design can read
+everything you send them; nor from someone who has unlocked access to either phone,
+since the key is on both. In a two-person app that is the right place for the boundary,
+but it is a boundary, and you should know where it sits.</p>
+</div>
+
+<h2>Notifications</h2>
+
+<p>Notifications are delivered through Apple Push Notification service. To receive them
+your device registers a push token with Apple. The notification your phone receives is
+decrypted on your device, not in transit — Apple delivers a signal, and the app fetches
+and unlocks the content locally.</p>
+
+<h2>What stays on your device and never leaves it</h2>
+
+<ul>
+<li><strong>Your alert history.</strong> Kept in a local file so it survives unpairing.
+It is never uploaded anywhere.</li>
+<li><strong>Your settings</strong> — display name, sound and notification preferences,
+cooldown length.</li>
+<li><strong>The pairing key</strong>, in the iOS Keychain. If you have iCloud Keychain
+enabled, iOS may sync it to your other Apple devices, as it does with saved passwords.
+This is deliberate: without it, restoring a phone from backup would leave you unable to
+read your own history.</li>
+<li><strong>Stability data.</strong> If iOS reports that the app crashed or froze, the
+app keeps a count and the short reason text the operating system supplies. Call stacks
+are discarded. Nothing is transmitted.</li>
+</ul>
+
+<h2>The camera</h2>
+
+<p>The camera is used for exactly one thing: reading the pairing QR code. Frames are
+examined for a QR code and discarded. Nothing is recorded, saved, or transmitted. If you
+decline camera access the app still works — you can pair from a link instead.</p>
+
+<h2>Diagnostics you choose to send</h2>
+
+<p>Settings has an <strong>Export diagnostics</strong> button. It does not send anything
+on its own: it shows you the complete report on screen first, and you decide whether to
+share it and with whom.</p>
+
+<p>The report is built so that it cannot carry your content. Names, message text and
+emoji are structurally absent from it. Identities appear as truncated one-way hashes,
+settings as on/off values. The one field that quotes outside text — a storage error
+message — is scrubbed before it is stored.</p>
+
+<h2 id="deleting-your-data">Deleting your data</h2>
+
+<p><strong>Settings &rarr; Erase all my data</strong> deletes the storage zone you own in
+iCloud, your local history, your settings, and the pairing key, and cancels any pending
+notifications. It cannot be undone.</p>
+
+<p>It deliberately does not reach into your partner's storage, because those records are
+in their iCloud account and belong to them — deleting them is their action to take. But
+what you sent them is encrypted with the key this erases, so once you do, neither of you
+can read it.</p>
+
+<p>Deleting the app also removes everything stored on the device.</p>
+
+<h2>Tracking, sharing and children</h2>
+
+<ul>
+<li>The app does not track you across apps or websites, and requests no tracking
+permission.</li>
+<li>There are no advertising, analytics or attribution SDKs, and no third-party network
+requests of any kind.</li>
+<li>No data is sold, rented, or shared with anyone. There is no one to share it with.</li>
+<li>The app is not directed at children and knowingly collects nothing from them.</li>
+</ul>
+
+<h2>Data from older versions</h2>
+
+<p>Versions before 2.0 stored records in a shared CloudKit database that any signed-in
+iCloud client could read, with the pairing value stored in the clear alongside them. That
+design is gone. Upgrading re-pairs you under a new key and copies your old history to
+your device; the original records are deleted once both partners have upgraded. If you
+used the app before version 2.0, treat anything sent then as having been readable.</p>
+
+<h2>Changes</h2>
+
+<p>If this policy changes materially, the updated date above changes with it and the
+revision history is public in the repository — every version of this page is a commit.</p>
+
+<h2>Contact</h2>
+
+<p>Questions, or a privacy request: <a href="mailto:timfall+github@gmail.com">timfall+github@gmail.com</a>.
+Security issues have their own process, described in
+<a href="https://github.com/timfallmk/i-need-attention/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+
+<footer>
+<p><a href="./">Home</a> &middot; <a href="support.html">Support</a> &middot;
+<a href="https://github.com/timfallmk/i-need-attention">Source</a></p>
+</footer>
+
+</div>
+</body>
+</html>
