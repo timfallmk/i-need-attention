@@ -74,6 +74,9 @@ struct MainView: View {
             }
             .padding(.top, 8)
         }
+        // Self-guards and returns immediately once both directions are live, so this is
+        // a no-op for every launch but the one right after pairing.
+        .task { await appState.awaitPartnerReachability() }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environment(appState)
@@ -341,8 +344,8 @@ private struct AckSheet: View {
 
 /// The joiner's half of the transient one-directional window: they can send, but their
 /// partner hasn't accepted their share yet, so nothing can come back. Resolves on its
-/// own — `AppState.reconcileHalfFormedPair` checks on every foreground — so this
-/// explains rather than asks for anything.
+/// own — the pair-profile push, and `AppState.awaitPartnerReachability` polling behind
+/// this view for as long as it is up — so this explains rather than asks for anything.
 private struct OneWayBanner: View {
     let partnerName: String
 

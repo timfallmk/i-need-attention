@@ -586,6 +586,28 @@ final class AppState {
         }
     }
 
+    /// Polls until both directions are live, for as long as the one-way banner is up.
+    ///
+    /// The pair-profile push is supposed to close this window, and now does. But it
+    /// cannot be the only thing that does: the joiner registers its subscriptions as the
+    /// *last* step of `completePairing`, while the inviter writes the profile that would
+    /// trigger the push as soon as its 2-second poll sees the joiner's. The inviter wins
+    /// that race often, and the push the joiner needed is then one it was never
+    /// subscribed for — which is exactly the state that left the banner up until the
+    /// screen locked. So the joiner asks as well as listens.
+    ///
+    /// Each pass is one fetch of a share we own. Bounded because a partner who never
+    /// finishes is a pairing to abandon, not to poll forever.
+    func awaitPartnerReachability(timeout: TimeInterval = 120) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !Task.isCancelled, Date() < deadline {
+            guard let pair, !pair.isComplete else { return }
+            await reconcileHalfFormedPair()
+            guard self.pair?.isComplete != true else { return }
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+        }
+    }
+
     /// Pulls a partner rename out of our own zone. Cheap enough to run on every
     /// foreground; the profile subscription is what makes it immediate.
     func refreshPartnerName() async {
