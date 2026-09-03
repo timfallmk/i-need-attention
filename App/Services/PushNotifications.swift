@@ -229,8 +229,13 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
         Task { @MainActor in
             defer { completionHandler() }
             // The delegate is nonisolated and holds no AppState; the persisted pairing
-            // is the same source AppState itself loads from.
-            guard let pair = PairState.load() else { return }
+            // is the same source AppState itself loads from. Logged rather than returned
+            // silently: this runs on a background launch where nothing else would notice,
+            // and a keychain that isn't readable yet looks identical to a working ack.
+            guard let pair = PairState.load() else {
+                self.log.error("Notification response for \(recordName, privacy: .public) but no pairing is readable")
+                return
+            }
             if Constants.NotificationAction.allAckActionIdentifiers.contains(actionID) {
                 let emoji = Constants.NotificationAction.emoji(for: actionID)
                 do {

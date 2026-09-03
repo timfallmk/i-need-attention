@@ -19,6 +19,8 @@ struct AttentionApp: App {
                 .task {
                     appDelegate.appState = appState
                     Haptics.prepare()
+                    // Idempotent, and re-run here so the categories and the delegate are
+                    // in place even if the delegate hook ever stops being called first.
                     PushNotifications.shared.configure()
                     // Subscribe early so a payload delivered during this launch is captured.
                     MetricKitCollector.shared.start()
@@ -84,7 +86,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        true
+        // Here, and not from a view's `.task`. Tapping an inline ack action on a banner
+        // launches the app *in the background*, where no scene connects and no view body
+        // ever runs — so a delegate set from SwiftUI is never set at all, and iOS finds
+        // nobody to deliver the response to. The tap then does nothing, silently, while
+        // the actions still render: categories persist on the system side from an earlier
+        // launch, so the buttons appear whether or not this launch registered them.
+        PushNotifications.shared.configure()
+        return true
     }
 
     func application(
@@ -93,8 +102,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
         Task { @MainActor in
-            guard let appState else { completionHandler(.noData); return }
-            let result = await PushNotifications.shared.handleRemoteNotification(userInfo, appState: appState)
+            // Same background-launch problem: `appState` is handed over from a view's
+            // `.task`, so a launch with no scene has none. Build one rather than dropping
+            // the push — AppState's init only reads local storage.
+            let state = appState ?? AppState()
+            let result = await PushNotifications.shared.handleRemoteNotification(userInfo, appState: state)
             completionHandler(result)
         }
     }
