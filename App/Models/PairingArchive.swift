@@ -23,8 +23,8 @@ struct PairingArchive: Codable, Equatable {
 
     /// How many rows the final sweep at unpair asks for. Well above the 30 the history
     /// sheet shows: it is the last read that will ever succeed against the partner's
-    /// zone, so it is worth paying for depth once.
-    static let sweepLimit = 200
+    /// zone, so it is worth paying for depth once. The fetch pages to reach it.
+    static let sweepLimit = 5_000
 
     /// Scoped per CloudKit environment for the same reason `LegacyHistoryArchive` is: a
     /// Debug build and a Release build own different zones in different environments, and
