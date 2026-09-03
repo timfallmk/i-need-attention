@@ -43,6 +43,14 @@ already MPL by the licence's own definitions rather than by an agreement on the 
 MPL's copyleft is per-file, which is worth knowing before you open a PR: modifications to
 these files stay open, and a larger work that merely includes them does not have to be.
 
+**Don't add a licence header to a file you write.** The root LICENSE covers the repo, and
+a header that restates it only drifts. The exception is the case a header actually
+resolves: **if you bring in a file under terms other than MPL-2.0, it must carry its own
+notice** naming those terms, and — if it ships to users rather than just living in the
+repo — an entry in `App/Models/OpenSourceLicenses.swift` so Settings → Open Source shows
+it. Several licences require that attribution reach end users, not just readers of the
+source tree, and the in-app screen is how this project satisfies it.
+
 ## Code of conduct
 
 By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).

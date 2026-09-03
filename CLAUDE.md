@@ -183,6 +183,7 @@ The pair key lives in the keychain (`PairSecrets.store`); the rest of `PairState
 - **Treat scanned QR payloads as untrusted.** Parse defensively, never trap on malformed input.
 - **Bundle ID prefix is `com.example.attention` everywhere in source**; users find/replace once in setup. Don't add new files with the prefix baked in unless it's `Constants` or an entitlements file.
 - **Comments**: prefer none. When you do write one, explain *why* (a non-obvious constraint, a workaround, a subtle invariant), not *what*. The system prompt's no-comment default applies here.
+- **No per-file licence headers.** The repo is MPL-2.0 via the root `LICENSE`; a header that restates it only drifts out of sync. Add one *only* to a file whose terms contradict the root licence — third-party code under something else — and pair it with an entry in `App/Models/OpenSourceLicenses.swift` if it ships to users.
 - **Update SETUP.md when adding capabilities, App IDs, entitlements, or CloudKit schema fields.**
 
 ## Common operations

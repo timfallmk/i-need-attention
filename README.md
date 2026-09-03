@@ -109,8 +109,21 @@ Reuses the iPhone's CloudKit credentials via WatchConnectivity — the watch nev
 ## License
 
 [Mozilla Public License 2.0](LICENSE). Every file in this repository is Covered
-Software under it, which is what MPL's Exhibit A calls the LICENSE-file
-alternative to a per-file notice.
+Software under it unless that file says otherwise in its own header.
+
+**There are no per-file licence headers, deliberately.** MPL's Exhibit A offers
+the LICENSE-file alternative precisely so a project need not carry one in every
+file, and a header that only restates the root licence buys nothing while
+guaranteeing drift — a stale year, a missed file, a copied header that now names
+the wrong terms. A notice earns its place only where it *contradicts* the root
+licence, so that is the one case this repo requires one: **a file under terms
+other than MPL-2.0 must carry its own notice.** Everything unmarked is MPL.
+
+Third-party material bundled here is not source and is tracked separately: see
+[`App/Models/OpenSourceLicenses.swift`](App/Models/OpenSourceLicenses.swift),
+which is also what Settings → Open Source renders to users. Currently that is
+Unicode Emoji Data and the notification sound (CC BY 3.0 — attribution details
+in [`App/Resources/SOUND_PLACEHOLDER.md`](App/Resources/SOUND_PLACEHOLDER.md)).
 
 MPL rather than a GPL-family licence because this app is distributed through the
 App Store. GPL §10's "no further restrictions" clause and the App Store's terms
