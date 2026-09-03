@@ -105,6 +105,8 @@ For that device there's a Debug-only **Settings → Debug → Recover pre-2.0 hi
 
 It reads and writes locally and deletes nothing; the archive is written to both the Development and Release paths so a later TestFlight build finds it too.
 
+> While that override is in place the build is a mismatched pair: Production CloudKit data, but a **development** APNs token (`APS_ENVIRONMENT` follows the build configuration, not the container override). Reads and writes work, pushes don't. That is expected for this procedure — it only reads — so don't chase the silence. It also means such a build can't usefully pair: it would be writing into the Production container that your partner's TestFlight build uses, which is the last place you want a test pairing.
+
 ## 5. First build directly to a phone (sanity check before publishing)
 
 - [ ] Plug **iPhone A** into the Mac, unlock it, tap **Trust** when prompted
