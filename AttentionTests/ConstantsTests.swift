@@ -98,6 +98,19 @@ final class ConstantsTests: XCTestCase {
         XCTAssertFalse(Constants.SubscriptionID.pairProfile.isEmpty)
     }
 
+    /// `registerSubscriptions` retires subscriptions in this set that point at a stale
+    /// zone. One missing from it would never be retired, and would go on watching a
+    /// deleted zone for the life of the install.
+    func testSubscriptionIDSetCoversEveryID() {
+        XCTAssertEqual(Constants.SubscriptionID.all, [
+            Constants.SubscriptionID.incomingAlerts,
+            Constants.SubscriptionID.outgoingStatus,
+            Constants.SubscriptionID.outgoingAck,
+            Constants.SubscriptionID.pairProfile
+        ])
+        XCTAssertEqual(Constants.SubscriptionID.all.count, 4)
+    }
+
     func testSubscriptionIDsAreUnique() {
         let ids: Set<String> = [
             Constants.SubscriptionID.incomingAlerts,
