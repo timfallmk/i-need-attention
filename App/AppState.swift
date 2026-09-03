@@ -587,6 +587,13 @@ final class AppState {
     /// say so rather than let a failed delete pass for a successful one.
     @discardableResult
     func eraseAllData() async -> Bool {
+        // Settings is reachable from the demo, so erase can be tapped mid-script. Ending
+        // it first does two things: cancels the timers, which would otherwise fire after
+        // the erase and put a scripted alert back into state it had just cleared; and
+        // drops `isDemo`, without which the user is told their data is gone and then left
+        // on a screen still saying "paired with Sam".
+        endDemo()
+
         let remoteSucceeded = await PairingService.shared.eraseRemoteData()
         DataErasure.eraseLocalData(settings: settings)
         DataErasure.clearNotifications()
