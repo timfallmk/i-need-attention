@@ -13,13 +13,14 @@ configs:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    # Read from the environment so a clone doesn't arrive pinned to someone else's
-    # team. Unset is the right default for a stranger: Xcode then offers the ordinary
-    # "pick a team" flow instead of failing to sign against an account they have no
-    # access to. Set it locally with `export DEVELOPMENT_TEAM=...` before xcodegen, or
-    # choose a team per target in Xcode. CI builds with CODE_SIGNING_ALLOWED=NO and
-    # needs no team at all.
-    DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
+    # Committed on purpose. A Team ID is not a secret — it ships inside every
+    # distributed binary and appears on App Store receipts — and the alternative
+    # costs more than it saves: *.xcodeproj/ is gitignored and regenerated, so
+    # sourcing this from the environment means re-picking the team on every
+    # `xcodegen generate`, and Xcode Cloud runs that same command from
+    # ci_scripts/ci_post_clone.sh with no such variable set. A fork changes this
+    # one line; README step 1 says so.
+    DEVELOPMENT_TEAM: T5VJ9JRCNB
     MARKETING_VERSION: "2.1.0"
     CURRENT_PROJECT_VERSION: "1"
     ENABLE_USER_SCRIPT_SANDBOXING: YES

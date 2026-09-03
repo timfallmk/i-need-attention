@@ -48,17 +48,13 @@ Go to <https://developer.apple.com/account/resources>.
 
 ## 3. Configure signing in Xcode
 
-**`DEVELOPMENT_TEAM` is not committed.** `project.yml` reads it from the environment, so a
-clone doesn't arrive pinned to a team the person building it has no access to. Either:
+**Change `DEVELOPMENT_TEAM` in `project.yml`** to your own Team ID (developer portal →
+Membership), then re-run `xcodegen generate`. The committed value belongs to the original
+author and will not sign for you.
 
-```sh
-export DEVELOPMENT_TEAM=YOURTEAMID   # Membership tab in the developer portal
-xcodegen generate
-```
-
-or leave it unset and pick a team per target in Xcode → Signing & Capabilities. Unset is
-fine — Xcode then offers the ordinary team picker. CI needs no team at all; it builds with
-`CODE_SIGNING_ALLOWED=NO`.
+Setting the team per target in Xcode also works, but it does not survive: `*.xcodeproj/` is
+gitignored and regenerated from `project.yml`, including by Xcode Cloud's
+`ci_scripts/ci_post_clone.sh`. `project.yml` is the only place it stays put.
 
 
 For **each** of the four targets (`Attention`, `AttentionNotificationService`, `AttentionWatch`, `AttentionWatchWidget`):

@@ -38,7 +38,7 @@ open Attention.xcodeproj
 
 Then in Xcode:
 
-1. **Pick your team.** `project.yml` reads `DEVELOPMENT_TEAM` from the environment, so either `export DEVELOPMENT_TEAM=YOURTEAMID` before running `xcodegen generate`, or leave it unset and choose a team per target in Xcode → Signing & Capabilities.
+1. **Pick your team.** Change `DEVELOPMENT_TEAM` in `project.yml` to your own Team ID (developer portal → Membership) and re-run `xcodegen generate`. The committed value is the original author's and won't work for you. Setting it per target in Xcode works too, but `*.xcodeproj/` is regenerated from `project.yml`, so it won't survive the next generate.
 2. **Set bundle IDs.** Replace `com.timfallmk.attention` everywhere it appears (the `*.entitlements` files, `project.yml`, and `Shared/Constants.swift` for both `cloudKitContainerID` and `AppGroup.identifier`) with your own reverse-DNS prefix. Re-run `xcodegen generate`.
 3. **Create the iCloud container.** In Signing & Capabilities → iCloud → click **+ Container** and create `iCloud.<your.bundle.id>`. Update `Constants.cloudKitContainerID` to match.
 4. **Create the App Group.** In Signing & Capabilities → **+ Capability → App Groups** → **+** → name it `group.<your.bundle.id>`. Add it to **both** the `Attention` target and the `AttentionNotificationService` target. Update `Constants.AppGroup.identifier` to match.
