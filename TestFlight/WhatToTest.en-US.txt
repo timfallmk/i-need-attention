@@ -1,29 +1,27 @@
-2.0 moves your alerts out of shared iCloud storage and into private storage that only the two of you can reach, encrypted with a key that never leaves your phones. That is a change to where everything lives, so it needs two things from you.
+2.1 adds three things that have never run on a real device, only in CI. That is what this build is for. No re-pairing this time, and nothing about where your data lives has changed.
 
-BOTH OF YOU NEED THIS BUILD. One phone on 2.0 and one on 1.x cannot reach each other at all. Install it on both before trying anything below.
-
-YOU HAVE TO PAIR AGAIN, ONCE. Your old pairing can't carry over — it describes storage the app no longer uses. Opening 2.0 will show you the pairing screen with a note explaining this. Your history is still there.
+The app is now called Attention on the home screen. The App Store listing keeps the longer name; iOS was squashing it to "PleaseGive…" under the icon.
 
 WHAT TO TRY
 
-1. Pair again. One of you taps Show Code, the other taps Scan Code. The shared-link route works too, including pasting the link if it doesn't arrive as something tappable.
+1. Try it without a partner. On the pairing screen there is a new "Try it without a partner". It runs a self-contained demo: a scripted partner called Sam, nothing sent, nothing stored. Press the button and the status should go Sent, then Seen, then acknowledged. A few seconds in, an alert should arrive from Sam so you can answer it with an emoji. Tap Exit and you should land back on the pairing screen with everything as it was.
 
-2. Watch for "Finishing setup". Pairing is now two handshakes, and the second one happens by itself a moment after the first. The phone that SHOWED the code may sit on a "Finishing setup" screen briefly; the phone that SCANNED may show a banner saying it can reach its partner but not the other way round yet. Both should clear within a few seconds without you doing anything. Please say so if either one sticks — that is the single most useful thing you can report.
+   To reach it you have to be unpaired, so do this on a spare device or before you re-pair.
 
-3. Send in both directions, and acknowledge. Check the sender's status pill flips to Seen and then to the emoji you chose, while you are looking at it — you shouldn't have to leave the app and come back.
+   THE THING MOST WORTH CHECKING: your watch should stay completely silent for the whole demo. No press, no pill change, nothing. A demo partner appearing on your wrist is the failure this needs eyes on, and it has no symptom on the phone.
 
-4. Force-quit the app on one phone, then have the other send. The banner must still arrive, must show the sender's real name rather than just "Attention", and pulling it down must still offer the ack buttons — tapping one should register on the other phone. Do the same for an acknowledgement: force-quit the SENDER's app, acknowledge from the other phone, and confirm the "got back to you" banner arrives.
+2. Deny the camera, then scan. Settings, Attention, Camera, off. Now tap Scan Code. You should get an explanation and an Open Settings button, not a black rectangle. Turn the camera back on and return to the app — the screen should notice by itself and show the scanner without you tapping anything.
 
-5. Open History. It is now grouped by pairing, newest first, with a heading naming who you were talking to and when. Everything from before this build should be in its own section at the bottom, alongside anything new above it.
+3. Erase all my data. Do this LAST, and only if you are willing to lose the pairing and the history on that phone, because it is not reversible. Settings, bottom, Erase all my data. It should take you back to pairing with no history, no partner, and your name cleared. Your partner's phone will not notice — that is expected, it deletes only your side.
 
-6. Rename yourself in Settings. Your partner should see the new name without either of you doing anything else.
+ALSO WORTH A LOOK
 
-7. If you use the watch: press from the watch, acknowledge from the watch, check the pill.
+4. Settings, Open Source. Two entries, Unicode Emoji Data and Notification Sound.
+
+5. Normal use. Send, acknowledge, snooze, rename yourself. None of it changed, so anything that behaves differently from 2.0 is a bug.
 
 KNOWN ROUGH EDGES
 
-- The first launch does a one-time copy of your old history. If you are offline then, it retries on later launches.
+- Still true from 2.0: if one of you unpairs, the other phone doesn't notice until it tries to send.
 
-- If one of you unpairs, the other phone doesn't notice. It keeps showing the button, and sending fails with an unhelpful error. Unpair on both phones if you ever want to start over.
-
-- History from before this build can't tell one old pairing from another, so if you two ever re-paired in the past, all of it appears under one heading.
+- The demo's snooze shows the pill flipping to Snoozed but never re-notifies you. That is deliberate — a reminder about a partner who doesn't exist, arriving an hour after you left the demo, would be worse.
