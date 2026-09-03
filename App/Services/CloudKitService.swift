@@ -302,12 +302,9 @@ final class CloudKitService: @unchecked Sendable {
             let query = CKQuery(recordType: Constants.RecordType.alert, predicate: NSPredicate(value: true))
             query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
             do {
-                let (results, _) = try await database(for: zoneID)
-                    .records(matching: query, inZoneWith: zoneID, resultsLimit: limit)
-                alerts += results.compactMap { _, result in
-                    guard case .success(let record) = result else { return nil }
-                    return AlertRecord(record: record, pairKey: pair.pairKey)
-                }
+                let records = try await allRecords(matching: query, in: zoneID,
+                                                   from: database(for: zoneID), limit: limit)
+                alerts += records.compactMap { AlertRecord(record: $0, pairKey: pair.pairKey) }
             } catch {
                 log.error("history fetch failed for one zone: \(String(describing: error), privacy: .public)")
             }
@@ -324,11 +321,41 @@ final class CloudKitService: @unchecked Sendable {
         let predicate = NSPredicate(format: "%K == %@", Constants.AlertField.pairKey, pairKey)
         let query = CKQuery(recordType: Constants.RecordType.alert, predicate: predicate)
         query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        let (results, _) = try await publicDB.records(matching: query, resultsLimit: limit)
-        return results.compactMap { _, result in
-            guard case .success(let record) = result else { return nil }
-            return AlertRecord(record: record, pairKey: nil)
-        }
+        let records = try await allRecords(matching: query, in: nil, from: publicDB, limit: limit)
+        return records.compactMap { AlertRecord(record: $0, pairKey: nil) }
+    }
+
+    /// Follows the query cursor until the results run out or `limit` is reached.
+    ///
+    /// `resultsLimit` is a ceiling, not a quota: CloudKit decides how much to return per
+    /// page and hands back a cursor whenever there is more, so a single call routinely
+    /// comes back short even when the limit is nowhere near hit. Discarding that cursor
+    /// silently truncates — which is how a pre-2.0 capture could report a few dozen
+    /// alerts, look complete, and then have the originals purged out from under the rest.
+    private func allRecords(matching query: CKQuery,
+                            in zoneID: CKRecordZone.ID?,
+                            from database: CKDatabase,
+                            limit: Int) async throws -> [CKRecord] {
+        var collected: [CKRecord] = []
+        var cursor: CKQueryOperation.Cursor?
+
+        repeat {
+            let remaining = limit - collected.count
+            guard remaining > 0 else { break }
+            let page = try await {
+                if let cursor {
+                    return try await database.records(continuingMatchFrom: cursor, resultsLimit: remaining)
+                }
+                return try await database.records(matching: query, inZoneWith: zoneID, resultsLimit: remaining)
+            }()
+            collected += page.matchResults.compactMap { _, result in
+                guard case .success(let record) = result else { return nil }
+                return record
+            }
+            cursor = page.queryCursor
+        } while cursor != nil
+
+        return collected
     }
 
     /// Deletes this pair's pre-2.0 records from the public database, once the local

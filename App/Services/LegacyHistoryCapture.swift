@@ -26,10 +26,10 @@ import os.log
 enum LegacyHistoryCapture {
     private static let log = Logger(subsystem: "com.timfallmk.attention", category: "LegacyHistory")
 
-    /// Rows to keep. There is no second chance at this, so it is well above the 30 the
-    /// history sheet shows; a single page, since a pair that has pressed the button
-    /// more times than this can lose the tail of it.
-    static let limit = 200
+    /// Rows to keep. There is no second chance at this — the originals are purged once
+    /// both sides have captured — so it is a backstop against a pathological account
+    /// rather than a page size. The fetch pages through the cursor to reach it.
+    static let limit = 5_000
 
     /// Stashes the pre-2.0 pair key. Synchronous and called first thing at launch, so
     /// the key is safe before the user can reach any UI that re-pairs — `run()` may
