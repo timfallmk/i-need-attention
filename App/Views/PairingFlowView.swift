@@ -7,7 +7,6 @@ struct PairingFlowView: View {
     @State private var mode: Mode = .chooser
     @State private var displayName: String = DeviceIdentity.name
     @State private var showSettings = false
-    @State private var pasteFailed = false
 
     enum Mode: Equatable {
         case chooser
@@ -143,34 +142,51 @@ struct PairingFlowView: View {
                 .tint(.red)
                 .disabled(trimmedName.isEmpty)
 
-                // Fallback intake for shared invite links: some transports don't make
-                // custom-scheme URLs tappable, so the joiner can copy the link and land
-                // in the same confirmation sheet a tapped link produces.
-                Button {
-                    Haptics.select()
-                    DeviceIdentity.name = trimmedName
-                    pasteFailed = !acceptPastedInvite()
-                    if pasteFailed { Haptics.error() }
-                } label: {
-                    Text("Got an invite link? Paste it")
-                        .font(.footnote.weight(.medium))
-                }
-                .tint(.secondary)
-                .padding(.top, 2)
-
-                if pasteFailed {
-                    Text("That didn't look like an invite link. Copy the whole link your partner shared, then tap Paste again.")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .multilineTextAlignment(.center)
-                        .transition(.opacity)
-                }
+                PasteInviteButton(beforePaste: { DeviceIdentity.name = trimmedName })
+                    .padding(.top, 2)
             }
             .padding(.horizontal, 28)
 
             Spacer()
         }
-        .animation(.easeInOut(duration: 0.2), value: pasteFailed)
+    }
+}
+
+// MARK: - Paste an invite link
+
+/// Fallback intake for shared invite links: some transports don't make custom-scheme URLs
+/// tappable, so the joiner can copy the link and land in the same confirmation sheet a
+/// tapped link produces. Also the only way through when the camera can't be used, which
+/// is why it is a view rather than a method on the chooser.
+private struct PasteInviteButton: View {
+    @Environment(AppState.self) private var appState
+    /// Runs before the pasteboard is read. The chooser uses it to commit the typed name.
+    var beforePaste: () -> Void = {}
+
+    @State private var failed = false
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Button {
+                Haptics.select()
+                beforePaste()
+                failed = !acceptPastedInvite()
+                if failed { Haptics.error() }
+            } label: {
+                Text("Got an invite link? Paste it")
+                    .font(.footnote.weight(.medium))
+            }
+            .tint(.secondary)
+
+            if failed {
+                Text("That didn't look like an invite link. Copy the whole link your partner shared, then tap Paste again.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: failed)
     }
 
     /// Share sheets write a shared `URL` to the pasteboard as a `public.url` item, and
@@ -491,19 +507,78 @@ private struct ShowCodeView: View {
 
 private struct ScanCodeView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.scenePhase) private var scenePhase
     let displayName: String
     var onCancel: () -> Void
 
     @State private var error: String?
     @State private var working = false
     @State private var rearmToken = 0
+    /// Nil until `CameraAccess.resolve()` answers. The scanner is not mounted before
+    /// then: mounting it is what would put a black rectangle on screen while iOS decides
+    /// whether to show its own permission prompt.
+    @State private var access: CameraAccess.Status?
 
     var body: some View {
         VStack(spacing: 16) {
-            QRScannerView(onCode: { code in
-                Haptics.tick()
-                Task { await complete(payload: code) }
-            }, resetToken: rearmToken)
+            switch access {
+            case nil:
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .authorized?:
+                scanner
+            case .denied?:
+                CameraBlockedView(
+                    title: "Attention can't use the camera",
+                    message: "Scanning your partner's code needs the camera. You can turn "
+                        + "it on in Settings, or have them send you an invite link instead.",
+                    showsSettingsButton: true
+                )
+            case .unavailable?:
+                CameraBlockedView(
+                    title: "No camera available",
+                    message: "This device has no camera to scan with. Ask your partner to "
+                        + "share an invite link instead — it pairs you the same way.",
+                    showsSettingsButton: false
+                )
+            }
+
+            Spacer()
+
+            Button("Cancel", role: .cancel) {
+                Haptics.select()
+                onCancel()
+            }
+            .padding(.bottom, 16)
+        }
+        .overlay {
+            if working {
+                Color.black.opacity(0.35).ignoresSafeArea()
+                ProgressView("Pairing…")
+                    .padding(20)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            }
+        }
+        .task { access = await CameraAccess.resolve() }
+        // Granting permission happens in Settings, which backgrounds this app. Without
+        // this the user comes back to the same blocked screen they left and has no
+        // reason to think it worked.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, access == .denied else { return }
+            Task { access = await CameraAccess.resolve() }
+        }
+    }
+
+    private var scanner: some View {
+        VStack(spacing: 16) {
+            QRScannerView(
+                onCode: { code in
+                    Haptics.tick()
+                    Task { await complete(payload: code) }
+                },
+                onUnavailable: { access = .unavailable },
+                resetToken: rearmToken
+            )
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .overlay(
                 RoundedRectangle(cornerRadius: 24)
@@ -539,22 +614,6 @@ private struct ScanCodeView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-
-            Spacer()
-
-            Button("Cancel", role: .cancel) {
-                Haptics.select()
-                onCancel()
-            }
-            .padding(.bottom, 16)
-        }
-        .overlay {
-            if working {
-                Color.black.opacity(0.35).ignoresSafeArea()
-                ProgressView("Pairing…")
-                    .padding(20)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-            }
         }
     }
 
@@ -574,5 +633,49 @@ private struct ScanCodeView: View {
             // Don't re-arm immediately — let the user tap "Scan again" so the camera
             // doesn't keep firing the same bad payload over and over.
         }
+    }
+}
+
+// MARK: - Camera unavailable
+
+/// What the scan screen shows instead of a black rectangle.
+///
+/// Every state here still offers the paste fallback, because pairing is this app's only
+/// onboarding path — a dead end at the camera is a dead end at the whole app. Open
+/// Settings appears only when there is something there to change: for a device with no
+/// camera it would send the user to look for a switch that does not exist.
+private struct CameraBlockedView: View {
+    let title: String
+    let message: String
+    let showsSettingsButton: Bool
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "video.slash")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 8) {
+                Text(title)
+                    .font(.headline)
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            if showsSettingsButton, let settings = URL(string: UIApplication.openSettingsURLString) {
+                Link(destination: settings) {
+                    Label("Open Settings", systemImage: "gear")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+            }
+
+            PasteInviteButton()
+        }
+        .padding(.horizontal, 32)
+        .padding(.top, 32)
     }
 }
