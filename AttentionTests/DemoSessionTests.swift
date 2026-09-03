@@ -94,6 +94,37 @@ final class DemoSessionTests: XCTestCase {
         XCTAssertEqual(acked.seenAt, at)
     }
 
+    /// The sequence the send script actually runs, pinned as a unit.
+    ///
+    /// Every step of this was already covered individually and the script still got it
+    /// wrong: it acknowledged from the original `.sent` record rather than the `.seen`
+    /// one it had just built, so `seenAt ?? date` backfilled the acknowledgement time and
+    /// the demo showed a partner who answered the instant they noticed. Testing the
+    /// pieces did not catch a caller that chained them wrongly, so the chain is a test.
+    func testSentThenSeenThenAcknowledgedKeepsTheTwoTimestampsApart() {
+        let sentAt = Date(timeIntervalSince1970: 1_000)
+        let seenAt = sentAt.addingTimeInterval(DemoSession.seenAfter)
+        let ackAt = seenAt.addingTimeInterval(DemoSession.acknowledgedAfterSeen)
+
+        let sent = DemoSession.outgoing(from: "device-A", senderName: "Alice", noun: nil)
+        let seen = DemoSession.advanced(sent, to: .seen, at: seenAt)
+        let acked = DemoSession.advanced(seen, to: .acknowledged, emoji: "❤️", at: ackAt)
+
+        XCTAssertEqual(acked.seenAt, seenAt, "noticing must keep its own timestamp")
+        XCTAssertEqual(acked.acknowledgedAt, ackAt)
+        XCTAssertNotEqual(acked.seenAt, acked.acknowledgedAt)
+    }
+
+    /// The shape of the mistake above, so the reason the caller must chain is visible
+    /// here rather than only in a comment at the call site.
+    func testAcknowledgingStraightFromSentCollapsesBothTimestamps() {
+        let at = Date(timeIntervalSince1970: 2_000)
+        let acked = DemoSession.advanced(DemoSession.incoming(), to: .acknowledged,
+                                         emoji: "❤️", at: at)
+        XCTAssertEqual(acked.seenAt, at)
+        XCTAssertEqual(acked.acknowledgedAt, at)
+    }
+
     /// The demo is a value-type script, so advancing returns a copy and leaves the
     /// original alone — which is what lets a cancelled timer's result be discarded.
     func testAdvancingDoesNotMutateTheOriginal() {

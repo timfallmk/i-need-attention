@@ -615,13 +615,19 @@ final class AppState {
             try? await Task.sleep(nanoseconds: UInt64(DemoSession.seenAfter * 1_000_000_000))
             guard !Task.isCancelled, let self, self.isDemo,
                   self.pendingOutgoing?.id == sent.id else { return }
-            self.pendingOutgoing = DemoSession.advanced(sent, to: .seen)
+            let seen = DemoSession.advanced(sent, to: .seen)
+            self.pendingOutgoing = seen
 
-            try? await Task.sleep(nanoseconds: UInt64(DemoSession.acknowledgedAfter * 1_000_000_000))
+            try? await Task.sleep(
+                nanoseconds: UInt64(DemoSession.acknowledgedAfterSeen * 1_000_000_000)
+            )
             guard !Task.isCancelled, self.isDemo,
                   self.pendingOutgoing?.id == sent.id else { return }
+            // Advance from `seen`, not from `sent`. Acknowledging a record that was never
+            // seen backfills seenAt with the acknowledgement time, which would show a
+            // partner who answered at the same instant they noticed.
             self.pendingOutgoing = DemoSession.advanced(
-                sent, to: .acknowledged, emoji: DemoSession.ackEmoji
+                seen, to: .acknowledged, emoji: DemoSession.ackEmoji
             )
             Haptics.success()
         }

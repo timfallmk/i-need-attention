@@ -24,10 +24,16 @@ enum DemoSession {
     /// Distinct from any real `DeviceIdentity.id`, which is a UUID string.
     static let partnerDeviceID = "demo-partner"
 
-    /// How long the scripted partner takes to notice and to answer. Slow enough to read
-    /// as a sequence rather than a flicker, quick enough that a reviewer doesn't leave.
+    /// How long the scripted partner takes to notice, measured from the press. Slow
+    /// enough to read as a sequence rather than a flicker, quick enough that a reviewer
+    /// doesn't leave.
     static let seenAfter: TimeInterval = 1.5
-    static let acknowledgedAfter: TimeInterval = 2.5
+
+    /// How long the partner then takes to answer, measured from *noticing* rather than
+    /// from the press — the two delays run back to back, so an acknowledgement lands
+    /// `seenAfter + acknowledgedAfterSeen` after the button. Named for the offset it
+    /// actually is: read as absolute, 2.5 would say the answer arrives before it does.
+    static let acknowledgedAfterSeen: TimeInterval = 2.5
     /// The partner's own alert, so the receiving half can be tried too.
     static let incomingAfter: TimeInterval = 6
 
