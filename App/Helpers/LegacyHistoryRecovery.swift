@@ -16,6 +16,11 @@ import os.log
 /// `saveForProductionBuilds`: whatever build performs the recovery, the result has to
 /// land where a Release build will look.
 ///
+/// It merges rather than replaces, because a pair could re-pair before 2.0 and each
+/// pairing minted its own key. `fetchLegacyPublicAlerts` filters on exactly one, so the
+/// only way to recover a history that spans several is to run this once per key — which
+/// an overwriting version turns into "each run discards the last one's work".
+///
 /// It only ever reads and writes locally. Nothing here deletes a CloudKit record — the
 /// gated purge is the only thing that does, and this must not become a second path to it.
 @MainActor
@@ -23,15 +28,19 @@ enum LegacyHistoryRecovery {
     private static let log = Logger(subsystem: "com.timfallmk.attention", category: "LegacyHistory")
 
     enum Outcome: Equatable {
-        case recovered(count: Int)
+        case recovered(added: Int, total: Int)
         case foundNothing
         case couldNotWrite
         case failed(String)
 
         var message: String {
             switch self {
-            case .recovered(let count):
-                return "Recovered \(count) alert\(count == 1 ? "" : "s"). They're under History, below."
+            case .recovered(let added, let total):
+                let new = "\(added) new alert\(added == 1 ? "" : "s")"
+                return added == total
+                    ? "Recovered \(new). They're under History, below."
+                    : "Recovered \(new), \(total) in the archive now. "
+                    + "Run again with another pair key to add more."
             case .foundNothing:
                 return "No records for that pair key in this build's CloudKit environment. "
                      + "Check the key, and that this build points at the environment holding them."
@@ -55,12 +64,23 @@ enum LegacyHistoryRecovery {
             )
             guard !alerts.isEmpty else { return .foundNothing }
 
-            let archive = LegacyHistoryArchive(alerts: alerts.map(ArchivedAlert.init), capturedAt: Date())
+            // Merge, keyed by record name. The freshly fetched copy wins where both hold
+            // a row: it came from the database this run, and an older archived copy of
+            // the same alert can only be staler.
+            let existing = LegacyHistoryArchive.load()?.alerts ?? []
+            var byName = Dictionary(existing.map { ($0.recordName, $0) },
+                                    uniquingKeysWith: { first, _ in first })
+            let before = byName.count
+            for alert in alerts { byName[alert.id.recordName] = ArchivedAlert(alert) }
+            let merged = byName.values.sorted { $0.createdAt > $1.createdAt }
+
+            let archive = LegacyHistoryArchive(alerts: merged, capturedAt: Date())
             // Both paths: this build reads one, a later Release build reads the other.
             guard archive.save(), archive.saveForProductionBuilds() else { return .couldNotWrite }
 
-            log.notice("Recovered \(alerts.count, privacy: .public) pre-2.0 alerts by hand")
-            return .recovered(count: alerts.count)
+            let added = merged.count - before
+            log.notice("Recovered \(added, privacy: .public) new pre-2.0 alerts by hand; \(merged.count, privacy: .public) archived")
+            return .recovered(added: added, total: merged.count)
         } catch {
             return .failed(String(describing: error))
         }
