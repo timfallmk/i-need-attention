@@ -118,8 +118,14 @@ final class PushNotifications: NSObject {
         if queryNotification.subscriptionID == Constants.SubscriptionID.pairProfile {
             // The partner introducing themselves — which closes the handshake — or
             // renaming themselves. Both land on the same record; which one it is depends
-            // only on whether we're paired yet, and both calls self-guard.
+            // only on whether we're paired yet, and all three calls self-guard.
+            //
+            // reconcilePendingInvite is the inviter's half (it guards on `pair == nil`);
+            // the joiner's half is reconcileHalfFormedPair, which is how the joiner
+            // learns the inviter accepted its share. Leaving it out left the joiner's
+            // one-way banner up until something else foregrounded the app.
             await appState.reconcilePendingInvite()
+            await appState.reconcileHalfFormedPair()
             await appState.refreshPartnerName()
             return .newData
         }
