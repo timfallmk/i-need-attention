@@ -143,8 +143,9 @@ struct SettingsView: View {
                             Label("History", systemImage: "clock")
                         }
                     } footer: {
-                        Text("Your alerts from before this version, kept on this phone. "
-                             + "They'll appear alongside new ones once you've paired again.")
+                        Text("Your earlier alerts, kept on this phone. They stay here "
+                             + "whatever happens to a pairing, and new ones will appear "
+                             + "alongside them once you've paired again.")
                     }
                 }
 
