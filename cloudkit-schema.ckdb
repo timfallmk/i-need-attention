@@ -68,13 +68,21 @@ DEFINE SCHEMA
         GRANT CREATE TO "_icloud"
     );
 
+    /* `___recordID` is QUERYABLE because from 2.0 the zone *is* the filter: both alert
+       reads use a TRUEPREDICATE against a single zone rather than the pre-2.0
+       `pairKey == …` predicate, and CloudKit will only enumerate a record type that
+       way when its recordName is indexed. Without it every fetch throws "Field
+       recordName is not marked queryable" and the app shows "All quiet" forever, since
+       `AppState.reconcileLatestAlert` logs the error rather than surfacing it.
+       `PairProfile` and `AlertStatus` need no such index — both are read by record ID,
+       which is why pairing works whether or not this one is present. */
     RECORD TYPE Alert (
         "___createTime"  TIMESTAMP SORTABLE,
         "___createdBy"   REFERENCE,
         "___etag"        STRING,
         "___modTime"     TIMESTAMP,
         "___modifiedBy"  REFERENCE,
-        "___recordID"    REFERENCE,
+        "___recordID"    REFERENCE QUERYABLE,
 
         pairKey          STRING QUERYABLE SORTABLE,
         senderDeviceID   STRING QUERYABLE,
