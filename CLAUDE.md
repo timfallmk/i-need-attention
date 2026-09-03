@@ -145,7 +145,7 @@ Any failure falls back to `.timeSensitive` (which still pierces Focus and is aut
 
 ### App Group
 
-The Notification Service Extension is a separate process. To let the receiver's "Accept Critical Alerts" toggle and the "Custom sound" toggle reach the NSE, the main app and the NSE share the App Group `group.com.example.attention`, and `Shared/SharedSettings.swift` reads/writes the relevant keys via `UserDefaults(suiteName:)`.
+The Notification Service Extension is a separate process. To let the receiver's "Accept Critical Alerts" toggle and the "Custom sound" toggle reach the NSE, the main app and the NSE share the App Group `group.com.timfallmk.attention`, and `Shared/SharedSettings.swift` reads/writes the relevant keys via `UserDefaults(suiteName:)`.
 
 The App Group identifier doubles as the **keychain access group**: iOS counts the values of `com.apple.security.application-groups` as keychain access groups, so `Shared/PairSecretStore.swift` addresses one item that both processes can reach without a `keychain-access-groups` entitlement and without a new capability in the developer portal. The NSE needs it: from 2.0 the fields it renders arrive as ciphertext, and this is where it gets the key to open them. When it can't — before the first unlock after a reboot — it still delivers a banner, titled with the partner's cached name and a generic body. A push this app cannot fully read must never become silence.
 

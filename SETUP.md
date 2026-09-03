@@ -15,9 +15,9 @@ Exact step-by-step from zero to two paired phones running the app via TestFlight
 
 - [ ] `git clone <this repo>` and `cd i-need-attention`
 - [ ] Decide on a bundle prefix you control. Example: `com.yourname.attention`
-- [ ] Find/replace `com.example.attention` → your prefix in every file. The fastest way is a single global replace across the repo (it's safe — the string only appears in meaningful places):
+- [ ] Find/replace `com.timfallmk.attention` → your prefix in every file. The fastest way is a single global replace across the repo (it's safe — the string only appears in meaningful places):
   ```sh
-  grep -rl "com.example.attention" . | xargs sed -i '' 's/com\.example\.attention/com.yourname.attention/g'
+  grep -rl "com.timfallmk.attention" . | xargs sed -i '' 's/com\.timfallmk\.attention/com.yourname.attention/g'
   ```
   Files it will touch:
   - `project.yml` (bundle ID prefix, all 4 `PRODUCT_BUNDLE_IDENTIFIER` entries, and `WKCompanionAppBundleIdentifier` — the generated Info.plists pick these up automatically)

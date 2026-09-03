@@ -549,10 +549,13 @@ private struct ScanCodeView: View {
                     showsSettingsButton: true
                 )
             case .unavailable?:
+                // Deliberately covers two causes: no camera at all, and a camera the
+                // app couldn't open because something else holds it. The second is
+                // temporary, so the copy must not assert the device has no camera.
                 CameraBlockedView(
-                    title: "No camera available",
-                    message: "This device has no camera to scan with. Ask your partner to "
-                        + "share an invite link instead — it pairs you the same way.",
+                    title: "Camera unavailable",
+                    message: "Another app may be using the camera, or this device doesn't "
+                        + "have one. An invite link pairs you the same way.",
                     showsSettingsButton: false
                 )
             }

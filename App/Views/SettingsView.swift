@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var confirmingUnpair = false
     @State private var confirmingErase = false
     @State private var isErasing = false
+    @State private var eraseLeftRemoteData = false
     @State private var exportedReport: ExportedReport?
     @State private var isGeneratingReport = false
     @State private var nameSyncTask: Task<Void, Never>?
@@ -206,12 +207,13 @@ struct SettingsView: View {
                     }
                     .disabled(isErasing)
                 } footer: {
-                    Text("Deletes the alerts stored in your iCloud account, your history "
-                         + "on this phone, your settings, and the key that unlocks any of "
-                         + "it. Nothing is kept and nothing can be restored.\n\nWhat your "
-                         + "partner's phone holds is theirs to erase — but everything you "
-                         + "sent them is locked with the key that goes here, so after this "
-                         + "neither of you can read it.")
+                    Text("Deletes your history on this phone, your settings, the key that "
+                         + "unlocks any of it, and — if you're online and signed in to "
+                         + "iCloud — the alerts stored in your iCloud account. Nothing is "
+                         + "kept and nothing can be restored.\n\nWhat your partner's phone "
+                         + "holds is theirs to erase — but everything you sent them is "
+                         + "locked with the key that goes here, so after this neither of "
+                         + "you can read it.")
                 }
             }
             .navigationTitle("Settings")
@@ -239,6 +241,14 @@ struct SettingsView: View {
             } message: {
                 Text("Both phones need to unpair separately for the pairing to be fully reset.")
             }
+            .alert("Erased, but not from iCloud", isPresented: $eraseLeftRemoteData) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Everything on this phone is gone. iCloud couldn't be reached, so the "
+                     + "alerts stored there may still exist — but the key that reads them "
+                     + "has been destroyed, so nothing can open them. To clear the storage "
+                     + "itself, delete the app's data from iCloud in iOS Settings.")
+            }
             .alert("Erase all my data?", isPresented: $confirmingErase) {
                 Button("Cancel", role: .cancel) {}
                 Button("Erase Everything", role: .destructive) {
@@ -260,10 +270,17 @@ struct SettingsView: View {
     private func erase() async {
         guard !isErasing else { return }
         isErasing = true
-        await appState.eraseAllData()
+        let remoteSucceeded = await appState.eraseAllData()
         hasArchivedHistory = false
         isErasing = false
-        dismiss()
+        // Dismissing on success returns them to a fresh pairing screen, which is the
+        // whole story. On failure the sheet stays put to carry the alert, since a
+        // half-kept promise is worth more than a tidy transition.
+        if remoteSucceeded {
+            dismiss()
+        } else {
+            eraseLeftRemoteData = true
+        }
     }
 
     /// Debounce CloudKit writes so we don't fire one per keystroke. The didSet on

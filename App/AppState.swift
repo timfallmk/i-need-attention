@@ -538,8 +538,13 @@ final class AppState {
     /// It is also the half that can fail — a signed-out account, no network — and the
     /// local half runs either way: a device that stopped at the first CloudKit error
     /// would keep the archives it was asked to destroy, which is the worse failure.
-    func eraseAllData() async {
-        await PairingService.shared.eraseRemoteData()
+    /// Returns false when the iCloud half didn't complete. The local half always does,
+    /// so the erase is never partial on this device — but the records in the user's own
+    /// iCloud may still be there, and Settings promises otherwise, so the caller has to
+    /// say so rather than let a failed delete pass for a successful one.
+    @discardableResult
+    func eraseAllData() async -> Bool {
+        let remoteSucceeded = await PairingService.shared.eraseRemoteData()
         DataErasure.eraseLocalData(settings: settings)
         DataErasure.clearNotifications()
 
@@ -556,6 +561,7 @@ final class AppState {
         outgoingAckSubscriptionFailureReason = nil
         try? await UNUserNotificationCenter.current().setBadgeCount(0)
         pushWatchSnapshot()
+        return remoteSucceeded
     }
 
     // MARK: - Demo
