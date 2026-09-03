@@ -13,7 +13,13 @@ configs:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    DEVELOPMENT_TEAM: T5VJ9JRCNB
+    # Read from the environment so a clone doesn't arrive pinned to someone else's
+    # team. Unset is the right default for a stranger: Xcode then offers the ordinary
+    # "pick a team" flow instead of failing to sign against an account they have no
+    # access to. Set it locally with `export DEVELOPMENT_TEAM=...` before xcodegen, or
+    # choose a team per target in Xcode. CI builds with CODE_SIGNING_ALLOWED=NO and
+    # needs no team at all.
+    DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
     MARKETING_VERSION: "2.1.0"
     CURRENT_PROJECT_VERSION: "1"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
