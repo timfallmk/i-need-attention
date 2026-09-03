@@ -43,6 +43,7 @@ final class DataErasureTests: XCTestCase {
             ).save()
         )
         CutoverNotice.needsRepair = true
+        PartnerUnpairedNotice.happened = true
         DismissedOutgoing.recordName = "alert-1"
 
         UserDefaults.standard.set(Data("{}".utf8), forKey: LegacyPairing.storageKeyV1)
@@ -71,6 +72,7 @@ final class DataErasureTests: XCTestCase {
         XCTAssertNil(PairState.load())
         XCTAssertNil(PendingInvite.load())
         XCTAssertFalse(CutoverNotice.needsRepair)
+        XCTAssertFalse(PartnerUnpairedNotice.happened)
         XCTAssertNil(DismissedOutgoing.recordName)
 
         XCTAssertFalse(LegacyPairing.exists)

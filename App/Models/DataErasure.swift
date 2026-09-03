@@ -25,6 +25,7 @@ enum DataErasure {
         PairState.clear()
         PendingInvite.clear()
         CutoverNotice.needsRepair = false
+        PartnerUnpairedNotice.happened = false
         DismissedOutgoing.clear()
 
         LegacyPairing.clear()

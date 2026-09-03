@@ -1,4 +1,4 @@
-2.1 adds three things that have never run on a real device, only in CI. That is what this build is for. No re-pairing this time, and nothing about where your data lives has changed.
+2.1 adds four things that have never run on a real device, only in CI. That is what this build is for. No re-pairing this time, and nothing about where your data lives has changed.
 
 The app is now called Attention on the home screen. The App Store listing keeps the longer name; iOS was squashing it to "PleaseGive…" under the icon.
 
@@ -12,16 +12,20 @@ WHAT TO TRY
 
 2. Deny the camera, then scan. Settings, Attention, Camera, off. Now tap Scan Code. You should get an explanation and an Open Settings button, not a black rectangle. Turn the camera back on and return to the app — the screen should notice by itself and show the scanner without you tapping anything.
 
-3. Erase all my data. Do this LAST, and only if you are willing to lose the pairing and the history on that phone, because it is not reversible. Settings, bottom, Erase all my data. It should take you back to pairing with no history, no partner, and your name cleared. Your partner's phone will not notice — that is expected, it deletes only your side.
+3. Erase all my data. Do this LAST, and only if you are willing to lose the pairing and the history on that phone, because it is not reversible. Settings, bottom, Erase all my data. It should take you back to pairing with no history, no partner, and your name cleared. Your partner's phone should then show the same "they ended it" note as in 4 — erasing removes the storage they write into, so from their side it looks like an unpair, which is exactly what it is. Their own history stays on their phone.
+
+4. Unpairing now tells the other person. This used to be the worst rough edge in 2.0: if one of you unpaired, the other phone carried on showing the button and every send failed with a useless error, forever. Have one of you unpair. The other should end up back at the pairing screen with a note saying the partner ended it and that nothing went wrong — either when they next press the button, or when they next open the app.
+
+   It should NOT say this if you simply go offline, or turn airplane mode on, or sign out of iCloud. Being unable to reach your partner is not the same as them leaving, and the app is supposed to tell those apart. If a flaky connection ever unpairs you, that is the most important thing you could report.
 
 ALSO WORTH A LOOK
 
-4. Settings, Open Source. Two entries, Unicode Emoji Data and Notification Sound.
+5. Settings, Open Source. Two entries, Unicode Emoji Data and Notification Sound.
 
-5. Normal use. Send, acknowledge, snooze, rename yourself. None of it changed, so anything that behaves differently from 2.0 is a bug.
+6. Normal use. Send, acknowledge, snooze, rename yourself. None of it changed, so anything that behaves differently from 2.0 is a bug.
 
 KNOWN ROUGH EDGES
 
-- Still true from 2.0: if one of you unpairs, the other phone doesn't notice until it tries to send.
-
 - The demo's snooze shows the pill flipping to Snoozed but never re-notifies you. That is deliberate — a reminder about a partner who doesn't exist, arriving an hour after you left the demo, would be worse.
+
+- Detection of your partner unpairing (4 above) is driven by the next failure rather than by a live signal, so it happens when you next send or open the app, not the instant they leave.

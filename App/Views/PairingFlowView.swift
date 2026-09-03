@@ -80,11 +80,43 @@ struct PairingFlowView: View {
         .padding(.horizontal, 20)
     }
 
+    /// Unpairing deletes the zone the partner writes into, so their device discovers it
+    /// as a vanished zone rather than being told. Without this the app simply returns to
+    /// the pairing screen with no explanation, which reads as having lost the pairing by
+    /// itself — the one thing a two-person app cannot afford to look like.
+    private var partnerUnpairedNotice: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Your partner unpaired", systemImage: "person.badge.minus")
+                .font(.subheadline.weight(.semibold))
+            Text("They ended the pairing from their phone, so this one is unpaired too. Nothing went wrong here.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Text("Your history is still on this phone, under Settings.")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.orange.opacity(0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+        )
+        .padding(.horizontal, 20)
+    }
+
     private var chooser: some View {
         VStack(spacing: 28) {
             Spacer(minLength: 8)
 
-            if appState.needsRepairAfterCutover {
+            // At most one. Both answer "why am I unpaired?", and a partner ending the
+            // pairing is the more recent answer if somehow both apply.
+            if appState.partnerEndedPairing {
+                partnerUnpairedNotice
+            } else if appState.needsRepairAfterCutover {
                 cutoverNotice
             }
 
