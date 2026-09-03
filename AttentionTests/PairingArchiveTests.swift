@@ -95,6 +95,26 @@ final class PairingArchiveTests: XCTestCase {
         XCTAssertEqual(PairingArchive.load().pairings.first?.startedAt, old)
     }
 
+    // MARK: - Emptiness
+
+    /// Drives whether Settings offers a History row on an unpaired device. Reporting
+    /// empty when a pairing has been archived hides the archive from the one state it
+    /// exists to serve.
+    func testIsEmptyOnAFreshInstall() {
+        XCTAssertTrue(PairingArchive.isEmpty)
+    }
+
+    func testIsNotEmptyOnceAPairingIsArchived() {
+        PairingArchive.absorb([row("a")], pairingID: "zone-1", partnerName: "Bob")
+        XCTAssertFalse(PairingArchive.isEmpty)
+    }
+
+    func testStaysNonEmptyAfterThePairingIsClosed() {
+        PairingArchive.absorb([row("a")], pairingID: "zone-1", partnerName: "Bob")
+        PairingArchive.close(pairingID: "zone-1")
+        XCTAssertFalse(PairingArchive.isEmpty)
+    }
+
     // MARK: - Closing
 
     func testCloseStampsAnEndDate() {

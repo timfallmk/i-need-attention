@@ -130,10 +130,11 @@ struct SettingsView: View {
                 #endif
 
                 // Only in the one state where it is unreachable and non-empty: unpaired,
-                // with a local archive. That is the window after the 2.0 cutover, where
-                // the notice says the history survived and the main screen — which is
-                // where History normally lives — doesn't exist yet. A paired user reaches
-                // it from that toolbar, and a fresh install has nothing to show.
+                // with a local archive. Two ways to get there — the window after the 2.0
+                // cutover, and any unpair after it — and in both the notice says the
+                // history survived while the main screen that normally hosts History
+                // doesn't exist. A paired user reaches it from that toolbar, and a fresh
+                // install has nothing to show.
                 if appState.pair == nil && hasArchivedHistory {
                     Section {
                         Button {
@@ -194,7 +195,7 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .task { hasArchivedHistory = LegacyHistoryArchive.load() != nil }
+            .task { hasArchivedHistory = Self.hasHistoryToShow }
         .sheet(isPresented: $showHistory) {
                 HistoryView()
                     .environment(appState)
@@ -249,7 +250,7 @@ struct SettingsView: View {
         recoveryResult = await LegacyHistoryRecovery.recover(pairKey: recoveryPairKey).message
         // The row is conditional on there being an archive, and recovery is what creates
         // one — without this the success message points at a row that isn't there yet.
-        hasArchivedHistory = LegacyHistoryArchive.load() != nil
+        hasArchivedHistory = Self.hasHistoryToShow
         isRecovering = false
     }
     #endif
@@ -264,6 +265,15 @@ struct SettingsView: View {
         defer { isGeneratingReport = false }
         let report = await DiagnosticsGatherer.gather(from: appState)
         exportedReport = ExportedReport(text: report.render())
+    }
+
+    /// Both archives, because either can be the only thing left. `PairingArchive` holds
+    /// every post-2.0 pairing and `LegacyHistoryArchive` the frozen pre-2.0 snapshot. A
+    /// device that never had pre-2.0 history still has a full archive after its first
+    /// unpair, and checking only the legacy one hid History from exactly that device —
+    /// the state this row exists for.
+    private static var hasHistoryToShow: Bool {
+        LegacyHistoryArchive.load() != nil || !PairingArchive.isEmpty
     }
 
     private var iCloudStatusLabel: String {
