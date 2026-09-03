@@ -80,6 +80,8 @@ From 2.0 the app's records live in **per-user private database zones**, not in t
 - [ ] Click **Deploy Schema Changes…** and promote to **Production** before shipping to TestFlight
 
 > **Push on Debug builds:** `aps-environment` must match the CloudKit environment the build talks to — sandbox APNs for Development, production APNs for Production. `App/Attention.entitlements` takes it from `APS_ENVIRONMENT` in `project.yml` (`development` for Debug, `production` for Release), so this is handled. Don't hardcode it: a token minted for the wrong environment produces no error and no delivery, so pushes just never arrive while every in-app read keeps working.
+>
+> A consequence worth knowing before you go looking for a bug: development and production APNs are **two separate networks that don't interoperate**. Both work, but a Debug device on your desk will never see a push triggered by a TestFlight build, or vice versa. Test one pair of builds against each other, not a mix.
 
 > **Unverified, and the most likely thing to bite you:** pre-2.0 the app carried a DEBUG-only seeder that made CloudKit auto-create a `_sub_trigger_<subscriptionID>` record for each subscription, because Production rejects schema mutations from devices and would otherwise refuse every new subscription ID with `BAD_REQUEST`. That seeder wrote to the public database and has been removed. Whether private-zone query subscriptions need the same Development-then-deploy dance is **not something this repo has confirmed**. If TestFlight builds come up with no pushes and Console shows `SubscriptionCreate` rejections, that is what happened: register the subscriptions once from a Debug build on a device, then **Deploy Schema Changes…** again.
 
