@@ -257,7 +257,8 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("This can't be undone. Your alert history, your pairing and your "
-                     + "settings are deleted from this phone and from your iCloud account.")
+                     + "settings are deleted from this phone, and from your iCloud account "
+                     + "if it can be reached — you'll be told if it can't.")
             }
         }
     }
