@@ -13,8 +13,15 @@ configs:
 settings:
   base:
     SWIFT_VERSION: "5.10"
+    # Committed on purpose. A Team ID is not a secret — it ships inside every
+    # distributed binary and appears on App Store receipts — and the alternative
+    # costs more than it saves: *.xcodeproj/ is gitignored and regenerated, so
+    # sourcing this from the environment means re-picking the team on every
+    # `xcodegen generate`, and Xcode Cloud runs that same command from
+    # ci_scripts/ci_post_clone.sh with no such variable set. A fork changes this
+    # one line; README step 1 says so.
     DEVELOPMENT_TEAM: T5VJ9JRCNB
-    MARKETING_VERSION: "2.0.0"
+    MARKETING_VERSION: "2.1.0"
     CURRENT_PROJECT_VERSION: "1"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     SWIFT_STRICT_CONCURRENCY: minimal
@@ -71,7 +78,12 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Please Give Me Attention
+        # Home-screen name, which is NOT the App Store name — that lives only in
+        # App Store Connect and stays "Please Give Me Attention". iOS squeezes a
+        # 24-character name down to "PleaseGive…" under the icon, so the long form
+        # bought nothing but truncation. Matches the watch app and widget, which
+        # have always used the short form.
+        CFBundleDisplayName: Attention
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -87,6 +99,12 @@ targets:
           - CFBundleURLName: com.timfallmk.attention.pair
             CFBundleURLSchemes:
               - attention
+        # False because all cryptography here is CryptoKit — ChaChaPoly and
+        # HKDF<SHA256> in Shared/PairCrypto.swift — which Apple classifies as
+        # OS-provided and exempt from export documentation. It was originally set
+        # when the app had no encryption at all, so the answer survived 2.0 by
+        # luck rather than by reasoning. Vendoring a crypto library or hand-rolling
+        # a cipher would make it wrong: see SETUP.md §7a before changing anything here.
         ITSAppUsesNonExemptEncryption: false
         NSUserActivityTypes: []
     settings:
@@ -228,6 +246,8 @@ targets:
       - path: App/Models/LegacyHistoryArchive.swift
       - path: App/Models/PairingArchive.swift
       - path: App/Models/InboxZone.swift
+      - path: App/Models/DataErasure.swift
+      - path: App/Models/DemoSession.swift
       - path: App/Models/DiagnosticsReport.swift
       - path: App/Models/MetricKitSummary.swift
       - path: App/Models/UserSettings.swift

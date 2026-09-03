@@ -267,12 +267,52 @@ final class PairingService {
     /// is the partner's remote copy of what they sent us; their own archive is the answer
     /// to that, and it is a smaller harm than leaking a past relationship to a new one.
     func unpair() async {
-        try? await cloud.removeAllSubscriptions()
-        try? await cloud.revokeInboxShare()
-        try? await cloud.deleteInboxZone()
-        // A fresh name for whatever pairing comes next. Not `clear()` — that falls back
-        // to the fixed legacy name, which is precisely the zone just deleted.
-        InboxZone.rotate()
+        await tearDownInboxZone()
         PairState.clear()
+    }
+
+    /// The remote half of "Erase all my data": the zone this device owns, its share and
+    /// its subscriptions. Separate from `DataErasure`, which is local and cannot fail —
+    /// every step here can, on a bad network or a signed-out iCloud account, and a device
+    /// that stopped at the first CloudKit error would keep the archives it was asked to
+    /// destroy.
+    ///
+    /// **Returns false when any of it failed**, which the caller has to surface: erase
+    /// tells the user their iCloud records are gone, and that is a promise this method is
+    /// the only one in a position to break.
+    func eraseRemoteData() async -> Bool {
+        await tearDownInboxZone()
+    }
+
+    /// Rotates the zone name whether or not the teardown succeeded, and that is
+    /// deliberate rather than an oversight.
+    ///
+    /// Keeping the old name to retry the delete later is the obvious repair, and it is
+    /// the wrong one: the name is what the *next* pairing would then reuse, and a
+    /// zone-wide share grants the whole zone, so the next partner would inherit whatever
+    /// the failed delete left behind. That is the exact leak per-pairing zone names exist
+    /// to prevent. An orphaned zone in the owner's own private database is the smaller
+    /// harm — it is unreachable by anyone else, and iCloud storage the user can clear.
+    ///
+    /// So the failure is reported upward instead of repaired here.
+    @discardableResult
+    private func tearDownInboxZone() async -> Bool {
+        var succeeded = true
+
+        do { try await cloud.removeAllSubscriptions() } catch {
+            succeeded = false
+            log.error("teardown: subscriptions failed: \(error.localizedDescription)")
+        }
+        do { try await cloud.revokeInboxShare() } catch {
+            succeeded = false
+            log.error("teardown: share revoke failed: \(error.localizedDescription)")
+        }
+        do { try await cloud.deleteInboxZone() } catch {
+            succeeded = false
+            log.error("teardown: zone delete failed: \(error.localizedDescription)")
+        }
+
+        InboxZone.rotate()
+        return succeeded
     }
 }

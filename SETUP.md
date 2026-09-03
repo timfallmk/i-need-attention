@@ -15,17 +15,16 @@ Exact step-by-step from zero to two paired phones running the app via TestFlight
 
 - [ ] `git clone <this repo>` and `cd i-need-attention`
 - [ ] Decide on a bundle prefix you control. Example: `com.yourname.attention`
-- [ ] Find/replace `com.example.attention` → your prefix in every file. The fastest way is a single global replace across the repo (it's safe — the string only appears in meaningful places):
+- [ ] Find/replace `com.timfallmk.attention` → your prefix in every file. The fastest way is a single global replace across the repo (it's safe — the string only appears in meaningful places):
   ```sh
-  grep -rl "com.example.attention" . | xargs sed -i '' 's/com\.example\.attention/com.yourname.attention/g'
+  grep -rl "com.timfallmk.attention" . | xargs sed -i '' 's/com\.timfallmk\.attention/com.yourname.attention/g'
   ```
   Files it will touch:
-  - `project.yml` (bundle ID prefix + all 4 `PRODUCT_BUNDLE_IDENTIFIER` entries)
+  - `project.yml` (bundle ID prefix, all 4 `PRODUCT_BUNDLE_IDENTIFIER` entries, and `WKCompanionAppBundleIdentifier` — the generated Info.plists pick these up automatically)
   - `App/Attention.entitlements` (iCloud container + App Group)
   - `NotificationService/NotificationService.entitlements` (iCloud container + App Group)
   - `Shared/Constants.swift` (`cloudKitContainerID` + `AppGroup.identifier`)
   - `App/AppState.swift`, `App/Services/PushNotifications.swift`, `App/Services/CloudKitService.swift`, `App/Services/PairingService.swift`, `App/Services/WatchBridge.swift` (Logger subsystem strings — don't break anything if left as-is, but update for cleanliness)
-  - `Watch/Watch/Info.plist` (`WKCompanionAppBundleIdentifier`)
 - [ ] `xcodegen generate`
 - [ ] `open Attention.xcodeproj`
 
@@ -48,6 +47,15 @@ Go to <https://developer.apple.com/account/resources>.
 - [ ] Edit both App IDs (main app + notification service) and assign this App Group to both
 
 ## 3. Configure signing in Xcode
+
+**Change `DEVELOPMENT_TEAM` in `project.yml`** to your own Team ID (developer portal →
+Membership), then re-run `xcodegen generate`. The committed value belongs to the original
+author and will not sign for you.
+
+Setting the team per target in Xcode also works, but it does not survive: `*.xcodeproj/` is
+gitignored and regenerated from `project.yml`, including by Xcode Cloud's
+`ci_scripts/ci_post_clone.sh`. `project.yml` is the only place it stays put.
+
 
 For **each** of the four targets (`Attention`, `AttentionNotificationService`, `AttentionWatch`, `AttentionWatchWidget`):
 - [ ] Open the target → **Signing & Capabilities**
@@ -146,11 +154,99 @@ If you hit "couldn't find provisioning profile" — go back to Signing & Capabil
 - [ ] **Product → Archive**
 - [ ] When the Organizer opens: **Distribute App** → **App Store Connect** → **Upload** → accept defaults → **Upload**
 - [ ] Wait for the processing email (~10 min)
-- [ ] Go to <https://appstoreconnect.apple.com> → **My Apps**. If "Attention" doesn't exist yet, click **+** → **New App** and fill in name, primary language, bundle ID, SKU
+- [ ] Go to <https://appstoreconnect.apple.com> → **My Apps**. If the app doesn't exist yet, click **+** → **New App** and fill in name, primary language, bundle ID, SKU. The **App Name** there is the App Store listing name and is independent of `CFBundleDisplayName` in `project.yml`, which is only the home-screen label — they are "Please Give Me Attention" and "Attention" respectively, and that is deliberate: iOS truncates a 24-character name to "PleaseGive…" under the icon
 - [ ] Click your app → **TestFlight** tab
-- [ ] Wait until the build status is **Ready to Test** (resolve any "Missing Compliance" by clicking the build → answering "No" to encryption export)
+- [ ] Wait until the build status is **Ready to Test**. `ITSAppUsesNonExemptEncryption: false` in `project.yml` should stop "Missing Compliance" appearing at all — see §7a before changing that answer
 - [ ] **Internal Testing**: + group → add yourself + partner (must be added under **Users and Access** as a member of your team first), assign the build. They get an email to install via the **TestFlight** app.
 - [ ] **Or External Testing**: add by email, requires a one-time short Beta App Review (~24h), then unlimited installs
+
+## 7a. Encryption export compliance
+
+`project.yml` sets `ITSAppUsesNonExemptEncryption: false`, which bypasses the
+export-compliance questions App Store Connect otherwise asks on every submission.
+That answer is still correct, but **not for the reason it was originally set** —
+it predates the app having any encryption at all, and 2.0 added some. The current
+justification, so nobody has to re-derive it:
+
+- Apple: *"Set the value to `NO` if your app — including any third-party libraries
+  it links against — doesn't use encryption, or if it only uses forms of encryption
+  that are exempt from export compliance documentation requirements."*
+- All of this app's cryptography is CryptoKit: `ChaChaPoly` and `HKDF<SHA256>` in
+  `Shared/PairCrypto.swift`, and `SHA256` for the diagnostics fingerprints. Nothing
+  is hand-rolled and no crypto library is vendored.
+- App Store Connect's own table classifies **"Apple OS encryption only"** as
+  requiring *no documentation in App Store Connect*. The rows that do require
+  paperwork are non-Apple industry-standard algorithms (French declaration, if you
+  ship to France) and proprietary algorithms (US CCATS as well). Neither applies.
+
+**What would invalidate this**, and therefore means re-reading this section:
+
+- Vendoring or linking any crypto library rather than calling CryptoKit
+- Implementing a cipher, KDF or protocol by hand
+- Adding any third-party dependency at all — the exemption covers what the app
+  links against, not just what it writes
+
+**One open item that is not a code question.** Apple notes that apps using *exempt*
+encryption "might alternatively be required to submit a year-end self-classification
+report to the U.S. government" — the exempt path carries the reporting duty, not the
+documented one, which is the opposite of the intuition. Against that: a March 2021
+amendment to the EAR removed annual self-classification reporting for most
+mass-market items under ECCN 5A992.c / 5D992.c, the classification a consumer iOS
+app on the App Store would ordinarily fall under. So there is probably nothing to
+file. That is an export-control question rather than an engineering one, and worth
+confirming with someone qualified before the first public release rather than after.
+
+References: [Complying with Encryption Export Regulations](https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations)
+· [Export compliance documentation for encryption](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption/)
+· [BIS annual self-classification](https://www.bis.gov/learn-support/encryption-controls/annual-self-classification)
+
+## 7a-ii. App Privacy answers
+
+App Store Connect → your app → **App Privacy**: answer **Data Not Collected**.
+
+Apple defines "collect" as transmitting data off the device *in a way that allows you or
+your third-party partners to access it*. This app has no server. Everything goes to the
+user's own CloudKit private database and their partner's, neither of which the developer
+holds credentials for, and since 2.0 the contents are sealed under a key that never leaves
+the two phones. Reading the definition the other way round would make every CloudKit app
+on the store a collector, which is plainly not the intent — and a label reading "Name,
+Messages collected" would misinform users in the direction that matters most here.
+
+**`App/Resources/PrivacyInfo.xcprivacy` must agree**, and this is the part that is easy to
+miss: it is the same declaration in a second place, and Xcode's *Generate Privacy Report*
+exists to reconcile the two. It previously listed Name, OtherUserContent and DeviceID —
+written before this decision — and now carries an empty `NSPrivacyCollectedDataTypes`.
+Change one, change the other, or the archive's privacy report will contradict the
+questionnaire.
+
+`NSPrivacyAccessedAPITypes` is unrelated and stays: it declares *API access* (UserDefaults,
+reason `CA92.1`), not collection, and is still required.
+
+## 7b. App Review notes
+
+A reviewer has **one device**, and this app is two screens of wall without a second one:
+the iCloud gate if they aren't signed in, then the pairing screen. Apps get rejected under
+Guideline 2.1 for exactly this.
+
+Don't try to solve it with a live invite link. `PairingInvite` expires in 24 hours and
+reviews take longer, the share is single-use so a re-review after a rejection gets nothing,
+and it pairs a stranger to your actual phone.
+
+The app answers it itself: **Try it without a partner** on the pairing screen, and
+**See how it works without signing in** on the iCloud gate. Both start a self-contained
+demo — scripted partner, no network, nothing stored. Say so in the App Review Notes field:
+
+> This app pairs two phones and has no accounts or servers, so a single device cannot use
+> its main flow. Tap **Try it without a partner** on the first screen (or **See how it
+> works without signing in** if the device isn't signed in to iCloud) to see the whole app
+> on one device: press the button, watch the status go Sent → Seen → Acknowledged, then
+> wait a few seconds for a simulated incoming alert and tap an emoji to answer it. Nothing
+> in the demo is sent or stored.
+
+The demo is a normal user-facing feature, not a review carve-out — Guideline 2.3.1
+prohibits hidden or undocumented features, and a door only Apple can find would be one.
+It is also worth having on its own: without it, anyone who installs the app before
+convincing their partner to install it can't see what they'd be signing up for.
 
 ## 8. Install on the phones
 
@@ -273,5 +369,5 @@ attention-cli pair forget
 - **CloudKit works in debug but not in TestFlight**: you forgot to **Deploy Schema to Production**.
 - **Settings → Diagnostics shows "Acknowledgement push: Unavailable" after a clean schema import**: the `_sub_trigger_<subscriptionID>` index is missing from Production. These aren't in `cloudkit-schema.ckdb` — CloudKit auto-creates them the first time a Debug build saves the subscription against Development. Run a Debug build on a real device once, then **Deploy Schema Changes…** again (the diff will now include the trigger). The captured CKError shown beneath the row should clear on next launch.
 - **Long-press menu doesn't show "Send as Critical" anymore**: intentional — the long-press now opens the noun picker (Apple denied the Critical Alerts entitlement, so the option no longer functioned). The Critical Alerts toggle in Settings is also commented out for the same reason. To re-enable, restore the commented-out blocks in `App/Views/SettingsView.swift`, `App/Views/AttentionButton.swift`, `App/Views/StatusIndicatorView.swift`, `Watch/Watch/WatchStatusPill.swift`, and `App/AttentionApp.swift`.
-- **Pairing QR scan does nothing**: camera permission was denied. Settings → Attention → Camera → On.
+- **Scan Code shows "Attention can't use the camera"**: camera permission was denied. Tap **Open Settings** on that screen, turn Camera on, and come back — the screen re-checks on foreground. The **Paste it** button on the same screen pairs without the camera at all, from an invite link your partner shared.
 - **Watch button does nothing when phone is off**: the watch queues the press via `transferUserInfo` and the iPhone sends the alert when it next wakes. Expected.

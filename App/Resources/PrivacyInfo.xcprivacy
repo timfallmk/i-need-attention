@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<!-- Empty deliberately, not unfinished. Apple defines "collect" as transmitting data
+	     off the device in a way that lets the developer or their partners access it. This
+	     app has no server: everything goes to the user's own CloudKit private database and
+	     their partner's, both of which the developer has no credentials for, and since 2.0
+	     the contents are sealed under a key that never leaves the two phones. Reading the
+	     definition the other way would make every CloudKit app on the store a collector,
+	     which is plainly not the intent.
+	     This previously listed Name, OtherUserContent and DeviceID. That predates the
+	     decision recorded in SETUP.md, and it has to match the App Privacy answers in App
+	     Store Connect ("Data Not Collected") — the two are the same declaration in two
+	     places, and Xcode's Privacy Report exists to reconcile them. Change one, change
+	     both. -->
+	<array/>
+</dict>
+</plist>

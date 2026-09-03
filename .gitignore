@@ -8,6 +8,14 @@ xcuserdata/
 ## XcodeGen-generated project file (regenerate with `xcodegen`)
 *.xcodeproj/
 
+## XcodeGen-generated Info.plists. project.yml's `info.properties` is the source
+## of truth and every build regenerates these, so a tracked copy only drifts —
+## and makes hand-edits look like they worked until the next `xcodegen generate`.
+App/Info.plist
+NotificationService/Info.plist
+Watch/Watch/Info.plist
+Watch/WatchWidget/Info.plist
+
 ## Obj-C/Swift specific
 *.hmap
 

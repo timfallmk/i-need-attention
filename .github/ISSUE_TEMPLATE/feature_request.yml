@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest something the app should do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This app is deliberately small — two people, one button. Requests that keep it
+        that way are much more likely to land than ones that grow it.
+        Explicitly out of scope: more than two devices per pair, and anything needing a
+        server.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem
+      description: The situation you're in, not the feature you have in mind. It often has a smaller solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you had in mind

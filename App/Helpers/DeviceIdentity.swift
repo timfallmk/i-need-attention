@@ -23,4 +23,12 @@ enum DeviceIdentity {
         get { UserDefaults.standard.string(forKey: nameKey) ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: nameKey) }
     }
+
+    /// Forgets this install's identity, for `DataErasure`. The id is written into every
+    /// record this device sends, so it is the one value that still ties an erased phone
+    /// to alerts sitting in a partner's zone; the next read mints a fresh one.
+    static func reset() {
+        UserDefaults.standard.removeObject(forKey: idKey)
+        UserDefaults.standard.removeObject(forKey: nameKey)
+    }
 }

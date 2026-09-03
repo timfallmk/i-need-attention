@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/timfallmk/i-need-attention/blob/main/SECURITY.md
+    about: Please report privately, not as a public issue.
+  - name: Setup trouble
+    url: https://github.com/timfallmk/i-need-attention/blob/main/SETUP.md
+    about: SETUP.md covers signing, CloudKit schema and the common gotchas end to end.

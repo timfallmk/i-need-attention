@@ -5,6 +5,9 @@ struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @State private var confirmingUnpair = false
+    @State private var confirmingErase = false
+    @State private var isErasing = false
+    @State private var eraseLeftRemoteData = false
     @State private var exportedReport: ExportedReport?
     @State private var isGeneratingReport = false
     @State private var nameSyncTask: Task<Void, Never>?
@@ -188,6 +191,30 @@ struct SettingsView: View {
                         Text("You'll need to scan a fresh code to pair again.")
                     }
                 }
+
+                Section {
+                    Button(role: .destructive) {
+                        Haptics.warning()
+                        confirmingErase = true
+                    } label: {
+                        HStack {
+                            Label("Erase all my data", systemImage: "trash")
+                            if isErasing {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isErasing)
+                } footer: {
+                    Text("Deletes your history on this phone, your settings, the key that "
+                         + "unlocks any of it, and — if you're online and signed in to "
+                         + "iCloud — the alerts stored in your iCloud account. Nothing is "
+                         + "kept and nothing can be restored.\n\nWhat your partner's phone "
+                         + "holds is theirs to erase — but everything you sent them is "
+                         + "locked with the key that goes here, so after this neither of "
+                         + "you can read it.")
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -214,6 +241,46 @@ struct SettingsView: View {
             } message: {
                 Text("Both phones need to unpair separately for the pairing to be fully reset.")
             }
+            .alert("Erased, but not from iCloud", isPresented: $eraseLeftRemoteData) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Everything on this phone is gone. iCloud couldn't be reached, so the "
+                     + "alerts stored there may still exist — but the key that reads them "
+                     + "has been destroyed, so nothing can open them. To clear the storage "
+                     + "itself, delete the app's data from iCloud in iOS Settings.")
+            }
+            .alert("Erase all my data?", isPresented: $confirmingErase) {
+                Button("Cancel", role: .cancel) {}
+                Button("Erase Everything", role: .destructive) {
+                    Haptics.error()
+                    Task { await erase() }
+                }
+            } message: {
+                Text("This can't be undone. Your alert history, your pairing and your "
+                     + "settings are deleted from this phone, and from your iCloud account "
+                     + "if it can be reached — you'll be told if it can't.")
+            }
+        }
+    }
+
+    /// MainActor for the same reason `generateReport` is — `@State` writes around an
+    /// await, under `SWIFT_STRICT_CONCURRENCY: minimal`. The sheet dismisses itself when
+    /// the erase finishes rather than at the tap, so the spinner is visible for as long
+    /// as the CloudKit teardown actually takes.
+    @MainActor
+    private func erase() async {
+        guard !isErasing else { return }
+        isErasing = true
+        let remoteSucceeded = await appState.eraseAllData()
+        hasArchivedHistory = false
+        isErasing = false
+        // Dismissing on success returns them to a fresh pairing screen, which is the
+        // whole story. On failure the sheet stays put to carry the alert, since a
+        // half-kept promise is worth more than a tidy transition.
+        if remoteSucceeded {
+            dismiss()
+        } else {
+            eraseLeftRemoteData = true
         }
     }
 

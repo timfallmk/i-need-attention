@@ -3,21 +3,26 @@
 A two-phone iOS app: tap the big red button, the other phone gets a push that says you need attention. Personal-use, paired by QR scan, no backend besides what Apple provides (CloudKit + APNs).
 
 ```
-iPhone A                 iCloud (CloudKit)               iPhone B
-+--------+                +------------------+            +--------+
-|  TAP   |  write Alert  |  public DB +     |  push     |  alert  |
-|  big   | ============> |  CKQuerySub      | ========> |  banner |
-|  red   |               |  (filter on      |            |  buzz   |
-|        |  <==========  |   pairKey)       | <======== |   tap   |
-| status |  silent push  |                  |  ack/seen |   ack   |
-+--------+                +------------------+            +--------+
+iPhone A                      iCloud (CloudKit)                   iPhone B
++--------+          +--------------------------------+           +--------+
+|  TAP   |  write   |  B's inbox zone                |   push    |  alert |
+|  big   | =======> |  (B's PRIVATE db, shared to A) | ========> |  banner|
+|  red   |          |  contents sealed with the      |           |  buzz  |
+|        | <======= |  pair key, held only on the    | <======== |  tap   |
+| status |   push   |  two phones                    |  ack/seen |  ack   |
++--------+          +--------------------------------+           +--------+
 ```
+
+Each person owns a zone in their own private database and shares it with their
+partner; you write into *theirs*. Access is enforced by CloudKit per zone, and
+everything human-readable is encrypted before it leaves the device. There is no
+shared table and no lookup value that grants access.
 
 ## What's in here
 
 - `App/` — the iOS app (SwiftUI, iOS 17+).
 - `Watch/Watch/` — watchOS companion. Sends presses to the iPhone via WatchConnectivity.
-- `NotificationService/` — Notification Service Extension. Upgrades incoming pushes to `.timeSensitive` (or `.critical` if the sender requested it and Apple has granted you the entitlement).
+- `NotificationService/` — Notification Service Extension. Decrypts the alert and upgrades the push to `.timeSensitive`, which pierces Focus.
 - `Shared/` — types used by both the app and the NSE.
 - `project.yml` — XcodeGen spec. Run `xcodegen` to materialize `Attention.xcodeproj`.
 
@@ -33,29 +38,25 @@ open Attention.xcodeproj
 
 Then in Xcode:
 
-1. **Pick your team.** Select the `Attention` target → Signing & Capabilities → Team. Repeat for `AttentionWatch` and `AttentionNotificationService`.
-2. **Set bundle IDs.** Replace `com.example.attention` everywhere it appears (the three `*.entitlements` files, `project.yml`, and `Constants.swift` for both `cloudKitContainerID` and `AppGroup.identifier`) with your own reverse-DNS prefix. Re-run `xcodegen generate`.
+1. **Pick your team.** Change `DEVELOPMENT_TEAM` in `project.yml` to your own Team ID (developer portal → Membership) and re-run `xcodegen generate`. The committed value is the original author's and won't work for you. Setting it per target in Xcode works too, but `*.xcodeproj/` is regenerated from `project.yml`, so it won't survive the next generate.
+2. **Set bundle IDs.** Replace `com.timfallmk.attention` everywhere it appears (the `*.entitlements` files, `project.yml`, and `Shared/Constants.swift` for both `cloudKitContainerID` and `AppGroup.identifier`) with your own reverse-DNS prefix. Re-run `xcodegen generate`.
 3. **Create the iCloud container.** In Signing & Capabilities → iCloud → click **+ Container** and create `iCloud.<your.bundle.id>`. Update `Constants.cloudKitContainerID` to match.
 4. **Create the App Group.** In Signing & Capabilities → **+ Capability → App Groups** → **+** → name it `group.<your.bundle.id>`. Add it to **both** the `Attention` target and the `AttentionNotificationService` target. Update `Constants.AppGroup.identifier` to match.
 5. **First run.** Build + install on both phones (each signed in to its own Apple ID). The first launch asks for notification permission and shows the pairing screen.
 
-## CloudKit Dashboard setup (first run only)
+## CloudKit schema
 
-After your first sign-in to the container at <https://icloud.developer.apple.com/dashboard/>:
+The schema is checked in as `cloudkit-schema.ckdb` — import it rather than creating
+record types by hand:
 
-1. Create the **Pair** record type with these fields (all `String`, except where noted):
-   - `pairKey` — **mark as Queryable**
-   - `deviceA`, `deviceB`, `nameA`, `nameB`
-2. Create the **Alert** record type:
-   - `pairKey` — **Queryable + Sortable**
-   - `senderDeviceID` — **Queryable**
-   - `senderName`, `message`, `state`, `ackEmoji` — String
-   - `seenAt`, `acknowledgedAt` — Date/Time
-   - `critical` — Int (Int64), default `0`
-3. Set **Default Security Roles**: `_world` = **nothing**, `_icloud` = Create + Read + Write. Do not grant `_world` Read — it exposes every record, `pairKey` included, to unauthenticated callers. See `SECURITY.md` for what the pairKey does and does not protect.
-4. Promote schema to **Production** when ready (`Deploy to Production…`).
+1. Sign in at <https://icloud.developer.apple.com/dashboard/> and pick your container.
+2. **Import Schema** and give it `cloudkit-schema.ckdb`.
+3. When you're ready to ship, **Deploy Schema Changes…** to promote Development to
+   Production.
 
-> Apple auto-creates record types the first time the app saves one in development, but the queryable indexes have to be added manually here. Without them, subscriptions silently fail.
+`SETUP.md` §4 is the full version, including the indexes CloudKit creates for
+subscriptions rather than the file — those come from running a Debug build on a device
+once, and are the usual cause of "push works in development but not in TestFlight".
 
 ## Pairing
 
@@ -63,21 +64,20 @@ Tap **Show Code** on phone A. Tap **Scan Code** on phone B and point it at A. Do
 
 To repair: open Settings → Unpair, then start over. (Both phones unpair separately.)
 
-## Critical Alerts
+## Alert priority
 
-The split is two-sided so each user controls their own phone:
+Alerts are delivered `.timeSensitive`, which pierces Focus and Do Not Disturb.
+`com.apple.developer.usernotifications.time-sensitive` is auto-granted — just add the
+capability in Xcode.
 
-- **Sender** (per-press): tap the big button for a normal ping, or **long-press → Send as Critical** to flag this specific ping as urgent.
-- **Receiver** (master toggle in Settings): "Accept Critical Alerts from \<partner\>" — defaults off. If unchecked, criticals from your partner are downgraded to `.timeSensitive` on your device.
+**Critical Alerts are not available.** They pierce silent mode as well, and the code for
+them is still here (sender flag, receiver toggle, the three-way decision in the NSE) but
+commented out: Apple declined the entitlement for this app. `CLAUDE.md` lists the exact
+blocks to restore if that ever changes. Until then a ping flagged critical is delivered
+time-sensitive, which is the same thing minus silent mode.
 
-A ping is presented as `.critical` (pierces silent + Focus + DND) only when **all three** are true:
-1. The sender long-pressed and chose Send as Critical
-2. The receiver has Accept Critical Alerts on
-3. Apple has granted the Critical Alerts entitlement to your app ID
-
-Critical Alerts require a one-time entitlement from Apple — request it under **Certificates, Identifiers & Profiles → Identifiers → your App ID → Capabilities → Critical Alerts**. Until granted, criticals fall back to `.timeSensitive`, which still pierces Focus.
-
-`com.apple.developer.usernotifications.time-sensitive` is auto-granted; just add the capability in Xcode. The receiver toggle is read by the Notification Service Extension via the App Group container, which is why both targets need the App Group capability.
+The receiver's settings are read by the Notification Service Extension through the App
+Group container, which is why both targets need the App Group capability.
 
 ## Custom sound
 
@@ -102,10 +102,34 @@ Reuses the iPhone's CloudKit credentials via WatchConnectivity — the watch nev
 
 ## Known limitations
 
-- **Public CloudKit DB.** Records live in the public database, where CloudKit grants permissions per record type with no row-level scoping. **Any authenticated iCloud client** that can reach the container can read every pair's records — the `pairKey` is a field on the Pair record, not a credential, so knowing one isn't required to read it. Anonymous (`_world`) access is not granted by the schema in this repo; authenticated read and write remain, because the app itself is an authenticated client. Treat nothing here as private from a determined party.
+- **Your partner's device is inside the boundary, and nothing else is.** Since 2.0 each person owns an inbox zone in their own private CloudKit database and shares it with their partner, so access is enforced per zone by CloudKit rather than by a value anyone can read. Record contents are sealed with ChaCha20-Poly1305 under a key derived from the pair key, which never leaves the two devices — the storage provider holds ciphertext. What that does *not* protect against is a compromised phone: the key is on both of them, which is the right place for the boundary in a two-person app, but it is a boundary. Structural fields (state, timestamps, device IDs) stay plaintext because predicates and sorting need them.
+- **Pre-2.0 records were in the public database and some may still be there.** Before 2.0 everything lived in a world-readable table with the `pairKey` as a plaintext field on the record — a lookup value, not a credential, so it protected nothing. Upgrading re-pairs under a new key and archives the old history locally; the originals are removed by a purge that runs once both partners have upgraded. Assume anything sent before 2.0 was readable by any authenticated iCloud client.
 - **Silent pushes for status updates can be throttled** by iOS if your phone is in Low Power Mode or the app has been force-quit. The "Seen / Acknowledged" indicator may take a moment to update.
 - **App icon** is generated by `Tools/generate_icons.py` (requires Pillow: `pip install pillow`). Re-run it after editing that script to update `App/Assets.xcassets/AppIcon.appiconset/` and `Watch/Watch/Assets.xcassets/AppIcon.appiconset/`.
 
 ## License
 
-[GNU Affero General Public License v3.0](LICENSE)
+[Mozilla Public License 2.0](LICENSE). Every file in this repository is Covered
+Software under it unless that file says otherwise in its own header.
+
+**There are no per-file licence headers, deliberately.** MPL's Exhibit A offers
+the LICENSE-file alternative precisely so a project need not carry one in every
+file, and a header that only restates the root licence buys nothing while
+guaranteeing drift — a stale year, a missed file, a copied header that now names
+the wrong terms. A notice earns its place only where it *contradicts* the root
+licence, so that is the one case this repo requires one: **a file under terms
+other than MPL-2.0 must carry its own notice.** Everything unmarked is MPL.
+
+Third-party material bundled here is not source and is tracked separately: see
+[`App/Models/OpenSourceLicenses.swift`](App/Models/OpenSourceLicenses.swift),
+which is also what Settings → Open Source renders to users. Currently that is
+Unicode Emoji Data and the notification sound (CC BY 3.0 — attribution details
+in [`App/Resources/SOUND_PLACEHOLDER.md`](App/Resources/SOUND_PLACEHOLDER.md)).
+
+MPL rather than a GPL-family licence because this app is distributed through the
+App Store. GPL §10's "no further restrictions" clause and the App Store's terms
+of use are in tension — the reason VLC came off the store in 2011 — and while a
+sole copyright holder isn't bound by their own outbound grant, anyone who forks
+this repo would be. MPL's copyleft is per-file: modifications to these files stay
+open, a larger work that includes them doesn't have to be, and nothing about
+shipping the result through a store is in doubt.
