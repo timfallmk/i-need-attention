@@ -205,7 +205,8 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
             // The NSE sets this whenever it resolves the record. Missing means it fell
             // back to the generic body — worth knowing, since the banner still looked
             // almost right.
-            log.error("Notification response carried no recordName; userInfo keys: \(userInfo.keys.map { "\($0)" }.joined(separator: ","), privacy: .public)")
+            let keys = userInfo.keys.map(String.init(describing:)).joined(separator: ",")
+            log.error("Notification response carried no recordName; userInfo keys: \(keys, privacy: .public)")
             completionHandler()
             return
         }

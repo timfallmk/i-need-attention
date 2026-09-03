@@ -262,7 +262,11 @@ final class AppState {
         // or one we already applied — but they are also the two ways a delivered push can
         // change nothing, which is indistinguishable from a push that never arrived.
         guard var outgoing = pendingOutgoing, outgoing.id.recordName == alertRecordName else {
-            log.notice("Status for \(alertRecordName, privacy: .public) ignored; showing \(self.pendingOutgoing?.id.recordName ?? "nothing", privacy: .public)")
+            // Read out before interpolating: os_log's interpolation is an escaping
+            // autoclosure, and giving it a property to reach for later rather than a
+            // value is how the same call site broke once already.
+            let showing = pendingOutgoing?.id.recordName ?? "nothing"
+            log.notice("Status for \(alertRecordName, privacy: .public) ignored; showing \(showing, privacy: .public)")
             return
         }
         guard state != outgoing.state else {
