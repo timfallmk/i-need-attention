@@ -1,23 +1,27 @@
 name: CI
 
-# A macOS runner bills at 10x the Linux rate and this job takes ~5 minutes, so a
-# push that cannot possibly change the build result is worth not running at all.
-# Markdown and LICENSE are the only such paths: nothing here compiles them, and the
-# one Markdown file that does ship (App/Resources/SOUND_PLACEHOLDER.md, bundled
-# because XcodeGen takes App/Resources wholesale) is inert cargo the build never
-# reads. The workflow file itself is deliberately not excluded — a change to it must
-# run under itself. Note the tradeoff: a docs-only PR gets no check at all, so do not
-# make this check "required" in branch protection without reworking this.
+# A macOS runner bills at 10x the Linux rate and this job takes ~5 minutes, so a push
+# that cannot possibly change the build result is worth not running at all. Three paths
+# qualify: Markdown, LICENSE, and site/. Nothing compiles any of them — the one Markdown
+# file that does ship (App/Resources/SOUND_PLACEHOLDER.md, bundled because XcodeGen takes
+# App/Resources wholesale) is inert cargo the build never reads, and site/ is the GitHub
+# Pages site, which has a workflow of its own. This file is deliberately not excluded: a
+# change to it must run under itself.
+#
+# The tradeoff, which is a trap otherwise: a PR touching only these paths gets no check
+# at all. Do not make this check "required" in branch protection without reworking it.
 on:
   push:
     branches: [main]
     paths-ignore:
       - '**/*.md'
       - 'LICENSE'
+      - 'site/**'
   pull_request:
     paths-ignore:
       - '**/*.md'
       - 'LICENSE'
+      - 'site/**'
   workflow_dispatch:
 
 concurrency:
