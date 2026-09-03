@@ -99,6 +99,18 @@ targets:
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleDefault
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # Substituted into App/Attention.entitlements. Production is the safe default:
+        # an unset value would produce an empty entitlement and no push at all.
+        APS_ENVIRONMENT: production
+      configs:
+        # A Debug build runs against the Development CloudKit container, which sends its
+        # pushes through sandbox APNs. Registering for a production token there gets no
+        # error and no delivery — which is exactly how push testing on a debug build
+        # looks broken while every foreground read keeps working.
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
 
   AttentionNotificationService:
     type: app-extension

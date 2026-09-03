@@ -2,8 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- Per-configuration: Debug builds talk to the Development CloudKit container,
+         which pushes through sandbox APNs, while Release talks to Production. A token
+         minted for the wrong one is not rejected, it is simply never delivered to — so
+         a hardcoded value here silently kills push for whichever half of the project
+         isn't currently being tested. This repo flipped it by hand twice before; the
+         value comes from APS_ENVIRONMENT in project.yml now. -->
     <key>aps-environment</key>
-    <string>production</string>
+    <string>$(APS_ENVIRONMENT)</string>
     <key>com.apple.developer.icloud-container-identifiers</key>
     <array>
         <string>iCloud.com.timfallmk.attention</string>
