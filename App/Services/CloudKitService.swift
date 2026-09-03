@@ -468,8 +468,18 @@ final class CloudKitService: @unchecked Sendable {
         }
         guard !toSave.isEmpty else { return }
 
+        // Retiring the stale ones is its own operation, and has to be. A stale
+        // subscription is by definition also one we are about to recreate under the same
+        // ID, and CloudKit rejects that pairing outright — "You can't save and delete a
+        // subscription in the same operation" — failing the whole modify atomically. The
+        // first version of this fix did exactly that, so the subscriptions it existed to
+        // repair stayed broken on every launch while the error scrolled past in Console.
+        if !stale.isEmpty {
+            try await deleteSubscriptions(stale)
+        }
+
         let op = CKModifySubscriptionsOperation(subscriptionsToSave: toSave,
-                                                subscriptionIDsToDelete: stale.isEmpty ? nil : stale)
+                                                subscriptionIDsToDelete: nil)
         op.qualityOfService = .userInitiated
         let log = self.log
         let attemptedIDs = toSave.map(\.subscriptionID).joined(separator: ", ")
@@ -510,6 +520,16 @@ final class CloudKitService: @unchecked Sendable {
                         cont.resume()
                     } else {
                         log.error("modifySubscriptions failed [\(attemptedIDs, privacy: .public)]: \(String(describing: error), privacy: .public)")
+                        // Nothing saved means perSubscriptionSaveBlock never fired, so the
+                        // ack diagnostic would otherwise still read "ok" while the very
+                        // operation that registers it was failing every launch.
+                        if toSave.contains(where: { $0.subscriptionID == Constants.SubscriptionID.outgoingAck }) {
+                            SharedSettings.outgoingAckSubscriptionUnavailable = true
+                            let raw = String(describing: error)
+                            SharedSettings.outgoingAckSubscriptionFailureReason = raw.count > 500
+                                ? String(raw.prefix(500)) + "…"
+                                : raw
+                        }
                         cont.resume(throwing: error)
                     }
                 }
@@ -539,9 +559,13 @@ final class CloudKitService: @unchecked Sendable {
 
     func removeAllSubscriptions() async throws {
         let existing = try await privateDB.allSubscriptions()
-        guard !existing.isEmpty else { return }
-        let ids = existing.map(\.subscriptionID)
+        try await deleteSubscriptions(existing.map(\.subscriptionID))
+    }
+
+    private func deleteSubscriptions(_ ids: [String]) async throws {
+        guard !ids.isEmpty else { return }
         let op = CKModifySubscriptionsOperation(subscriptionsToSave: nil, subscriptionIDsToDelete: ids)
+        op.qualityOfService = .userInitiated
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             op.modifySubscriptionsResultBlock = { result in
                 switch result {
