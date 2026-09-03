@@ -401,32 +401,48 @@ final class CloudKitService: @unchecked Sendable {
     func registerSubscriptions() async throws {
         let zoneID = try await ensureInboxZone()
         let existing = try await privateDB.allSubscriptions()
-        let existingIDs = Set(existing.map(\.subscriptionID))
+
+        // Existing is not the same as usable. The four subscription IDs are constants
+        // while the zone name is per-pairing, so after a re-pair every one of these
+        // still names the zone the *previous* pairing used — a zone `unpair` deleted.
+        // Matching on ID alone would find them all present, save nothing, and leave a
+        // pair that looks healthy and never pushes. Only a subscription watching the
+        // zone we own right now counts; the rest are deleted in the same operation.
+        var live = Set<String>()
+        var stale: [String] = []
+        for subscription in existing where Constants.SubscriptionID.all.contains(subscription.subscriptionID) {
+            if let query = subscription as? CKQuerySubscription, query.zoneID == zoneID {
+                live.insert(subscription.subscriptionID)
+            } else {
+                stale.append(subscription.subscriptionID)
+            }
+        }
 
         // If the ack subscription already lives on the server, the previously-saved
         // diagnostic flag + reason are stale — clear them so we don't keep flagging
         // a healthy install.
-        if existingIDs.contains(Constants.SubscriptionID.outgoingAck) {
+        if live.contains(Constants.SubscriptionID.outgoingAck) {
             SharedSettings.outgoingAckSubscriptionUnavailable = false
             SharedSettings.outgoingAckSubscriptionFailureReason = nil
         }
 
         var toSave: [CKSubscription] = []
-        if !existingIDs.contains(Constants.SubscriptionID.incomingAlerts) {
+        if !live.contains(Constants.SubscriptionID.incomingAlerts) {
             toSave.append(makeIncomingSubscription(zoneID: zoneID))
         }
-        if !existingIDs.contains(Constants.SubscriptionID.outgoingStatus) {
+        if !live.contains(Constants.SubscriptionID.outgoingStatus) {
             toSave.append(makeOutgoingStatusSubscription(zoneID: zoneID))
         }
-        if !existingIDs.contains(Constants.SubscriptionID.outgoingAck) {
+        if !live.contains(Constants.SubscriptionID.outgoingAck) {
             toSave.append(makeOutgoingAckSubscription(zoneID: zoneID))
         }
-        if !existingIDs.contains(Constants.SubscriptionID.pairProfile) {
+        if !live.contains(Constants.SubscriptionID.pairProfile) {
             toSave.append(makePairProfileSubscription(zoneID: zoneID))
         }
         guard !toSave.isEmpty else { return }
 
-        let op = CKModifySubscriptionsOperation(subscriptionsToSave: toSave, subscriptionIDsToDelete: nil)
+        let op = CKModifySubscriptionsOperation(subscriptionsToSave: toSave,
+                                                subscriptionIDsToDelete: stale.isEmpty ? nil : stale)
         op.qualityOfService = .userInitiated
         let log = self.log
         let attemptedIDs = toSave.map(\.subscriptionID).joined(separator: ", ")

@@ -150,6 +150,11 @@ enum Constants {
         /// Replaces pair-updates-v1. Drives two things: the last step of the pairing
         /// handshake, and a partner's rename.
         static let pairProfile = "pair-profile-v1"
+
+        /// The ones this app owns. `registerSubscriptions` needs to tell them apart from
+        /// anything else in the database so it can retire the ones left pointing at a
+        /// previous pairing's zone without touching subscriptions it didn't create.
+        static let all: Set<String> = [incomingAlerts, outgoingStatus, outgoingAck, pairProfile]
     }
 
     enum WatchMessage {
