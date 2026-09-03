@@ -33,6 +33,16 @@ A few things to know up front:
 - Run the unit tests locally (⌘U) before pushing. CI builds with code signing disabled, so a green CI run is not evidence that the test bundle builds and signs on a real machine.
 - Reference any related issue in the PR description.
 
+## Licensing of contributions
+
+This project is under the [Mozilla Public License 2.0](LICENSE), and contributions are
+accepted under the same terms. There is no CLA to sign: MPL defines a Modification of a
+covered file as Covered Software in its own right (§1.10), so a patch to a file here is
+already MPL by the licence's own definitions rather than by an agreement on the side.
+
+MPL's copyleft is per-file, which is worth knowing before you open a PR: modifications to
+these files stay open, and a larger work that merely includes them does not have to be.
+
 ## Code of conduct
 
 By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).

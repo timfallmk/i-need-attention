@@ -108,4 +108,14 @@ Reuses the iPhone's CloudKit credentials via WatchConnectivity — the watch nev
 
 ## License
 
-[GNU Affero General Public License v3.0](LICENSE)
+[Mozilla Public License 2.0](LICENSE). Every file in this repository is Covered
+Software under it, which is what MPL's Exhibit A calls the LICENSE-file
+alternative to a per-file notice.
+
+MPL rather than a GPL-family licence because this app is distributed through the
+App Store. GPL §10's "no further restrictions" clause and the App Store's terms
+of use are in tension — the reason VLC came off the store in 2011 — and while a
+sole copyright holder isn't bound by their own outbound grant, anyone who forks
+this repo would be. MPL's copyleft is per-file: modifications to these files stay
+open, a larger work that includes them doesn't have to be, and nothing about
+shipping the result through a store is in doubt.
