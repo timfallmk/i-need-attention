@@ -57,6 +57,7 @@ final class AppState {
     /// from a `.task`, which fires *after* the first render, so the pairing screen drew
     /// itself before the flag existed and nothing told it to draw again.
     var needsRepairAfterCutover: Bool
+    var partnerEndedPairing: Bool
 
     init() {
         // First thing, before any view can render and before anything can re-pair. It is
@@ -66,6 +67,7 @@ final class AppState {
         // a stale pairing indistinguishable from a fresh install.
         InboxZone.resetPairingPredatingPerPairingZones()
         self.needsRepairAfterCutover = CutoverNotice.needsRepair
+        self.partnerEndedPairing = PartnerUnpairedNotice.happened
 
         self.settings = UserSettings()
         self.pair = PairState.load()
@@ -152,6 +154,10 @@ final class AppState {
                 try? await UNUserNotificationCenter.current().setBadgeCount(0)
             }
         } catch {
+            // Either fetch can raise this, and only one of them means anything: our own
+            // zone missing is a gap `bootstrap` closes, the partner's means they have
+            // unpaired. `endPairingIfPartnerZoneIsGone` checks which.
+            if await endPairingIfPartnerZoneIsGone(error, pair: pair) { return }
             log.error("reconcile: \(error.localizedDescription)")
         }
         pushWatchSnapshot()
@@ -215,6 +221,10 @@ final class AppState {
             Haptics.success()
             pushWatchSnapshot()
         } catch {
+            // A send always targets the partner's zone, so a missing one here needs no
+            // further attribution — but it is still confirmed before acting, because the
+            // consequence is ending the pairing.
+            if await endPairingIfPartnerZoneIsGone(error, pair: pair) { return }
             log.error("sendAttention: \(error.localizedDescription)")
             bannerMessage = error.localizedDescription
             Haptics.warning()
@@ -453,9 +463,13 @@ final class AppState {
 
     func applyPair(_ state: PairState) {
         self.pair = state
-        // Whatever the cutover cost them, they've paid it.
+        // Whatever the cutover cost them, they've paid it. Same for a partner who
+        // ended the last pairing — they have a partner again, so the explanation for
+        // not having one is spent.
         CutoverNotice.needsRepair = false
         needsRepairAfterCutover = false
+        PartnerUnpairedNotice.happened = false
+        partnerEndedPairing = false
         // Completing a pair consumes any pending invite (the service layer clears the
         // persisted copy); re-sync the observable mirror.
         self.pendingInvite = PendingInvite.load()
@@ -473,6 +487,35 @@ final class AppState {
     func refreshSubscriptionDiagnostics() {
         outgoingAckSubscriptionUnavailable = SharedSettings.outgoingAckSubscriptionUnavailable
         outgoingAckSubscriptionFailureReason = SharedSettings.outgoingAckSubscriptionFailureReason
+    }
+
+    /// Ends the pairing when the error says the partner's zone is gone, which is what
+    /// their `unpair()` leaves behind — it deletes the zone this device writes into.
+    ///
+    /// Two guards, because the failure mode of getting this wrong is unpairing someone
+    /// who is still perfectly paired. The error itself must be a definite missing-zone
+    /// code rather than any CloudKit failure, and the zone must then be *confirmed* gone
+    /// by a lookup that answers "can't tell" as false. Only both together act.
+    ///
+    /// The confirmation also settles which zone the error was about: `reconcileLatestAlert`
+    /// reads our own zone and the partner's together, and our own briefly not existing is
+    /// an ordinary startup state rather than the end of a relationship.
+    ///
+    /// Returns true when it took over, so callers skip their own error handling.
+    @discardableResult
+    private func endPairingIfPartnerZoneIsGone(_ error: Error, pair: PairState) async -> Bool {
+        guard error.isMissingCloudKitZone, let zone = pair.outgoingZone else { return false }
+        guard await CloudKitService.shared.zoneIsMissing(zone.zoneID) else { return false }
+
+        log.notice("Partner's inbox zone is gone; ending the pairing on this device too")
+        PartnerUnpairedNotice.happened = true
+        partnerEndedPairing = true
+        // Archives first, as every unpair does. The sent half is already unreachable —
+        // that is what got us here — but the received half is in the zone we own, and
+        // `fetchRecentAlerts` tolerates one zone failing without losing the other.
+        await unpair()
+        Haptics.warning()
+        return true
     }
 
     func unpair() async {
