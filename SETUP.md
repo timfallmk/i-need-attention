@@ -191,6 +191,28 @@ References: [Complying with Encryption Export Regulations](https://developer.app
 · [Export compliance documentation for encryption](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption/)
 · [BIS annual self-classification](https://www.bis.gov/learn-support/encryption-controls/annual-self-classification)
 
+## 7a-ii. App Privacy answers
+
+App Store Connect → your app → **App Privacy**: answer **Data Not Collected**.
+
+Apple defines "collect" as transmitting data off the device *in a way that allows you or
+your third-party partners to access it*. This app has no server. Everything goes to the
+user's own CloudKit private database and their partner's, neither of which the developer
+holds credentials for, and since 2.0 the contents are sealed under a key that never leaves
+the two phones. Reading the definition the other way round would make every CloudKit app
+on the store a collector, which is plainly not the intent — and a label reading "Name,
+Messages collected" would misinform users in the direction that matters most here.
+
+**`App/Resources/PrivacyInfo.xcprivacy` must agree**, and this is the part that is easy to
+miss: it is the same declaration in a second place, and Xcode's *Generate Privacy Report*
+exists to reconcile the two. It previously listed Name, OtherUserContent and DeviceID —
+written before this decision — and now carries an empty `NSPrivacyCollectedDataTypes`.
+Change one, change the other, or the archive's privacy report will contradict the
+questionnaire.
+
+`NSPrivacyAccessedAPITypes` is unrelated and stays: it declares *API access* (UserDefaults,
+reason `CA92.1`), not collection, and is still required.
+
 ## 7b. App Review notes
 
 A reviewer has **one device**, and this app is two screens of wall without a second one:
