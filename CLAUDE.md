@@ -214,6 +214,32 @@ When opening a PR:
 - **No local `xcodegen generate` needed for a release.** `ci_scripts/ci_post_clone.sh` regenerates the project on the build runner from `project.yml` (`*.xcodeproj/` is gitignored). Local `xcodegen` is only for building in Xcode yourself.
 - **Manual fallback only if Xcode Cloud is down:** `SETUP.md` §7 (Archive → Distribute → Upload), where you *do* bump the build number by hand.
 
+## Going public
+
+The repo is private. Several things are deliberately withheld or worded around that,
+and they are listed **here** rather than only at each site, because the failure mode is
+fixing one and missing the others — which has already happened twice on this branch.
+
+When the repo becomes public:
+
+- **`site/index.html`** — restore the "Source code" list item (MPL-2.0) and the footer
+  Source link.
+- **`site/privacy.html`** — restore the "verifiable in the source code" sentence, the
+  `SECURITY.md` link under Contact, the repository line under Changes, and the footer
+  Source link. Every one of these 404s today, and App Review fetches this page.
+- **`site/support.html`** — offer the issue tracker as the faster route, and restore the
+  footer Source link.
+- **`SECURITY.md`** — enable **private vulnerability reporting** (Settings → Security)
+  and point the file at it. It is public-repository-only, which is why the file still
+  names an email address: while the repo is private there is no other channel, since
+  outsiders cannot open issues either.
+- **`.github/ISSUE_TEMPLATE/config.yml`** — the contact links are absolute URLs into this
+  repo. A fork sends its users here. `contact_links` requires a URL rather than a
+  repo-relative path, so there is no fix beyond a forker editing two lines; worth saying
+  in the fork's own README.
+
+Each site file carries a local comment naming its own items, pointing back at this list.
+
 ## Things that look weird but are deliberate
 
 - **`CloudKitService` uses `@unchecked Sendable`**: it owns immutable `CKContainer`/`CKDatabase` references, and Apple's CloudKit framework is documented as thread-safe. Marking it `Sendable` lets it be referenced from any actor without warnings.
