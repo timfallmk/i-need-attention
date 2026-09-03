@@ -107,13 +107,16 @@ final class PushNotifications: NSObject {
         appState: AppState
     ) async -> UIBackgroundFetchResult {
         guard let ckNotification = CKNotification(fromRemoteNotificationDictionary: userInfo) else {
+            log.error("Remote notification wasn't a CKNotification")
             return .noData
         }
 
         guard let queryNotification = ckNotification as? CKQueryNotification,
               let recordID = queryNotification.recordID else {
+            log.error("CKNotification carried no query record ID (subscription \(ckNotification.subscriptionID ?? "nil", privacy: .public))")
             return .noData
         }
+        log.notice("Push received for subscription \(queryNotification.subscriptionID ?? "nil", privacy: .public)")
 
         if queryNotification.subscriptionID == Constants.SubscriptionID.pairProfile {
             // The partner introducing themselves — which closes the handshake — or
@@ -130,13 +133,17 @@ final class PushNotifications: NSObject {
             return .newData
         }
 
-        guard let pair = appState.pair else { return .noData }
+        guard let pair = appState.pair else {
+            log.error("Push arrived with no pairing loaded")
+            return .noData
+        }
 
         if queryNotification.subscriptionID == Constants.SubscriptionID.outgoingStatus
             || queryNotification.subscriptionID == Constants.SubscriptionID.outgoingAck {
             // A status notice about an alert *we* sent. The notice names the alert; the
             // alert itself still lives in the partner's zone and stays canonical.
             guard let notice = await CloudKitService.shared.fetchStatusNotice(recordID: recordID, pair: pair) else {
+                log.error("Status notice \(recordID.recordName, privacy: .public) could not be read")
                 return .noData
             }
             await appState.applyOutgoingStatus(alertRecordName: notice.alertRecordName,
