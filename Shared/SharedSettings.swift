@@ -79,4 +79,18 @@ enum SharedSettings {
         get { suite.string(forKey: Keys.outgoingAckFailureReason) }
         set { suite.set(newValue, forKey: Keys.outgoingAckFailureReason) }
     }
+
+    /// Everything in the App Group suite, for `DataErasure`. The NSE reads this suite in
+    /// a separate process, so a value left here outlives the app's own state — the cached
+    /// `partnerName` in particular is the partner's name sitting where an erase didn't
+    /// look.
+    static func clearAll() {
+        for key in [
+            Keys.acceptCriticalAlerts, Keys.customSoundEnabled, Keys.partnerName,
+            Keys.ackBannersEnabled, Keys.timeSensitiveEnabled,
+            Keys.outgoingAckUnavailable, Keys.outgoingAckFailureReason
+        ] {
+            suite.removeObject(forKey: key)
+        }
+    }
 }

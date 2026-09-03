@@ -267,12 +267,25 @@ final class PairingService {
     /// is the partner's remote copy of what they sent us; their own archive is the answer
     /// to that, and it is a smaller harm than leaking a past relationship to a new one.
     func unpair() async {
+        await tearDownInboxZone()
+        PairState.clear()
+    }
+
+    /// The remote half of "Erase all my data": the zone this device owns, its share and
+    /// its subscriptions. Separate from `DataErasure`, which is local and cannot fail —
+    /// every step here can, on a bad network or a signed-out iCloud account, and a device
+    /// that stopped at the first CloudKit error would keep the archives it was asked to
+    /// destroy.
+    func eraseRemoteData() async {
+        await tearDownInboxZone()
+    }
+
+    private func tearDownInboxZone() async {
         try? await cloud.removeAllSubscriptions()
         try? await cloud.revokeInboxShare()
         try? await cloud.deleteInboxZone()
-        // A fresh name for whatever pairing comes next. Not `clear()` — that falls back
-        // to the fixed legacy name, which is precisely the zone just deleted.
+        // A fresh name for whatever pairing comes next. Never reuse: a zone-wide share
+        // grants the whole zone, so the next partner would inherit this one's records.
         InboxZone.rotate()
-        PairState.clear()
     }
 }

@@ -48,10 +48,6 @@ final class AppState {
 
     private let log = Logger(subsystem: "com.timfallmk.attention", category: "AppState")
 
-    // Record name of the most recently user-dismissed acknowledged alert. Persisted so
-    // reconcileLatestAlert doesn't re-surface it after backgrounding/relaunch.
-    private static let dismissedOutgoingKey = "attention.dismissedOutgoingRecordName"
-
     /// Observable mirror of `CutoverNotice.needsRepair`, which is a plain `UserDefaults`
     /// read and so invisible to SwiftUI. Set here rather than in `bootstrap()`: that runs
     /// from a `.task`, which fires *after* the first render, so the pairing screen drew
@@ -143,7 +139,7 @@ final class AppState {
             async let outgoingFetch = CloudKitService.shared.fetchMostRecentOutgoing(pair: pair)
             async let incomingFetch = CloudKitService.shared.fetchMostRecentIncoming(pair: pair)
             let (outgoing, incoming) = try await (outgoingFetch, incomingFetch)
-            let dismissedName = UserDefaults.standard.string(forKey: Self.dismissedOutgoingKey)
+            let dismissedName = DismissedOutgoing.recordName
             let wasDismissed = outgoing?.state == .acknowledged && outgoing?.id.recordName == dismissedName
             pendingOutgoing = wasDismissed ? nil : outgoing
             lastIncoming = incoming
@@ -209,7 +205,7 @@ final class AppState {
                 message: body,
                 critical: false
             )
-            UserDefaults.standard.removeObject(forKey: Self.dismissedOutgoingKey)
+            DismissedOutgoing.clear()
             pendingOutgoing = record
             cooldownEnds = Date().addingTimeInterval(TimeInterval(settings.cooldownSeconds))
             Haptics.success()
@@ -395,7 +391,7 @@ final class AppState {
             log.debug("dropping stale watch clear for record \(recordName, privacy: .public)")
             return
         }
-        UserDefaults.standard.set(outgoing.id.recordName, forKey: Self.dismissedOutgoingKey)
+        DismissedOutgoing.recordName = outgoing.id.recordName
         pendingOutgoing = nil
         pushWatchSnapshot()
     }
@@ -498,6 +494,35 @@ final class AppState {
         SharedSettings.outgoingAckSubscriptionUnavailable = false
         SharedSettings.outgoingAckSubscriptionFailureReason = nil
         refreshSubscriptionDiagnostics()
+        pushWatchSnapshot()
+    }
+
+    /// Everything this device holds, gone. Deliberately *not* an unpair with extra steps:
+    /// unpair archives the pairing on its way out, because history surviving a pairing is
+    /// the point of `PairingArchive`. Here the archive is one of the things being
+    /// destroyed, so the sweep would be work done only to undo it.
+    ///
+    /// Remote first, while the pair key that reaches the zone is still in the keychain.
+    /// It is also the half that can fail — a signed-out account, no network — and the
+    /// local half runs either way: a device that stopped at the first CloudKit error
+    /// would keep the archives it was asked to destroy, which is the worse failure.
+    func eraseAllData() async {
+        await PairingService.shared.eraseRemoteData()
+        DataErasure.eraseLocalData(settings: settings)
+        DataErasure.clearNotifications()
+
+        pair = nil
+        pendingInvite = nil
+        incomingJoinInvite = nil
+        pendingOutgoing = nil
+        lastIncoming = nil
+        snooze = nil
+        needsRepairAfterCutover = false
+        cooldownEnds = nil
+        bannerMessage = nil
+        outgoingAckSubscriptionUnavailable = false
+        outgoingAckSubscriptionFailureReason = nil
+        try? await UNUserNotificationCenter.current().setBadgeCount(0)
         pushWatchSnapshot()
     }
 

@@ -5,6 +5,8 @@ struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @State private var confirmingUnpair = false
+    @State private var confirmingErase = false
+    @State private var isErasing = false
     @State private var exportedReport: ExportedReport?
     @State private var isGeneratingReport = false
     @State private var nameSyncTask: Task<Void, Never>?
@@ -188,6 +190,29 @@ struct SettingsView: View {
                         Text("You'll need to scan a fresh code to pair again.")
                     }
                 }
+
+                Section {
+                    Button(role: .destructive) {
+                        Haptics.warning()
+                        confirmingErase = true
+                    } label: {
+                        HStack {
+                            Label("Erase all my data", systemImage: "trash")
+                            if isErasing {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isErasing)
+                } footer: {
+                    Text("Deletes the alerts stored in your iCloud account, your history "
+                         + "on this phone, your settings, and the key that unlocks any of "
+                         + "it. Nothing is kept and nothing can be restored.\n\nWhat your "
+                         + "partner's phone holds is theirs to erase — but everything you "
+                         + "sent them is locked with the key that goes here, so after this "
+                         + "neither of you can read it.")
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -214,7 +239,31 @@ struct SettingsView: View {
             } message: {
                 Text("Both phones need to unpair separately for the pairing to be fully reset.")
             }
+            .alert("Erase all my data?", isPresented: $confirmingErase) {
+                Button("Cancel", role: .cancel) {}
+                Button("Erase Everything", role: .destructive) {
+                    Haptics.error()
+                    Task { await erase() }
+                }
+            } message: {
+                Text("This can't be undone. Your alert history, your pairing and your "
+                     + "settings are deleted from this phone and from your iCloud account.")
+            }
         }
+    }
+
+    /// MainActor for the same reason `generateReport` is — `@State` writes around an
+    /// await, under `SWIFT_STRICT_CONCURRENCY: minimal`. The sheet dismisses itself when
+    /// the erase finishes rather than at the tap, so the spinner is visible for as long
+    /// as the CloudKit teardown actually takes.
+    @MainActor
+    private func erase() async {
+        guard !isErasing else { return }
+        isErasing = true
+        await appState.eraseAllData()
+        hasArchivedHistory = false
+        isErasing = false
+        dismiss()
     }
 
     /// Debounce CloudKit writes so we don't fire one per keystroke. The didSet on

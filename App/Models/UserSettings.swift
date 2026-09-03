@@ -51,16 +51,39 @@ final class UserSettings {
     init() {
         let d = UserDefaults.standard
         self.displayName = d.string(forKey: Keys.name) ?? DeviceIdentity.name
-        self.acceptCriticalAlerts = d.bool(forKey: Keys.acceptCritical)
-        self.customSoundEnabled = d.object(forKey: Keys.customSound) as? Bool ?? true
-        self.ackBannersEnabled = d.object(forKey: Keys.ackBanners) as? Bool ?? true
-        self.timeSensitiveEnabled = d.object(forKey: Keys.timeSensitive) as? Bool ?? true
-        self.cooldownSeconds = d.object(forKey: Keys.cooldown) as? Int ?? 30
+        self.acceptCriticalAlerts = d.object(forKey: Keys.acceptCritical) as? Bool ?? Defaults.acceptCritical
+        self.customSoundEnabled = d.object(forKey: Keys.customSound) as? Bool ?? Defaults.customSound
+        self.ackBannersEnabled = d.object(forKey: Keys.ackBanners) as? Bool ?? Defaults.ackBanners
+        self.timeSensitiveEnabled = d.object(forKey: Keys.timeSensitive) as? Bool ?? Defaults.timeSensitive
+        self.cooldownSeconds = d.object(forKey: Keys.cooldown) as? Int ?? Defaults.cooldown
         // Sync to App Group on init in case the NSE runs before the toggle is touched.
         SharedSettings.acceptCriticalAlerts = self.acceptCriticalAlerts
         SharedSettings.customSoundEnabled = self.customSoundEnabled
         SharedSettings.ackBannersEnabled = self.ackBannersEnabled
         SharedSettings.timeSensitiveEnabled = self.timeSensitiveEnabled
+    }
+
+    /// Back to a first-launch state, for `DataErasure`. Assignment rather than removing
+    /// the keys so the `didSet` mirrors run: the NSE reads its copy from the App Group
+    /// and would otherwise keep serving the erased values until a toggle was touched.
+    /// `displayName` is the only one of these that is the user's own data; the rest are
+    /// preferences, and reverting them is what makes this an erase rather than a partial
+    /// one.
+    func resetToDefaults() {
+        displayName = ""
+        acceptCriticalAlerts = Defaults.acceptCritical
+        customSoundEnabled = Defaults.customSound
+        ackBannersEnabled = Defaults.ackBanners
+        timeSensitiveEnabled = Defaults.timeSensitive
+        cooldownSeconds = Defaults.cooldown
+    }
+
+    private enum Defaults {
+        static let acceptCritical = false
+        static let customSound = true
+        static let ackBanners = true
+        static let timeSensitive = true
+        static let cooldown = 30
     }
 
     private enum Keys {

@@ -114,6 +114,21 @@ enum CutoverNotice {
     }
 }
 
+/// Record name of the most recently user-dismissed acknowledged alert, so
+/// `reconcileLatestAlert` doesn't re-surface it after a background/relaunch.
+enum DismissedOutgoing {
+    static let storageKey = "attention.dismissedOutgoingRecordName"
+
+    static var recordName: String? {
+        get { UserDefaults.standard.string(forKey: storageKey) }
+        set { UserDefaults.standard.set(newValue, forKey: storageKey) }
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: storageKey)
+    }
+}
+
 /// A pre-2.0 pairing, read only to salvage the history it left in the public database.
 ///
 /// These are *not* migrated into a `PairState`: 2.0 moves records into per-user private
