@@ -11,6 +11,13 @@ final class PushNotifications: NSObject {
     static let shared = PushNotifications()
     private let log = Logger(subsystem: "com.timfallmk.attention", category: "Push")
 
+    /// Set once the UI exists, so `willPresent` can apply a status the app is already
+    /// on screen for. Weak because AppState outlives nothing here and this is a
+    /// singleton — a strong reference would pin one AppState for the process lifetime.
+    /// `handleRemoteNotification` still takes its AppState as a parameter: the delegate
+    /// callbacks that have one to hand should keep passing it.
+    weak var appState: AppState?
+
     private override init() { super.init() }
 
     /// Called from app launch. Sets the delegate, registers the notification categories
@@ -174,6 +181,23 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         if notification.request.content.categoryIdentifier == Constants.NotificationAction.ackCategory {
+            // Suppressing the banner is right — StatusIndicatorView is already showing
+            // this — but discarding the notification was not. The pill's other route is
+            // the silent `outgoing-status-v2` push, and iOS budgets content-available
+            // delivery: it may delay, coalesce or drop it, on hardware as much as
+            // anywhere. This push is visible, carries the same CloudKit payload (the NSE
+            // merges its keys rather than replacing them), and is not throttled — so
+            // applying it here makes the foreground pill depend on the delivery iOS
+            // actually guarantees, and leaves the silent push as the redundant half.
+            //
+            // Not awaited: the completion handler decides how to present a banner we
+            // have already decided not to show, and holding it open for a CloudKit
+            // fetch would delay nothing useful.
+            let userInfo = notification.request.content.userInfo
+            Task { @MainActor in
+                guard let appState = self.appState else { return }
+                _ = await self.handleRemoteNotification(userInfo, appState: appState)
+            }
             completionHandler([])
             return
         }
