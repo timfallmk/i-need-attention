@@ -258,8 +258,17 @@ final class AppState {
     /// carrier; the alert record in their zone stays canonical, so this updates only the
     /// live pill rather than trying to be a second source of truth.
     func applyOutgoingStatus(alertRecordName: String, state: Constants.AlertState, emoji: String?) async {
-        guard var outgoing = pendingOutgoing, outgoing.id.recordName == alertRecordName else { return }
-        guard state != outgoing.state else { return }
+        // Both guards are legitimate — a notice about an alert we are no longer showing,
+        // or one we already applied — but they are also the two ways a delivered push can
+        // change nothing, which is indistinguishable from a push that never arrived.
+        guard var outgoing = pendingOutgoing, outgoing.id.recordName == alertRecordName else {
+            log.notice("Status for \(alertRecordName, privacy: .public) ignored; showing \(self.pendingOutgoing?.id.recordName ?? "nothing", privacy: .public)")
+            return
+        }
+        guard state != outgoing.state else {
+            log.notice("Status for \(alertRecordName, privacy: .public) already \(state.rawValue, privacy: .public)")
+            return
+        }
 
         outgoing.state = state
         if let emoji { outgoing.ackEmoji = emoji }
