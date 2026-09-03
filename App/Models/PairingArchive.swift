@@ -90,6 +90,12 @@ struct PairingArchive: Codable, Equatable {
         return archive
     }
 
+    /// Whether anything has ever been archived. Cheap enough for a settings row that
+    /// needs to know whether History has something to show.
+    static var isEmpty: Bool {
+        load().pairings.allSatisfy { $0.alerts.isEmpty }
+    }
+
     static func clear() {
         guard let url = fileURL else { return }
         try? FileManager.default.removeItem(at: url)
