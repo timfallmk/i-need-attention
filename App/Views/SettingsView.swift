@@ -180,7 +180,7 @@ struct SettingsView: View {
                             Haptics.warning()
                             confirmingUnpair = true
                         } label: {
-                            Label("Unpair this phone", systemImage: "link.slash")
+                            Label("Unpair this phone", systemImage: "link")
                         }
                     } footer: {
                         Text("You'll need to scan a fresh code to pair again.")
