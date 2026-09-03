@@ -100,6 +100,7 @@ For that device there's a Debug-only **Settings → Debug → Recover pre-2.0 hi
       ```
 
 - [ ] Run on the device, open **Settings** from the gear on the pairing screen, paste the key under **Debug**, tap the button
+- [ ] **If the pair ever re-paired before 2.0, repeat with each key.** Each pre-2.0 pairing minted its own `pairKey` and the fetch filters on exactly one, so a history spanning several pairings needs one run per key. Recovery merges, so runs accumulate. To find the other keys: query `Alert` sorted by `createdTimestamp` **ASC** and read the `pairKey` off the oldest rows — it will differ from the newest ones. (The `Pair` record itself can't be listed: it has no sortable field and no `recordName` index, and Production schema is read-only.)
 - [ ] `git restore App/Attention.entitlements` to remove the key again
 - [ ] **Rebuild and re-run on the device.** Entitlements are baked into the binary, so the phone keeps talking to Production until you do — which looks like `Share not found` when it tries to accept a share minted in Development. Re-running from Xcode replaces the binary and keeps the app container, so the recovered archive survives; *deleting* the app is what would destroy it.
 
