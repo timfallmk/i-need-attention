@@ -146,7 +146,7 @@ final class CloudKitService: @unchecked Sendable {
         try AlertRecord.seal(name: pair.myName, message: message, ackEmoji: nil,
                              into: record, pairKey: pair.pairKey)
 
-        let saved = try await sharedDB.save(record)
+        let saved = try await database(for: zone.zoneID).save(record)
         guard let model = AlertRecord(record: saved, pairKey: pair.pairKey) else {
             throw AttentionError.malformedRecord
         }

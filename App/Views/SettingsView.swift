@@ -79,7 +79,7 @@ struct SettingsView: View {
                             Text("Unavailable")
                                 .foregroundStyle(.orange)
                         }
-                        Text("CloudKit didn't accept the subscription that delivers your partner's acknowledgement to your lock screen. The in-app indicator still updates. Check the captured error below to decide what's actually wrong: a `BAD_REQUEST` / `SubscriptionCreate` rejection points at a missing `_sub_trigger_outgoing-ack-v2` index in Production — fix it by running a **Debug** build of this app on a device once, then clicking **Deploy Schema Changes…** in CloudKit Dashboard. A network or iCloud-account error usually clears on its own; relaunching retries the registration. As a fallback, re-import `cloudkit-schema.ckdb` so the **Ack** record type and its `pairKey` / `recipientDeviceID` queryable indexes exist in Production.")
+                        Text("CloudKit didn't accept the subscription that delivers your partner's acknowledgement to your lock screen. The in-app indicator still updates. Check the captured error below to decide what's actually wrong: a `BAD_REQUEST` / `SubscriptionCreate` rejection points at a missing `_sub_trigger_outgoing-ack-v3` record type in Production — Production refuses schema changes from a device, so fix it by running a **Debug** build of this app on a device once, which registers the subscription against Development, then clicking **Deploy Schema Changes…** in CloudKit Dashboard. A network or iCloud-account error usually clears on its own; relaunching retries the registration. Also worth checking that **AlertStatus** exists in Production with `state` marked queryable — the subscription filters on it, and re-importing `cloudkit-schema.ckdb` restores it.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         if let reason = appState.outgoingAckSubscriptionFailureReason {
@@ -182,7 +182,7 @@ struct SettingsView: View {
                             Haptics.warning()
                             confirmingUnpair = true
                         } label: {
-                            Label("Unpair this phone", systemImage: "link")
+                            Label("Unpair this phone", systemImage: "xmark.circle")
                         }
                     } footer: {
                         Text("You'll need to scan a fresh code to pair again.")
