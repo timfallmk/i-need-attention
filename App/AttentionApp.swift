@@ -93,6 +93,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // the actions still render: categories persist on the system side from an earlier
         // launch, so the buttons appear whether or not this launch registered them.
         PushNotifications.shared.configure()
+        Logger(subsystem: "com.timfallmk.attention", category: "Push")
+            .notice("didFinishLaunching: notification delegate installed")
         return true
     }
 

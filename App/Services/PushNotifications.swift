@@ -187,7 +187,18 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
         let actionID = response.actionIdentifier
         let categoryID = response.notification.request.content.categoryIdentifier
 
+        // Unconditional, and the first thing this does. A notification response on a
+        // force-quit app is handled by a background launch with no debugger attached, so
+        // this line in Console.app is the only evidence that the delegate was installed
+        // in time and iOS found someone to deliver to. Its absence and a failure inside
+        // look identical from the outside, and they are completely different bugs.
+        log.notice("Notification response: action=\(actionID, privacy: .public) category=\(categoryID, privacy: .public)")
+
         guard let recordName = userInfo["recordName"] as? String else {
+            // The NSE sets this whenever it resolves the record. Missing means it fell
+            // back to the generic body — worth knowing, since the banner still looked
+            // almost right.
+            log.error("Notification response carried no recordName; userInfo keys: \(userInfo.keys.map { "\($0)" }.joined(separator: ","), privacy: .public)")
             completionHandler()
             return
         }
