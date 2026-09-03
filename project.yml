@@ -238,6 +238,7 @@ targets:
       - path: App/Models/PairingArchive.swift
       - path: App/Models/InboxZone.swift
       - path: App/Models/DataErasure.swift
+      - path: App/Models/DemoSession.swift
       - path: App/Models/DiagnosticsReport.swift
       - path: App/Models/MetricKitSummary.swift
       - path: App/Models/UserSettings.swift

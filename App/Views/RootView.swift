@@ -9,7 +9,11 @@ struct RootView: View {
         @Bindable var bindable = appState
 
         Group {
-            if needsICloudGate {
+            if appState.isDemo {
+                // Ahead of both gates on purpose: the demo needs neither iCloud nor a
+                // partner, so making it wait behind either would be arbitrary.
+                MainView()
+            } else if needsICloudGate {
                 ICloudGateView()
             } else if appState.pair == nil {
                 PairingFlowView()
@@ -23,6 +27,7 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.25), value: appState.pair?.pairKey)
         .animation(.easeInOut(duration: 0.25), value: appState.pair?.canSend)
         .animation(.easeInOut(duration: 0.25), value: appState.iCloudStatus)
+        .animation(.easeInOut(duration: 0.25), value: appState.isDemo)
         .sheet(item: $bindable.incomingJoinInvite) { invite in
             JoinInviteSheet(invite: invite)
                 .environment(appState)
@@ -93,6 +98,16 @@ private struct ICloudGateView: View {
                     .padding(.vertical, 12)
                 }
                 .buttonStyle(.bordered)
+
+                // Without this the screen is a dead end for anyone who can't sign in
+                // right now — which includes an App Review device.
+                Button("See how it works without signing in") {
+                    Haptics.select()
+                    appState.startDemo()
+                }
+                .font(.footnote.weight(.medium))
+                .tint(.secondary)
+                .padding(.top, 2)
                 .tint(.red)
                 .disabled(checking)
             }

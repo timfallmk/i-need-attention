@@ -48,6 +48,24 @@ final class AppState {
 
     private let log = Logger(subsystem: "com.timfallmk.attention", category: "AppState")
 
+    /// Scripted demo timers. Held so leaving the demo cancels them rather than letting a
+    /// fictional partner answer into a screen that has moved on.
+    private var demoScript: Task<Void, Never>?
+    private var demoSend: Task<Void, Never>?
+
+    /// True only while the self-contained demo is running. Deliberately not persisted:
+    /// a relaunch ends it, so it can never be mistaken for a real pairing, and there is
+    /// no stored state that a later launch would have to reconcile.
+    ///
+    /// `pair` stays nil throughout, which is what makes the demo safe rather than merely
+    /// careful — every CloudKit path below opens with `guard let pair else { return }`.
+    private(set) var isDemo = false
+
+    /// Who the main screen says you are paired with, real or scripted.
+    var partnerDisplayName: String? {
+        isDemo ? DemoSession.partnerName : pair?.partnerName
+    }
+
     /// Observable mirror of `CutoverNotice.needsRepair`, which is a plain `UserDefaults`
     /// read and so invisible to SwiftUI. Set here rather than in `bootstrap()`: that runs
     /// from a `.task`, which fires *after* the first render, so the pairing screen drew
@@ -185,6 +203,10 @@ final class AppState {
     }
 
     func sendAttention(noun: String? = nil) async {
+        if isDemo {
+            await runDemoSend(noun: noun)
+            return
+        }
         guard let pair else {
             bannerMessage = AttentionError.noPair.errorDescription
             return
@@ -282,6 +304,10 @@ final class AppState {
     }
 
     func acknowledgeIncoming(emoji: String?) async {
+        if isDemo {
+            demoAcknowledge(emoji: emoji)
+            return
+        }
         guard let alert = lastIncoming else { return }
         // Acknowledging supersedes any snooze — cancel the pending re-notification so it
         // can't fire after the user has already responded. (removeAllDeliveredNotifications
@@ -320,16 +346,22 @@ final class AppState {
         guard let alert = lastIncoming, alert.state != .acknowledged else { return }
         let until = Date().addingTimeInterval(TimeInterval(minutes * 60))
         let recordName = alert.id.recordName
-        LocalNotifications.scheduleSnooze(
-            recordName: recordName,
-            title: alert.senderName.isEmpty ? "Attention" : alert.senderName,
-            body: alert.message,
-            until: until
-        )
-        // Clear the currently-showing banner for this alert (the reminder replaces it).
-        Task { await LocalNotifications.removeDelivered(matchingRecordName: recordName) }
         let state = SnoozeState(recordName: recordName, until: until)
-        state.save()
+        // A demo shows the pill flip to "Snoozed" and stops there. Scheduling the real
+        // reminder would outlive the demo — a notification arriving an hour later about
+        // a partner who does not exist — and saving it would leave state on disk that a
+        // later launch has to explain away.
+        if !isDemo {
+            LocalNotifications.scheduleSnooze(
+                recordName: recordName,
+                title: alert.senderName.isEmpty ? "Attention" : alert.senderName,
+                body: alert.message,
+                until: until
+            )
+            // Clear the currently-showing banner for this alert (the reminder replaces it).
+            Task { await LocalNotifications.removeDelivered(matchingRecordName: recordName) }
+            state.save()
+        }
         snooze = state
         Haptics.light()
         pushWatchSnapshot()
@@ -391,7 +423,7 @@ final class AppState {
             log.debug("dropping stale watch clear for record \(recordName, privacy: .public)")
             return
         }
-        DismissedOutgoing.recordName = outgoing.id.recordName
+        if !isDemo { DismissedOutgoing.recordName = outgoing.id.recordName }
         pendingOutgoing = nil
         pushWatchSnapshot()
     }
@@ -526,6 +558,84 @@ final class AppState {
         pushWatchSnapshot()
     }
 
+    // MARK: - Demo
+
+    /// Starts the self-contained walkthrough. Reachable from the pairing screen and the
+    /// iCloud gate — the two places someone can otherwise get stuck.
+    func startDemo() {
+        guard pair == nil, !isDemo else { return }
+        isDemo = true
+        pendingOutgoing = nil
+        lastIncoming = nil
+        snooze = nil
+        bannerMessage = nil
+        cooldownEnds = nil
+
+        demoScript?.cancel()
+        demoScript = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(DemoSession.incomingAfter * 1_000_000_000))
+            guard !Task.isCancelled, let self, self.isDemo else { return }
+            self.lastIncoming = DemoSession.incoming()
+            Haptics.light()
+        }
+    }
+
+    /// Leaves the demo and returns to pairing. Everything it touched was in memory, so
+    /// there is nothing to tear down beyond dropping it.
+    func endDemo() {
+        guard isDemo else { return }
+        demoScript?.cancel()
+        demoScript = nil
+        demoSend?.cancel()
+        demoSend = nil
+        isDemo = false
+        pendingOutgoing = nil
+        lastIncoming = nil
+        snooze = nil
+        bannerMessage = nil
+        cooldownEnds = nil
+    }
+
+    /// The scripted partner: notices, then answers. Runs on a task so the cooldown and
+    /// the status pill behave exactly as they do against a real one.
+    private func runDemoSend(noun: String?) async {
+        guard !isOnCooldown else { return }
+        Haptics.press()
+
+        let sent = DemoSession.outgoing(
+            from: DeviceIdentity.id,
+            senderName: settings.displayName,
+            noun: noun
+        )
+        pendingOutgoing = sent
+        cooldownEnds = Date().addingTimeInterval(TimeInterval(settings.cooldownSeconds))
+
+        demoSend?.cancel()
+        demoSend = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(DemoSession.seenAfter * 1_000_000_000))
+            guard !Task.isCancelled, let self, self.isDemo,
+                  self.pendingOutgoing?.id == sent.id else { return }
+            self.pendingOutgoing = DemoSession.advanced(sent, to: .seen)
+
+            try? await Task.sleep(nanoseconds: UInt64(DemoSession.acknowledgedAfter * 1_000_000_000))
+            guard !Task.isCancelled, self.isDemo,
+                  self.pendingOutgoing?.id == sent.id else { return }
+            self.pendingOutgoing = DemoSession.advanced(
+                sent, to: .acknowledged, emoji: DemoSession.ackEmoji
+            )
+            Haptics.success()
+        }
+    }
+
+    /// Answering the scripted partner's alert. Local only — there is no status record to
+    /// write back to, because there is no zone and no partner.
+    private func demoAcknowledge(emoji: String?) {
+        guard let incoming = lastIncoming, incoming.state != .acknowledged else { return }
+        lastIncoming = DemoSession.advanced(incoming, to: .acknowledged, emoji: emoji)
+        snooze = nil
+        Haptics.success()
+    }
+
     // MARK: - Watch snapshot
 
     /// Snapshot the watch needs to render its status pill. Mirrors the iOS
@@ -572,6 +682,9 @@ final class AppState {
     }
 
     func pushWatchSnapshot() {
+        // The watch is a real second screen showing a real pairing. A demo snapshot would
+        // put a fictional partner on someone's wrist and outlive the demo there.
+        guard !isDemo else { return }
         WatchBridge.shared.sendSnapshot(currentWatchSnapshot())
     }
 

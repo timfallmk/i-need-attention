@@ -22,6 +22,12 @@ struct MainView: View {
             VStack(spacing: 24) {
                 topBar
 
+                if appState.isDemo {
+                    DemoBanner { appState.endDemo() }
+                        .padding(.horizontal, 16)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 if appState.notificationsDenied {
                     NotificationsDeniedBanner()
                         .padding(.horizontal, 16)
@@ -106,6 +112,7 @@ struct MainView: View {
         .onReceive(timer) { now = $0 }
         .banner($bindable.bannerMessage, tone: .error)
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appState.notificationsDenied)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appState.isDemo)
     }
 
     @ViewBuilder
@@ -183,11 +190,11 @@ struct MainView: View {
 
     private var partnerBadge: some View {
         Group {
-            if let pair = appState.pair {
+            if let partner = appState.partnerDisplayName {
                 HStack(spacing: 6) {
                     Image(systemName: "link.circle.fill")
                         .foregroundStyle(.secondary)
-                    Text("paired with \(pair.partnerName)")
+                    Text("paired with \(partner)")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -371,5 +378,46 @@ private struct OneWayBanner: View {
 
     private var displayName: String {
         partnerName.isEmpty ? "your partner" : partnerName
+    }
+}
+
+/// Says plainly that nothing here is real, and offers the way out.
+///
+/// Permanent and unmissable rather than a dismissible toast: someone who forgets they
+/// are in a demo would conclude their partner had answered them, which is the one
+/// misunderstanding this feature could actually cause.
+private struct DemoBanner: View {
+    var onExit: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "play.circle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Demo")
+                    .font(.subheadline.weight(.semibold))
+                Text("\(DemoSession.partnerName) isn't real and nothing is sent. Pair with someone to use it for real.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Button("Exit") {
+                Haptics.select()
+                onExit()
+            }
+            .font(.footnote.weight(.semibold))
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.orange.opacity(0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+        )
     }
 }

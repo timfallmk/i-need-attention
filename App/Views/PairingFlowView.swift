@@ -144,6 +144,20 @@ struct PairingFlowView: View {
 
                 PasteInviteButton(beforePaste: { DeviceIdentity.name = trimmedName })
                     .padding(.top, 2)
+
+                // Pairing needs two phones and a person willing to install something, so
+                // this screen is where someone evaluating the app alone stops. It is also
+                // the wall an App Review tester hits, but it is not a review carve-out:
+                // a demo only Apple can find would be a hidden feature, and a visible one
+                // is the better answer to both problems.
+                Button {
+                    Haptics.select()
+                    appState.startDemo()
+                } label: {
+                    Label("Try it without a partner", systemImage: "play.circle")
+                        .font(.footnote.weight(.medium))
+                }
+                .tint(.secondary)
             }
             .padding(.horizontal, 28)
 

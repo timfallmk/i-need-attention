@@ -191,6 +191,32 @@ References: [Complying with Encryption Export Regulations](https://developer.app
 · [Export compliance documentation for encryption](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption/)
 · [BIS annual self-classification](https://www.bis.gov/learn-support/encryption-controls/annual-self-classification)
 
+## 7b. App Review notes
+
+A reviewer has **one device**, and this app is two screens of wall without a second one:
+the iCloud gate if they aren't signed in, then the pairing screen. Apps get rejected under
+Guideline 2.1 for exactly this.
+
+Don't try to solve it with a live invite link. `PairingInvite` expires in 24 hours and
+reviews take longer, the share is single-use so a re-review after a rejection gets nothing,
+and it pairs a stranger to your actual phone.
+
+The app answers it itself: **Try it without a partner** on the pairing screen, and
+**See how it works without signing in** on the iCloud gate. Both start a self-contained
+demo — scripted partner, no network, nothing stored. Say so in the App Review Notes field:
+
+> This app pairs two phones and has no accounts or servers, so a single device cannot use
+> its main flow. Tap **Try it without a partner** on the first screen (or **See how it
+> works without signing in** if the device isn't signed in to iCloud) to see the whole app
+> on one device: press the button, watch the status go Sent → Seen → Acknowledged, then
+> wait a few seconds for a simulated incoming alert and tap an emoji to answer it. Nothing
+> in the demo is sent or stored.
+
+The demo is a normal user-facing feature, not a review carve-out — Guideline 2.3.1
+prohibits hidden or undocumented features, and a door only Apple can find would be one.
+It is also worth having on its own: without it, anyone who installs the app before
+convincing their partner to install it can't see what they'd be signing up for.
+
 ## 8. Install on the phones
 
 - [ ] Both phones: install **TestFlight** from the App Store (free)
