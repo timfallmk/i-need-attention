@@ -182,7 +182,7 @@ The pair key lives in the keychain (`PairSecrets.store`); the rest of `PairState
 ## Common operations
 
 - **Add a new CloudKit field**: edit `Shared/Constants.swift`, update `AlertRecord`/`PairState` mappers, update `CloudKitService` reads/writes, **add the matching field + index in CloudKit Dashboard** (and document in SETUP.md).
-- **Add a new entitlement**: edit `App/Attention.entitlements` (or NSE/Watch ones), add to `project.yml` capabilities if XcodeGen needs to know, register in the developer portal, and update SETUP.md step 2.
+- **Add a new entitlement**: edit `App/Attention.entitlements` (or NSE/Watch ones), add to `project.yml` capabilities if XcodeGen needs to know, register in the developer portal, and update SETUP.md step 2. A value that has to *differ by configuration* goes in as `$(SOME_SETTING)` with the setting defined per-config in `project.yml` — see `APS_ENVIRONMENT`. Don't fork the file: two entitlements files that must stay identical apart from one key are a drift hazard, and the drift is silent.
 - **Add a new view**: drop into `App/Views/`. Use `@Environment(AppState.self)` to read state. Mutations go through methods on AppState, not direct property writes.
 - **Add a new notification action**: extend `Constants.NotificationAction`, add the `UNNotificationAction` to the category in `PushNotifications.attentionPingCategory`, and handle the response in `userNotificationCenter(_:didReceive:)`.
 
