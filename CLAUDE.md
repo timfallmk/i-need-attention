@@ -120,6 +120,12 @@ A's outgoing-ack-v3 subscription fires (visible, predicate state == "acknowledge
    → NSE renders "PartnerName: Got back to you ❤️", even if A force-quit the app
 ```
 
+### Testing push on a simulator
+
+The iOS Simulator delivers **visible** pushes but not **silent** ones. Alert banners and the ack banner arrive and render; a `shouldSendContentAvailable` push never reaches `application(_:didReceiveRemoteNotification:)` at all. So `outgoing-status-v2` — the silent subscription that flips the sender's status pill in-app — appears completely broken on a simulator while working on hardware.
+
+The symptom is specific and misleading: everything works, but the sender's pill only updates when the app is backgrounded and foregrounded again (which triggers `reconcileLatestAlert`). Before assuming a subscription fault, put the device whose pill you are watching on **hardware**. `Push received for subscription …` in Console is the discriminator — its absence on a simulator says nothing.
+
 ### Concurrency model
 
 - **`AppState`** is `@MainActor @Observable`. All UI-affecting mutations happen here. SwiftUI views observe via `@Environment(AppState.self)`.
