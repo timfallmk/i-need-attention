@@ -18,6 +18,9 @@ struct AttentionApp: App {
                 }
                 .task {
                     appDelegate.appState = appState
+                    // Lets willPresent apply a foreground status without routing through
+                    // the app delegate, which has no part in that callback.
+                    PushNotifications.shared.appState = appState
                     Haptics.prepare()
                     // Idempotent, and re-run here so the categories and the delegate are
                     // in place even if the delegate hook ever stops being called first.
