@@ -202,7 +202,7 @@ When opening a PR:
 
 ## Releasing
 
-**App Store submission is being prepared.** It was previously out of scope — the app has shipped TestFlight-only since 1.0.0 — and several files still describe it that way; CONTRIBUTING.md and SECURITY.md both need the same correction. None of the mechanics below change: an App Store release is an App Store Connect concern layered on the same Xcode Cloud archive that already feeds TestFlight.
+**App Store submission is being prepared.** It was previously out of scope — the app has shipped TestFlight-only since 1.0.0 — so anything still describing it as TestFlight-forever is stale. None of the mechanics below change: an App Store release is an App Store Connect concern layered on the same Xcode Cloud archive that already feeds TestFlight.
 
 **Releases are automated through Xcode Cloud and have been since 1.0.0.** Shipping is a tag push, not a manual Xcode Archive. `SETUP.md` §10–11 is the canonical reference; `docs/xcode-cloud-build-plan.md` has the rationale and the App Store Connect workflow config. The essentials, so we don't relearn them every time:
 
