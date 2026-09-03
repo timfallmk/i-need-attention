@@ -196,6 +196,7 @@ targets:
       - path: Shared
       - path: App/Models/PairState.swift
       - path: App/Models/ZoneRef.swift
+      - path: App/Models/CloudKitZoneError.swift
       - path: App/Models/AlertRecord.swift
     settings:
       base:
@@ -219,6 +220,7 @@ targets:
       - path: Shared/PairSecretStore.swift
       - path: App/Models/PairState.swift
       - path: App/Models/ZoneRef.swift
+      - path: App/Models/CloudKitZoneError.swift
       - path: App/Models/PendingInvite.swift
       - path: App/Models/SnoozeState.swift
       - path: App/Models/AlertRecord.swift

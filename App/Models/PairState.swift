@@ -114,6 +114,21 @@ enum CutoverNotice {
     }
 }
 
+/// Records that a pairing ended because the *partner* ended it, so the pairing screen
+/// can explain why the app is suddenly asking them to pair again.
+///
+/// Separate from `CutoverNotice`: that one is a one-time 2.0 migration artifact, this one
+/// can happen at any time and repeatedly. Both answer the same user question — "why am I
+/// unpaired?" — which has no answer at all without them.
+enum PartnerUnpairedNotice {
+    static let storageKey = "attention.partnerUnpaired.v1"
+
+    static var happened: Bool {
+        get { UserDefaults.standard.bool(forKey: storageKey) }
+        set { UserDefaults.standard.set(newValue, forKey: storageKey) }
+    }
+}
+
 /// A pre-2.0 pairing, read only to salvage the history it left in the public database.
 ///
 /// These are *not* migrated into a `PairState`: 2.0 moves records into per-user private

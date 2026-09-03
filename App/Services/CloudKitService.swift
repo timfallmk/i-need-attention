@@ -538,6 +538,17 @@ final class CloudKitService: @unchecked Sendable {
         }
     }
 
+    /// Whether a zone is definitely gone, as opposed to unreachable.
+    ///
+    /// The distinction is the whole point: the caller ends a pairing on a `true`, so an
+    /// answer it could not actually determine has to come back `false`. Any failure to
+    /// list the zones — offline, signed out, throttled — is "can't tell", and can't tell
+    /// must not unpair anybody.
+    func zoneIsMissing(_ zoneID: CKRecordZone.ID) async -> Bool {
+        guard let zones = try? await database(for: zoneID).allRecordZones() else { return false }
+        return !zones.contains { $0.zoneID == zoneID }
+    }
+
     /// Which of our subscriptions exist, and whether each watches the zone we own now.
     /// Best effort — this feeds the diagnostics export, which matters most precisely when
     /// CloudKit isn't working, so a failure reports "unknown" rather than blocking.
