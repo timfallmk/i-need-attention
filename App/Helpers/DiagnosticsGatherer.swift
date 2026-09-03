@@ -34,6 +34,7 @@ enum DiagnosticsGatherer {
                 state.outgoingAckSubscriptionFailureReason,
                 pairKey: pair?.pairKey
             ),
+            subscriptions: await CloudKitService.shared.subscriptionStates(),
             events: await recentEvents(pair: pair)
         )
     }

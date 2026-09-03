@@ -518,6 +518,25 @@ final class CloudKitService: @unchecked Sendable {
         }
     }
 
+    /// Which of our subscriptions exist, and whether each watches the zone we own now.
+    /// Best effort — this feeds the diagnostics export, which matters most precisely when
+    /// CloudKit isn't working, so a failure reports "unknown" rather than blocking.
+    func subscriptionStates() async -> [DiagnosticsReport.SubscriptionState] {
+        let zoneID = Self.inboxZoneID
+        let existing = (try? await privateDB.allSubscriptions()) ?? []
+        let byID = Dictionary(
+            existing.map { ($0.subscriptionID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return Constants.SubscriptionID.all.sorted().map { id in
+            guard let subscription = byID[id] else {
+                return DiagnosticsReport.SubscriptionState(id: id, status: .missing)
+            }
+            let matches = (subscription as? CKQuerySubscription)?.zoneID == zoneID
+            return DiagnosticsReport.SubscriptionState(id: id, status: matches ? .ok : .staleZone)
+        }
+    }
+
     func removeAllSubscriptions() async throws {
         let existing = try await privateDB.allSubscriptions()
         guard !existing.isEmpty else { return }

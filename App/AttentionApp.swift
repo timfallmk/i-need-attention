@@ -1,5 +1,6 @@
 import CloudKit
 import SwiftUI
+import os.log
 import UIKit
 
 @main
@@ -109,6 +110,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
-        // Not fatal — pushes simply won't deliver until iCloud is signed in.
+        // Not fatal — pushes simply won't deliver until iCloud is signed in. Logged
+        // rather than swallowed: silence here is indistinguishable from a subscription
+        // that never fired, and the two need completely different fixes.
+        Logger(subsystem: "com.timfallmk.attention", category: "Push")
+            .error("APNs registration failed: \(String(describing: error), privacy: .public)")
     }
 }
