@@ -223,7 +223,17 @@ extension CloudKitService {
     /// write into our inbox zone. The share's participants are the source of truth;
     /// `PairState.partnerCanReach` is only a cache of this.
     func partnerHasAcceptedInboxShare() async -> Bool {
-        guard let share = try? await inboxShare() else { return false }
+        // Fetched directly rather than through `inboxShare()`, which is fetch-or-create
+        // and defaults to `publicPermission: .readWrite`. Reached from the foreground
+        // reconcile, that would mint a *bearer* share on the zone holding this pair's
+        // alerts whenever one happened to be missing — and on the joiner's device it
+        // would replace a `.none` share naming one participant with a link anyone
+        // holding the URL could accept. A question about the world must not change it.
+        //
+        // No share means nobody has accepted one, which is the honest answer to the
+        // question being asked.
+        let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: Self.inboxZoneID)
+        guard let share = try? await privateDB.record(for: shareID) as? CKShare else { return false }
         return share.participants.contains {
             $0.role != .owner && $0.acceptanceStatus == .accepted
         }
