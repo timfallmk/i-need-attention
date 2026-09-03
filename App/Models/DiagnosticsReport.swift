@@ -24,6 +24,23 @@ struct DiagnosticsReport: Equatable {
 
     /// One alert reduced to its timing and lifecycle. Deliberately carries no content:
     /// `hadEmoji` records that an emoji was chosen, never which one.
+    /// One of the app's four subscriptions, and whether it is any use.
+    ///
+    /// `staleZone` is the state worth having a name for: the subscription IDs are
+    /// constants while the inbox zone is per-pairing, so one left over from a previous
+    /// pairing looks present everywhere except in the pushes it never delivers. Reads
+    /// and writes keep working, which is what makes it so hard to see from the outside.
+    struct SubscriptionState: Equatable {
+        enum Status: String {
+            case ok
+            case staleZone = "STALE ZONE"
+            case missing = "MISSING"
+        }
+
+        var id: String
+        var status: Status
+    }
+
     struct Event: Equatable {
         var direction: Direction
         var state: String
@@ -58,6 +75,10 @@ struct DiagnosticsReport: Equatable {
 
     var ackSubscriptionUnavailable: Bool
     var ackSubscriptionFailureReason: String?
+
+    /// What is actually subscribed. Defaulted so a report can be built without a
+    /// CloudKit round trip; the gatherer always fills it.
+    var subscriptions: [SubscriptionState] = []
 
     var events: [Event]
 
@@ -117,6 +138,9 @@ struct DiagnosticsReport: Equatable {
         out.append("")
 
         out.append("[Subscriptions]")
+        for subscription in subscriptions {
+            out.append("\(subscription.id): \(subscription.status.rawValue)")
+        }
         out.append("Ack subscription: \(ackSubscriptionUnavailable ? "UNAVAILABLE" : "ok")")
         if let reason = ackSubscriptionFailureReason {
             out.append("Last failure: \(reason)")

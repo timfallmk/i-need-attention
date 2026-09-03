@@ -183,7 +183,8 @@ final class DiagnosticsReportTests: XCTestCase {
         paired: Bool = true,
         failureReason: String? = nil,
         events: [DiagnosticsReport.Event] = [],
-        metrics: MetricKitSummary? = nil
+        metrics: MetricKitSummary? = nil,
+        subscriptions: [DiagnosticsReport.SubscriptionState] = []
     ) -> DiagnosticsReport {
         DiagnosticsReport(
             appVersion: "2.0.0",
@@ -206,7 +207,32 @@ final class DiagnosticsReportTests: XCTestCase {
                 failureReason,
                 pairKey: paired ? pairKey : nil
             ),
+            subscriptions: subscriptions,
             events: events
         )
+    }
+
+    // MARK: - Subscription states
+
+    /// The stale-zone case is the one this section exists for: reads and writes keep
+    /// working, only pushes go missing, so it is invisible in every other line of the
+    /// report.
+    func testRenderNamesEachSubscriptionAndItsStatus() {
+        let text = makeReport(subscriptions: [
+            .init(id: "incoming-alerts-v2", status: .ok),
+            .init(id: "outgoing-ack-v3", status: .staleZone),
+            .init(id: "pair-profile-v1", status: .missing)
+        ]).render()
+
+        XCTAssertTrue(text.contains("incoming-alerts-v2: ok"))
+        XCTAssertTrue(text.contains("outgoing-ack-v3: STALE ZONE"))
+        XCTAssertTrue(text.contains("pair-profile-v1: MISSING"))
+    }
+
+    func testRenderOmitsSubscriptionLinesWhenNoneWereGathered() {
+        let text = makeReport().render()
+
+        XCTAssertTrue(text.contains("[Subscriptions]"))
+        XCTAssertFalse(text.contains("STALE ZONE"))
     }
 }
