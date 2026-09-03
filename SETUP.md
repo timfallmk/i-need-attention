@@ -147,9 +147,49 @@ If you hit "couldn't find provisioning profile" — go back to Signing & Capabil
 - [ ] Wait for the processing email (~10 min)
 - [ ] Go to <https://appstoreconnect.apple.com> → **My Apps**. If "Attention" doesn't exist yet, click **+** → **New App** and fill in name, primary language, bundle ID, SKU
 - [ ] Click your app → **TestFlight** tab
-- [ ] Wait until the build status is **Ready to Test** (resolve any "Missing Compliance" by clicking the build → answering "No" to encryption export)
+- [ ] Wait until the build status is **Ready to Test**. `ITSAppUsesNonExemptEncryption: false` in `project.yml` should stop "Missing Compliance" appearing at all — see §7a before changing that answer
 - [ ] **Internal Testing**: + group → add yourself + partner (must be added under **Users and Access** as a member of your team first), assign the build. They get an email to install via the **TestFlight** app.
 - [ ] **Or External Testing**: add by email, requires a one-time short Beta App Review (~24h), then unlimited installs
+
+## 7a. Encryption export compliance
+
+`project.yml` sets `ITSAppUsesNonExemptEncryption: false`, which bypasses the
+export-compliance questions App Store Connect otherwise asks on every submission.
+That answer is still correct, but **not for the reason it was originally set** —
+it predates the app having any encryption at all, and 2.0 added some. The current
+justification, so nobody has to re-derive it:
+
+- Apple: *"Set the value to `NO` if your app — including any third-party libraries
+  it links against — doesn't use encryption, or if it only uses forms of encryption
+  that are exempt from export compliance documentation requirements."*
+- All of this app's cryptography is CryptoKit: `ChaChaPoly` and `HKDF<SHA256>` in
+  `Shared/PairCrypto.swift`, and `SHA256` for the diagnostics fingerprints. Nothing
+  is hand-rolled and no crypto library is vendored.
+- App Store Connect's own table classifies **"Apple OS encryption only"** as
+  requiring *no documentation in App Store Connect*. The rows that do require
+  paperwork are non-Apple industry-standard algorithms (French declaration, if you
+  ship to France) and proprietary algorithms (US CCATS as well). Neither applies.
+
+**What would invalidate this**, and therefore means re-reading this section:
+
+- Vendoring or linking any crypto library rather than calling CryptoKit
+- Implementing a cipher, KDF or protocol by hand
+- Adding any third-party dependency at all — the exemption covers what the app
+  links against, not just what it writes
+
+**One open item that is not a code question.** Apple notes that apps using *exempt*
+encryption "might alternatively be required to submit a year-end self-classification
+report to the U.S. government" — the exempt path carries the reporting duty, not the
+documented one, which is the opposite of the intuition. Against that: a March 2021
+amendment to the EAR removed annual self-classification reporting for most
+mass-market items under ECCN 5A992.c / 5D992.c, the classification a consumer iOS
+app on the App Store would ordinarily fall under. So there is probably nothing to
+file. That is an export-control question rather than an engineering one, and worth
+confirming with someone qualified before the first public release rather than after.
+
+References: [Complying with Encryption Export Regulations](https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations)
+· [Export compliance documentation for encryption](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption/)
+· [BIS annual self-classification](https://www.bis.gov/learn-support/encryption-controls/annual-self-classification)
 
 ## 8. Install on the phones
 

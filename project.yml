@@ -87,6 +87,12 @@ targets:
           - CFBundleURLName: com.timfallmk.attention.pair
             CFBundleURLSchemes:
               - attention
+        # False because all cryptography here is CryptoKit — ChaChaPoly and
+        # HKDF<SHA256> in Shared/PairCrypto.swift — which Apple classifies as
+        # OS-provided and exempt from export documentation. It was originally set
+        # when the app had no encryption at all, so the answer survived 2.0 by
+        # luck rather than by reasoning. Vendoring a crypto library or hand-rolling
+        # a cipher would make it wrong: see SETUP.md §7a before changing anything here.
         ITSAppUsesNonExemptEncryption: false
         NSUserActivityTypes: []
     settings:

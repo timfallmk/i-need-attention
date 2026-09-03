@@ -184,6 +184,7 @@ The pair key lives in the keychain (`PairSecrets.store`); the rest of `PairState
 - **Bundle ID prefix is `com.example.attention` everywhere in source**; users find/replace once in setup. Don't add new files with the prefix baked in unless it's `Constants` or an entitlements file.
 - **Comments**: prefer none. When you do write one, explain *why* (a non-obvious constraint, a workaround, a subtle invariant), not *what*. The system prompt's no-comment default applies here.
 - **No per-file licence headers.** The repo is MPL-2.0 via the root `LICENSE`; a header that restates it only drifts out of sync. Add one *only* to a file whose terms contradict the root licence — third-party code under something else — and pair it with an entry in `App/Models/OpenSourceLicenses.swift` if it ships to users.
+- **Adding a crypto dependency changes an App Store answer.** `ITSAppUsesNonExemptEncryption: false` holds only because every primitive is CryptoKit and nothing is vendored. Linking a crypto library, hand-rolling a cipher or KDF, or adding any third-party dependency means re-reading SETUP.md §7a before the next submission.
 - **Update SETUP.md when adding capabilities, App IDs, entitlements, or CloudKit schema fields.**
 
 ## Common operations
