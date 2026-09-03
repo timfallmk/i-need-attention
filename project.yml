@@ -71,7 +71,12 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Please Give Me Attention
+        # Home-screen name, which is NOT the App Store name — that lives only in
+        # App Store Connect and stays "Please Give Me Attention". iOS squeezes a
+        # 24-character name down to "PleaseGive…" under the icon, so the long form
+        # bought nothing but truncation. Matches the watch app and widget, which
+        # have always used the short form.
+        CFBundleDisplayName: Attention
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}

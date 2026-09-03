@@ -145,7 +145,7 @@ If you hit "couldn't find provisioning profile" — go back to Signing & Capabil
 - [ ] **Product → Archive**
 - [ ] When the Organizer opens: **Distribute App** → **App Store Connect** → **Upload** → accept defaults → **Upload**
 - [ ] Wait for the processing email (~10 min)
-- [ ] Go to <https://appstoreconnect.apple.com> → **My Apps**. If "Attention" doesn't exist yet, click **+** → **New App** and fill in name, primary language, bundle ID, SKU
+- [ ] Go to <https://appstoreconnect.apple.com> → **My Apps**. If the app doesn't exist yet, click **+** → **New App** and fill in name, primary language, bundle ID, SKU. The **App Name** there is the App Store listing name and is independent of `CFBundleDisplayName` in `project.yml`, which is only the home-screen label — they are "Please Give Me Attention" and "Attention" respectively, and that is deliberate: iOS truncates a 24-character name to "PleaseGive…" under the icon
 - [ ] Click your app → **TestFlight** tab
 - [ ] Wait until the build status is **Ready to Test**. `ITSAppUsesNonExemptEncryption: false` in `project.yml` should stop "Missing Compliance" appearing at all — see §7a before changing that answer
 - [ ] **Internal Testing**: + group → add yourself + partner (must be added under **Users and Access** as a member of your team first), assign the build. They get an email to install via the **TestFlight** app.
