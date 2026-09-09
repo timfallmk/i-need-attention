@@ -54,16 +54,21 @@ jobs:
         id: filter
         run: |
           set -euo pipefail
+          # `|| true` on every diff, deliberately. A base or before-SHA can be
+          # unreachable — a force-push that stranded the old tip, a base commit not in
+          # this clone — and `set -e` would then fail the job and block the merge, which
+          # is the opposite of the "build rather than guess" rule below. An unreadable
+          # diff has to look the same as an absent one.
           case "${{ github.event_name }}" in
             pull_request)
-              files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}...HEAD")
+              files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}...HEAD" 2>/dev/null || true)
               ;;
             push)
               before="${{ github.event.before }}"
               if [ "$before" = "0000000000000000000000000000000000000000" ]; then
                 files=""
               else
-                files=$(git diff --name-only "$before" "${{ github.sha }}")
+                files=$(git diff --name-only "$before" "${{ github.sha }}" 2>/dev/null || true)
               fi
               ;;
             *)
