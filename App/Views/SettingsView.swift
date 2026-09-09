@@ -7,7 +7,6 @@ struct SettingsView: View {
     @State private var confirmingUnpair = false
     @State private var confirmingErase = false
     @State private var isErasing = false
-    @State private var eraseLeftRemoteData = false
     @State private var exportedReport: ExportedReport?
     @State private var isGeneratingReport = false
     @State private var nameSyncTask: Task<Void, Never>?
@@ -241,14 +240,6 @@ struct SettingsView: View {
             } message: {
                 Text("Both phones need to unpair separately for the pairing to be fully reset.")
             }
-            .alert("Erased, but not from iCloud", isPresented: $eraseLeftRemoteData) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Everything on this phone is gone. iCloud couldn't be reached, so the "
-                     + "alerts stored there may still exist — but the key that reads them "
-                     + "has been destroyed, so nothing can open them. To clear the storage "
-                     + "itself, delete the app's data from iCloud in iOS Settings.")
-            }
             .alert("Erase all my data?", isPresented: $confirmingErase) {
                 Button("Cancel", role: .cancel) {}
                 Button("Erase Everything", role: .destructive) {
@@ -271,17 +262,12 @@ struct SettingsView: View {
     private func erase() async {
         guard !isErasing else { return }
         isErasing = true
-        let remoteSucceeded = await appState.eraseAllData()
+        await appState.eraseAllData()
         hasArchivedHistory = false
         isErasing = false
-        // Dismissing on success returns them to a fresh pairing screen, which is the
-        // whole story. On failure the sheet stays put to carry the alert, since a
-        // half-kept promise is worth more than a tidy transition.
-        if remoteSucceeded {
-            dismiss()
-        } else {
-            eraseLeftRemoteData = true
-        }
+        // Always dismiss. A failure notice is presented from RootView instead, because
+        // this sheet is gone by then either way.
+        dismiss()
     }
 
     /// Debounce CloudKit writes so we don't fire one per keystroke. The didSet on

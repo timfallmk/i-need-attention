@@ -28,6 +28,16 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.25), value: appState.pair?.canSend)
         .animation(.easeInOut(duration: 0.25), value: appState.iCloudStatus)
         .animation(.easeInOut(duration: 0.25), value: appState.isDemo)
+        // Presented from the root, not from Settings: the erase tears that sheet down on
+        // its way out, so an alert owned by it never survives long enough to be read.
+        .alert("Erased, but not from iCloud", isPresented: $bindable.eraseLeftRemoteData) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Everything on this phone is gone. iCloud couldn't be reached, so the "
+                 + "alerts stored there may still exist — but the key that reads them has "
+                 + "been destroyed, so nothing can open them. To clear the storage itself, "
+                 + "delete the app's data from iCloud in iOS Settings.")
+        }
         .sheet(item: $bindable.incomingJoinInvite) { invite in
             JoinInviteSheet(invite: invite)
                 .environment(appState)
