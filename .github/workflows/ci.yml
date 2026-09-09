@@ -1,27 +1,32 @@
 name: CI
 
-# A macOS runner bills at 10x the Linux rate and this job takes ~5 minutes, so a push
-# that cannot possibly change the build result is worth not running at all. Three paths
+# A macOS runner bills at 10x the Linux rate and the Xcode job takes ~5 minutes, so a
+# change that cannot possibly affect the build result is worth not running. Three paths
 # qualify: Markdown, LICENSE, and site/. Nothing compiles any of them — the one Markdown
-# file that does ship (App/Resources/SOUND_PLACEHOLDER.md, bundled because XcodeGen takes
+# file that ships (App/Resources/SOUND_PLACEHOLDER.md, bundled because XcodeGen takes
 # App/Resources wholesale) is inert cargo the build never reads, and site/ is the GitHub
-# Pages site, which has a workflow of its own. This file is deliberately not excluded: a
-# change to it must run under itself.
+# Pages site, which has a workflow of its own. This file is deliberately not among them:
+# a change to it must run under itself.
 #
-# The tradeoff, which is a trap otherwise: a PR touching only these paths gets no check
-# at all. Do not make this check "required" in branch protection without reworking it.
+# That saving used to live in `paths-ignore` at the trigger, which had a trap the comment
+# here warned about and branch protection walked into anyway: a PR touching only those
+# paths got no check at all, so a required "Build" never reported and the PR could not be
+# merged. Filtering at the trigger cannot satisfy a required check, because a workflow
+# that does not run reports nothing.
+#
+# So the filter moved inside. Three jobs:
+#
+#   changes  cheap Linux job; decides whether anything outside those paths moved
+#   xcode    the real work, skipped when it did not — this is where the saving is
+#   Build    cheap Linux job that always runs and always reports, failing iff xcode did
+#
+# `Build` is the required check. It costs one Linux minute on a docs-only change instead
+# of five macOS minutes, and it always exists, which is the whole point. Renaming it means
+# updating branch protection in the same breath, or nothing can merge.
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - 'LICENSE'
-      - 'site/**'
   pull_request:
-    paths-ignore:
-      - '**/*.md'
-      - 'LICENSE'
-      - 'site/**'
   workflow_dispatch:
 
 concurrency:
@@ -29,8 +34,66 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether anything buildable changed
+        id: filter
+        run: |
+          set -euo pipefail
+          case "${{ github.event_name }}" in
+            pull_request)
+              files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}...HEAD")
+              ;;
+            push)
+              before="${{ github.event.before }}"
+              if [ "$before" = "0000000000000000000000000000000000000000" ]; then
+                files=""
+              else
+                files=$(git diff --name-only "$before" "${{ github.sha }}")
+              fi
+              ;;
+            *)
+              files=""
+              ;;
+          esac
+
+          # An empty list means we could not work out what moved — a first push, a
+          # manual dispatch, a force-push that stranded the old tip. Build rather than
+          # guess: a wasted run is cheaper than a missed one.
+          if [ -z "$files" ]; then
+            echo "no diff available; building"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "changed files:"
+          echo "$files"
+
+          # Anything that is not Markdown, LICENSE, or under site/ counts as buildable.
+          if grep -qvE '(\.md$|^LICENSE$|^site/)' <<<"$files"; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  xcode:
+    name: Xcode build and test
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
 
     permissions:
@@ -98,3 +161,30 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY= \
             DEVELOPMENT_TEAM=
+
+  build:
+    name: Build
+    needs: [changes, xcode]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Report the Xcode job's result
+        run: |
+          set -euo pipefail
+          changes='${{ needs.changes.result }}'
+          xcode='${{ needs.xcode.result }}'
+          echo "changes=$changes xcode=$xcode"
+
+          # `skipped` is the success case for a docs-only change: nothing buildable moved,
+          # so there was nothing to run. Every other non-success is a failure, including
+          # `cancelled`, so a cancelled run can never look like a passing required check.
+          if [ "$changes" != "success" ]; then
+            echo "::error::the change detector did not succeed ($changes)"
+            exit 1
+          fi
+          case "$xcode" in
+            success) echo "Xcode job passed." ;;
+            skipped) echo "No buildable change; nothing to run." ;;
+            *) echo "::error::Xcode job $xcode"; exit 1 ;;
+          esac
