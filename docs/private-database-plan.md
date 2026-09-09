@@ -1,6 +1,6 @@
 # Private Inbox Zones + Encrypted Payloads
 
-**Status: in progress.** Supersedes "Option 3" as originally scoped (a single `CKShare`d zone owned by the inviter). This doc is the design record and the decision log.
+**Status: shipped in 2.0.0.** Per-user inbox zones, zone-wide `CKShare`, and `PairCrypto`-sealed contents are the live design — see `CLAUDE.md` → "Data model" for the as-built version. This doc is kept as the design record and decision log. Supersedes "Option 3" as originally scoped (a single `CKShare`d zone owned by the inviter). This doc is the design record and the decision log.
 
 Landed so far: the crypto layer (`Shared/PairCrypto.swift`) and the diagnostics export, both pure enough not to wait on the spike. Everything structural is still unbuilt.
 

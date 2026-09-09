@@ -1,5 +1,7 @@
 # AttentionCLI — Mac dev tool for solo testing
 
+> **Status: predates 2.0.** `AttentionCLI` still speaks the pre-2.0 public-database protocol and cannot complete a 2.0 pairing, so the record shapes, subscription IDs (`incoming-alerts-v1`, `outgoing-status-v1`, `outgoing-ack-v2`, `pair-updates-v1`) and flows described below no longer match the app. Kept as the design record; the tool needs rewriting against private zones before it is useful again.
+
 > **Note:** This document describes the original planned signing approach (provisioning profile + entitlements with `$(CLOUDKIT_ENV)` substitution). The implementation was changed: macOS `tool` targets cannot embed provisioning profiles, so the CLI uses ad-hoc signing (`CODE_SIGN_IDENTITY = "-"`) with no entitlements instead. CloudKit environment is no longer pinned by build config. See `SETUP.md` §12 for the actual build and verification steps.
 
 Future reference for a signed macOS command-line tool that impersonates the second device of a pair so the alert + ack flow can be exercised solo, without a partner.

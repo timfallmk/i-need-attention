@@ -1,5 +1,7 @@
 # Emoji Catalog Maintenance Plan
 
+**Status: live.** This is the standing procedure for bumping the catalog, not a one-off plan.
+
 How to keep `App/Helpers/EmojiCatalog.swift` from going stale as Unicode adds new emoji.
 
 ## Why
