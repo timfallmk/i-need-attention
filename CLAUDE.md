@@ -126,6 +126,23 @@ The iOS Simulator delivers **visible** pushes but not **silent** ones. Alert ban
 
 The symptom is specific and misleading: everything works, but the sender's pill only updates when the app is backgrounded and foregrounded again (which triggers `reconcileLatestAlert`). Before assuming a subscription fault, put the device whose pill you are watching on **hardware**. `Push received for subscription …` in Console is the discriminator — its absence on a simulator says nothing.
 
+### Testing with a second install, and what actually isolates it
+
+A Debug build (simulator or `xcodegen`+Xcode) talks to the CloudKit **Development** environment; a TestFlight or App Store build talks to **Production**. `Constants.cloudKitContainerID` is one constant for both — the container is the same, the environment is not, and the two hold entirely separate zones, records and subscriptions. So a simulator paired to a simulator cannot see, push to, or clobber anything a TestFlight install is doing, even signed into the same Apple ID. That isolation is real and it is load-bearing for solo testing.
+
+**The pair key is the exception, and it is the one that matters.** `PairSecretStore.query(for:)` builds its lookup from a constant service, the account name `"pair"`, and the App Group as access group — nothing in it names the container, the environment, or the build configuration:
+
+```swift
+kSecAttrService: service,          // constant
+kSecAttrAccount: account,          // "pair"
+kSecAttrAccessGroup: accessGroup,  // the App Group
+kSecAttrSynchronizable: true
+```
+
+One item per Apple ID, synced. So pairing in a Debug build overwrites the key a Production build on the same account is using, while `PairState` — `UserDefaults`, per install — keeps naming the right partner and zone. The developer's data is isolated; the developer's *key* is not, and the failure is silent in exactly the direction that hurts: the production pairing keeps looking healthy and stops decrypting. See #68 §1.
+
+Practical rule: **test with an Apple ID that isn't on any TestFlight install of this app**, and don't run Erase All My Data on a device sharing an Apple ID with a real pairing — the erase deletes that same synchronizable item, and a synchronizable deletion propagates (#68 §1a).
+
 ### Concurrency model
 
 - **`AppState`** is `@MainActor @Observable`. All UI-affecting mutations happen here. SwiftUI views observe via `@Environment(AppState.self)`.
