@@ -2,6 +2,8 @@
 
 **Status: shipped, but not as planned.** Splitting the file was rejected — two entitlements files identical apart from one key is a silent drift hazard. `aps-environment` is `$(APS_ENVIRONMENT)` instead, with the value set per configuration in `project.yml` (`development` for Debug, `production` for Release). One file, no fork. This doc records the original plan and why the shipped approach differs.
 
+**Everything below this line is the original plan, written before any of it shipped.** Its present tense describes the repository as it was — in particular `App/Attention.entitlements` no longer hardcodes `production`. Read it as history; the shipped arrangement is the paragraph above.
+
 Original framing: splitting `App/Attention.entitlements` into Debug and Release variants so local Xcode builds and TestFlight builds use the correct APNs environment.
 
 ## Why

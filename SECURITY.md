@@ -25,20 +25,26 @@ authenticating the destination field name so a sealed `senderName` cannot be mov
 ciphertext at rest. Apple stores bytes it cannot read, because the key never leaves the two
 phones.
 
-A record written by someone who does not hold the key fails to open at all, so hostile writes
-are discarded rather than merely rendered safely.
+Content sealed under a different key fails to open, and the app substitutes a generic
+placeholder rather than rendering text an attacker chose. The record itself is still
+processed, so such a write surfaces as a content-free alert rather than as nothing at all —
+and writing into a zone at all requires already being its share participant.
 
 **Structural fields stay plaintext**, because predicates and sorting need them: the sending
 device's identifier, the alert's state, its timestamps, and the per-press critical flag. They
 say nothing that the existence of the zone does not already say — but they are metadata, and
 a participant in the zone can see them.
 
-The pair key is **never written to CloudKit**. Where a queryable value is needed, the record
-carries `PairCrypto.lookupHash` — SHA-256 over the key — instead.
+The pair key is **never written to CloudKit**. Pre-2.0 records carried it as a queryable
+field, which is what made that design indefensible; the 2.0 write paths carry only the sender's
+device identifier, the state, the timestamps and the sealed blobs. `PairCrypto.lookupHash`
+exists as a non-reversible stand-in for the cases that need a queryable value, but the
+zone-scoped design never needed one and it has no callers outside tests.
 
 ## Where the key lives
 
-The pair key is a 128-bit random value held in the Keychain (`Shared/PairSecretStore.swift`),
+The pair key is normally 128 bits from `SecRandomCopyBytes`, falling back to two concatenated
+UUIDs if the CSPRNG fails, and is held in the Keychain (`Shared/PairSecretStore.swift`),
 with the App Group as its access group so the notification service extension can decrypt
 pushes. It is `kSecAttrAccessibleAfterFirstUnlock`, because the extension renders notifications
 that arrive against a locked screen.

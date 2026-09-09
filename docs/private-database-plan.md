@@ -1,8 +1,10 @@
 # Private Inbox Zones + Encrypted Payloads
 
-**Status: shipped in 2.0.0.** Per-user inbox zones, zone-wide `CKShare`, and `PairCrypto`-sealed contents are the live design — see `CLAUDE.md` → "Data model" for the as-built version. This doc is kept as the design record and decision log. Supersedes "Option 3" as originally scoped (a single `CKShare`d zone owned by the inviter). This doc is the design record and the decision log.
+**Status: shipped in 2.0.0.** Per-user inbox zones, zone-wide `CKShare`, and `PairCrypto`-sealed contents are the live design — see `CLAUDE.md` → "Data model" for the as-built version. Supersedes "Option 3" as originally scoped (a single `CKShare`d zone owned by the inviter).
 
-Landed so far: the crypto layer (`Shared/PairCrypto.swift`) and the diagnostics export, both pure enough not to wait on the spike. Everything structural is still unbuilt.
+**Everything below this line is the pre-implementation record, written in the present tense of the time.** It is kept as the design log and the reasoning behind the decisions; read it as history, not as a description of the current code. Where the two disagree, the code and `CLAUDE.md` win.
+
+Landed at the time of writing: the crypto layer (`Shared/PairCrypto.swift`) and the diagnostics export, both pure enough not to wait on the spike. Everything structural was still unbuilt.
 
 **The spike is complete and the design survived it.** All four questions answered favourably: a participant's write fires the owner's subscription, a visible push renders a banner with the app force-quit, programmatic share acceptance needs no consent UI, and the owner's identity is readable from share metadata. The private database also accepts the visible-push-on-update shape the public database refuses, so the `Ack` record type can go. Caveats and the gaps inside those answers are recorded under [What must be verified](#what-must-be-verified-before-writing-production-code); the significant one is that everything was tested in **Development**.
 
