@@ -53,6 +53,13 @@ final class AppState {
     private var demoScript: Task<Void, Never>?
     private var demoSend: Task<Void, Never>?
 
+    /// Set when an erase completed locally but could not reach iCloud. Lives here rather
+    /// than on SettingsView because that sheet does not survive the erase: clearing `pair`
+    /// re-evaluates RootView, and a signed-out device swaps to the iCloud gate, tearing
+    /// the sheet — and any alert it was presenting — down mid-presentation. The one
+    /// message the user must not miss was the one being destroyed.
+    var eraseLeftRemoteData = false
+
     /// True only while the self-contained demo is running. Deliberately not persisted:
     /// a relaunch ends it, so it can never be mistaken for a real pairing, and there is
     /// no stored state that a later launch would have to reconcile.
@@ -612,6 +619,7 @@ final class AppState {
         outgoingAckSubscriptionFailureReason = nil
         try? await UNUserNotificationCenter.current().setBadgeCount(0)
         pushWatchSnapshot()
+        eraseLeftRemoteData = !remoteSucceeded
         return remoteSucceeded
     }
 

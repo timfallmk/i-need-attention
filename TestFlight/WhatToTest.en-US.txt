@@ -8,7 +8,7 @@ WHAT TO TRY
 
    To reach it you have to be unpaired, so do this on a spare device or before you re-pair.
 
-   THE THING MOST WORTH CHECKING: your watch should stay completely silent for the whole demo. No press, no pill change, nothing. A demo partner appearing on your wrist is the failure this needs eyes on, and it has no symptom on the phone.
+   Your watch will say "Not paired" throughout, which is correct — the demo is not a pairing. Nothing to check there.
 
 2. Deny the camera, then scan. Settings, Attention, Camera, off. Now tap Scan Code. You should get an explanation and an Open Settings button, not a black rectangle. Turn the camera back on and return to the app — the screen should notice by itself and show the scanner without you tapping anything.
 
