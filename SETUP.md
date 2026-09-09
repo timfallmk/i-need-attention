@@ -248,6 +248,38 @@ prohibits hidden or undocumented features, and a door only Apple can find would 
 It is also worth having on its own: without it, anyone who installs the app before
 convincing their partner to install it can't see what they'd be signing up for.
 
+## 7c. Digital Services Act trader status
+
+App Store Connect → **App Information** → **App Store Regulations & Permits** →
+**Digital Services Act**. Declared **non-trader**.
+
+The DSA requires anyone distributing in the EU to say whether they are a *trader* —
+someone acting for purposes relating to a trade, business, craft or profession. This app
+is free, has no in-app purchases, no subscriptions, no advertising and no revenue of any
+kind, and exists as a personal project. That is the clearest case for non-trader. It is a
+self-assessment rather than a determination Apple makes for you.
+
+**What declaring trader would have cost.** Apple publishes a trader's name, physical
+address, phone number and email address on the EU App Store listing, by design — the DSA
+exists to make sellers contactable. For an individual developer that means a home address
+on a public page, which is a poor trade for an app that earns nothing.
+
+**What would change this answer.** Any monetisation at all: a paid tier, in-app purchases,
+subscriptions, advertising, sponsorship. Re-read this section before the next submission if
+any of those arrive. Note the declaration is per **account**, not per app, so it also
+covers anything else ever shipped under the same Apple ID.
+
+**How it fails.** Getting this wrong toward non-trader means removal from EU storefronts
+rather than a rejected build, so it surfaces after release rather than during review. The
+third option, if the question ever becomes uncomfortable, is simply declining EU
+territories under **Pricing and Availability** — a large market to give up, but it removes
+the question rather than answering it.
+
+Unrelated and on the same page, for the avoidance of a future hunt: **App Encryption
+Documentation** needs no upload. Apple asks for it only for proprietary or non-standard
+algorithms, or for standard algorithms used instead of or in addition to the encryption in
+Apple's OS. Everything here is CryptoKit, which *is* that encryption — see §7a.
+
 ## 8. Install on the phones
 
 - [ ] Both phones: install **TestFlight** from the App Store (free)
