@@ -80,15 +80,29 @@ jobs:
             exit 0
           fi
 
-          echo "changed files:"
-          echo "$files"
-
           # Anything that is not Markdown, LICENSE, or under site/ counts as buildable.
           if grep -qvE '(\.md$|^LICENSE$|^site/)' <<<"$files"; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
+            code=true
+            verdict='Buildable changes found — the Xcode job will run.'
           else
-            echo "code=false" >> "$GITHUB_OUTPUT"
+            code=false
+            verdict='Only Markdown, LICENSE or `site/` changed — the Xcode job will be skipped.'
           fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Change detection"
+            echo
+            echo "$verdict"
+            echo
+            echo "<details><summary>Changed files</summary>"
+            echo
+            echo '```'
+            echo "$files"
+            echo '```'
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   xcode:
     name: Xcode build and test
@@ -184,7 +198,19 @@ jobs:
             exit 1
           fi
           case "$xcode" in
-            success) echo "Xcode job passed." ;;
-            skipped) echo "No buildable change; nothing to run." ;;
-            *) echo "::error::Xcode job $xcode"; exit 1 ;;
+            success)
+              echo "::notice::Xcode build and test passed."
+              echo "Build passed: the Xcode job ran and succeeded." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            skipped)
+              # Worth saying loudly. This check is required, so a green Build is what a
+              # reviewer sees — and on a docs-only change it means nothing was compiled,
+              # which is not the same claim as a passing build.
+              echo "::notice::Nothing buildable changed, so no code was compiled. This check passed without building."
+              echo "Build passed **without compiling anything** — only Markdown, LICENSE or \`site/\` changed." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::Xcode build and test $xcode"
+              exit 1
+              ;;
           esac
