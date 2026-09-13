@@ -542,7 +542,7 @@ final class AppState {
     /// (PairingService writes it directly).
     func reconcilePendingInvite() async {
         pendingInvite = PendingInvite.load()
-        guard pair == nil, let pending = pendingInvite else { return }
+        guard pair == nil, pendingInvite != nil else { return }
         do {
             guard let state = try await PairingService.shared.completeInviterPairing() else { return }
             Haptics.success()
@@ -596,20 +596,21 @@ final class AppState {
         partnerEndedPairing = false
         UnpairedElsewhereNotice.happened = false
         pairingEndedOnAnotherDevice = false
-        // Optimistic, and cleared by the first successful registration. The QR pairing
-        // paths register inside `PairingService` with their own best-effort handling, so
-        // a transient failure there would never reach the retry flag — and the newly
-        // paired device would receive nothing until it was relaunched. Setting it here
-        // costs one subscription listing on the next foreground, which finds them live
-        // and saves nothing.
+        // Optimistic, and cleared by the first successful registration. Every caller
+        // should register straight after this — the QR paths now do, which is why this
+        // is a backstop rather than the mechanism it once was. It still earns its place
+        // for the callers that don't: a restore or an adoption reaches here and relies
+        // on the next foreground, and a transient failure they never observed would
+        // otherwise leave a device that looks paired and receives nothing. Costs one
+        // subscription listing, which finds them live and saves nothing.
         subscriptionsNeedRetry = true
         // Completing a pair consumes any pending invite (the service layer clears the
         // persisted copy); re-sync the observable mirror.
         self.pendingInvite = PendingInvite.load()
         SharedSettings.partnerName = state.partnerName
-        // PairingService.{waitForJoiner,completePairing} runs registerSubscriptions
-        // immediately before returning the PairState that lands here; pull the latest
-        // diagnostic flag now so SettingsView reflects the just-attempted save.
+        // Pull the latest diagnostic flag so SettingsView reflects whatever registration
+        // just happened — either the caller's, immediately after this, or an earlier
+        // best-effort one on the invite path.
         refreshSubscriptionDiagnostics()
         pushWatchSnapshot()
     }

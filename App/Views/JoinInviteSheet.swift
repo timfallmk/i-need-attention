@@ -43,7 +43,7 @@ struct JoinInviteSheet: View {
                 .foregroundStyle(.secondary)
             Text("Already paired")
                 .font(.title3.weight(.semibold))
-            Text("This phone is paired with \(appState.pair?.partnerName ?? "someone"). To accept \(inviterLabel)'s invite, unpair first in Settings.")
+            Text("You are already paired with \(appState.pair?.partnerName ?? "someone"). To accept \(inviterLabel)'s invite, unpair first in Settings.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -129,6 +129,9 @@ struct JoinInviteSheet: View {
             )
             Haptics.success()
             appState.applyPair(state)
+            // Before the dismiss, and for the same reason as the scan path: registration
+            // moved out of `completePairing` so a partial save can reach the retry flag.
+            await appState.registerSubscriptions()
             dismiss()
         } catch {
             Haptics.warning()
