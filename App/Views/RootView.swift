@@ -124,6 +124,7 @@ private struct ICloudGateView: View {
             .padding(.horizontal, 28)
             .padding(.bottom, 32)
         }
+        .readableWidth()
     }
 
     private var title: String {

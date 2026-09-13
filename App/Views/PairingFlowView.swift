@@ -181,6 +181,7 @@ struct PairingFlowView: View {
 
             Spacer()
         }
+        .readableWidth()
     }
 }
 
