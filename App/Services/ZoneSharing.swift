@@ -1,6 +1,26 @@
 import CloudKit
 import Foundation
 
+/// What `CloudKitService.resolveInboxZone` found.
+///
+/// Three answers rather than an optional, because "we never had one" and "we had one and
+/// it is gone" call for opposite handling: the first waits, the second ends a pairing.
+enum InboxZoneResolution {
+    /// The zone this device should use. Already adopted and persisted if it was found
+    /// rather than already known.
+    case resolved(CKRecordZone.ID)
+
+    /// This device has a zone name and the account has no such zone. Another device
+    /// signed into this Apple ID ended the pairing and took the zone with it (or an
+    /// erase did). Whoever holds a `PairState` has to let it go.
+    case vanished
+
+    /// No name stored and nothing adoptable. A fresh install on an account with no
+    /// pairing, or a second device whose pair key has not synced yet — indistinguishable
+    /// from here, and both answered by trying again later.
+    case absent
+}
+
 /// Zone and share plumbing for the 2.0 inbox model.
 ///
 /// Each device owns one zone in its own private database and shares it with the
@@ -13,58 +33,64 @@ import Foundation
 /// `PairingService`'s job.
 extension CloudKitService {
 
-    /// The zone this device owns, found rather than assumed — and **without creating
-    /// one**. Nil means this Apple ID holds no inbox zone this device may use.
+    /// What listing this account's zones says about the inbox this device should be
+    /// using. Three answers, because two of the three are things a caller has to act on
+    /// rather than shrug at.
     ///
     /// The private database is per *account*, not per install, so a second device signed
-    /// into the same Apple ID is looking at a database that may already contain the
-    /// zone it needs. Minting its own instead is #68: the four subscription IDs are
-    /// constants, so `registerSubscriptions` would see the first device's as stale,
-    /// repoint them all at the newcomer's zone, and leave the first device holding a
-    /// pairing that looks healthy and is never pushed to again.
-    ///
-    /// Non-creating is the point rather than an optimisation. A brand-new second device
-    /// gets the pair key by iCloud Keychain sync, which is neither instant nor
-    /// announced; a launch that beats it must come back empty-handed and try again later,
-    /// because a zone created in that window is exactly the rival this exists to avoid.
-    func resolveInboxZone() async throws -> CKRecordZone.ID? {
+    /// into the same Apple ID is looking at a database that may already contain the zone
+    /// it needs — and a first device is looking at one another device can delete out
+    /// from under it.
+    func resolveInboxZone() async throws -> InboxZoneResolution {
         if let stored = InboxZone.storedName, ensuredZones.contains(stored) {
-            return Self.zoneID(named: stored)
+            return .resolved(Self.zoneID(named: stored))
         }
 
         let owned = Set(try await privateDB.allRecordZones().map(\.zoneID.zoneName))
 
-        // The ordinary case, and every install that exists today: we know our name and
-        // the server agrees it exists. One list call per launch, then the cache.
-        if let stored = InboxZone.storedName, owned.contains(stored) {
-            ensuredZones.insert(stored)
-            return Self.zoneID(named: stored)
+        if let stored = InboxZone.storedName {
+            // The ordinary case, and every install that exists today: we know our name
+            // and the server agrees it exists. One list call per launch, then the cache.
+            guard !owned.contains(stored) else {
+                ensuredZones.insert(stored)
+                return .resolved(Self.zoneID(named: stored))
+            }
+            // We have a name and the account does not have that zone. Deliberately not
+            // "look for another one to adopt": if this device holds a pairing, that
+            // pairing is over — ended from another device on this account — and the zone
+            // sitting there instead may well belong to whatever pairing replaced it.
+            // Adopting it would leave a `PairState` naming one partner and a zone
+            // belonging to another. The caller ends the pairing first; adoption then
+            // happens on a later pass, from a clean slate.
+            return .vanished
         }
 
-        // Either nothing has been minted, or a name was minted and its zone never
-        // created — the second device's whole problem, and also what a failed create
-        // leaves behind. Both mean "look for one to take over".
-        guard let adopted = await adoptableInboxZone(among: owned) else { return nil }
+        // Nothing stored, so nothing has been lost and there is nothing to end. Either a
+        // fresh install on an account that already pairs — the second-device case — or
+        // one whose pair key has not arrived yet, which reads the same and is retried.
+        guard let adopted = await adoptableInboxZone(among: owned) else { return .absent }
         InboxZone.adopt(adopted)
         ensuredZones.insert(adopted)
         log.notice("adopted inbox zone owned by another device on this account")
-        return Self.zoneID(named: adopted)
+        return .resolved(Self.zoneID(named: adopted))
     }
 
     /// The zone this device owns, creating one if this account has none to resolve.
     /// Creating an existing zone is a no-op, so this is safe to call repeatedly.
     @discardableResult
     func ensureInboxZone() async throws -> CKRecordZone.ID {
-        if let resolved = try await resolveInboxZone() { return resolved }
+        switch try await resolveInboxZone() {
+        case .resolved(let zoneID):
+            return zoneID
+        case .vanished:
+            // Reusing the vanished name would be the one thing per-pairing names exist
+            // to stop. The zone is empty today, but the invariant is "a name is never
+            // reused across pairings", not "it is usually harmless".
+            InboxZone.rotate()
+        case .absent:
+            break
+        }
 
-        // Nothing resolved, so either nothing is stored or the stored name names a zone
-        // the server does not have. The second is reachable now that another device on
-        // this account can end the pairing and delete the zone under us, and reusing
-        // that name would be the one thing per-pairing names exist to stop — the zone is
-        // empty today, but the invariant is "a name is never reused across pairings",
-        // not "it is usually harmless". So rotate first and let the next pairing start
-        // under a name nothing has ever shared.
-        if InboxZone.storedName != nil { InboxZone.rotate() }
         let zoneID = Self.inboxZoneID
         _ = try await privateDB.modifyRecordZones(saving: [CKRecordZone(zoneID: zoneID)], deleting: [])
         ensuredZones.insert(zoneID.zoneName)

@@ -140,9 +140,13 @@ final class PairingService {
         }
 
         // Resolution is what adopts the zone, and it refuses to create one — so a launch
-        // that beats the key sync comes back empty here rather than minting a rival. A
-        // throw and a nil both mean "not now", which is the same handling.
-        guard (try? await cloud.resolveInboxZone()) != nil else { return nil }
+        // that beats the key sync comes back `.absent` here rather than minting a rival.
+        // Anything short of `.resolved` means "not now" and is retried; `.vanished` in
+        // particular is `endPairingIfOurZoneIsGone`'s to handle, not ours, and it cannot
+        // arise here anyway since this only runs with no pairing to have lost.
+        guard case .resolved = ((try? await cloud.resolveInboxZone()) ?? .absent) else {
+            return nil
+        }
 
         guard let theirs = await cloud.fetchPartnerProfile(pairKey: pairKey),
               let ours = await cloud.adoptableOutgoingZone(pairKey: pairKey) else { return nil }

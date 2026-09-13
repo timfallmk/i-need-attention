@@ -122,7 +122,8 @@ final class CloudKitService: @unchecked Sendable {
     ///
     /// Mints a name if none is stored, so it is for callers that already know a pairing
     /// exists. Anything that runs before or outside one wants `resolveInboxZone`, which
-    /// comes back nil instead of quietly making this device the owner of a second zone.
+    /// reports what the account actually holds instead of quietly making this device the
+    /// owner of a second zone.
     static var inboxZoneID: CKRecordZone.ID {
         zoneID(named: InboxZone.currentName)
     }
@@ -435,7 +436,7 @@ final class CloudKitService: @unchecked Sendable {
         // not answer that by creating one. See `resolveInboxZone`. There is nothing to
         // subscribe to either way, so returning is the whole handling; the next
         // foreground tries again.
-        guard let zoneID = try await resolveInboxZone() else {
+        guard case .resolved(let zoneID) = try await resolveInboxZone() else {
             log.notice("no inbox zone to subscribe to yet")
             return
         }
