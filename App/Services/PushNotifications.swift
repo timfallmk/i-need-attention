@@ -145,6 +145,18 @@ final class PushNotifications: NSObject {
             return .noData
         }
 
+        // Every branch below reads a record out of the zone this account owns, so the
+        // zone is checked once here rather than trusted. Subscription IDs are
+        // account-wide and a pre-2.2 account can still be carrying a second inbox zone
+        // (see `docs/multi-device-plan.md`), so a stale or queued subscription can
+        // deliver a record from a zone this device no longer uses — which would
+        // otherwise render a foreign alert, mark it seen, or clear the wrong banner.
+        guard recordID.zoneID.zoneName == InboxZone.storedName else {
+            let zone = recordID.zoneID.zoneName
+            log.error("Push for unexpected zone \(zone, privacy: .public); ignoring")
+            return .noData
+        }
+
         if queryNotification.subscriptionID == Constants.SubscriptionID.outgoingStatus
             || queryNotification.subscriptionID == Constants.SubscriptionID.outgoingAck {
             // A status notice about an alert *we* sent. The notice names the alert; the
