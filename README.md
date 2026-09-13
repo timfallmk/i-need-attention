@@ -1,15 +1,17 @@
 # Attention
 
-A two-phone iOS app: tap the big red button, the other phone gets a push that says you need attention. Personal-use, paired by QR scan, no backend besides what Apple provides (CloudKit + APNs).
+A two-person iOS app: tap the big red button, and your partner gets a push that says you need attention. Personal-use, paired by QR scan, no backend besides what Apple provides (CloudKit + APNs).
+
+Pairing is between two *people*, not two handsets: every device signed in to the same Apple Account shares one pairing, so an iPhone and an iPad both send and receive without pairing twice. iPhone and iPad are supported from 2.2.0; an Apple Silicon Mac or Vision Pro runs the iPad build.
 
 ```
-iPhone A                      iCloud (CloudKit)                   iPhone B
+Device A                      iCloud (CloudKit)                   Device B
 +--------+          +--------------------------------+           +--------+
 |  TAP   |  write   |  B's inbox zone                |   push    |  alert |
 |  big   | =======> |  (B's PRIVATE db, shared to A) | ========> |  banner|
 |  red   |          |  contents sealed with the      |           |  buzz  |
 |        | <======= |  pair key, held only on the    | <======== |  tap   |
-| status |   push   |  two phones                    |  ack/seen |  ack   |
+| status |   push   |  paired devices                |  ack/seen |  ack   |
 +--------+          +--------------------------------+           +--------+
 ```
 
@@ -42,7 +44,7 @@ Then in Xcode:
 2. **Set bundle IDs.** Replace `com.timfallmk.attention` everywhere it appears (the `*.entitlements` files, `project.yml`, and `Shared/Constants.swift` for both `cloudKitContainerID` and `AppGroup.identifier`) with your own reverse-DNS prefix. Re-run `xcodegen generate`.
 3. **Create the iCloud container.** In Signing & Capabilities → iCloud → click **+ Container** and create `iCloud.<your.bundle.id>`. Update `Constants.cloudKitContainerID` to match.
 4. **Create the App Group.** In Signing & Capabilities → **+ Capability → App Groups** → **+** → name it `group.<your.bundle.id>`. Add it to **both** the `Attention` target and the `AttentionNotificationService` target. Update `Constants.AppGroup.identifier` to match.
-5. **First run.** Build + install on both phones (each signed in to its own Apple ID). The first launch asks for notification permission and shows the pairing screen.
+5. **First run.** Build + install on both devices (each signed in to its own Apple ID). The first launch asks for notification permission and shows the pairing screen.
 
 ## CloudKit schema
 
@@ -60,9 +62,11 @@ once, and are the usual cause of "push works in development but not in TestFligh
 
 ## Pairing
 
-Tap **Show Code** on phone A. Tap **Scan Code** on phone B and point it at A. Done — both phones can now press the button and receive alerts.
+Tap **Show Code** on device A. Tap **Scan Code** on device B and point it at A. Done — either of you can now press the button and receive alerts.
 
-To repair: open Settings → Unpair, then start over. (Both phones unpair separately.)
+To repair: open Settings → Unpair, then start over. Only one of you needs to do it, and only once:
+unpairing is **account-wide**, so it ends the pairing on every device signed in to your Apple Account,
+and your partner's devices discover it the next time they send or open the app.
 
 ## Alert priority
 
@@ -102,9 +106,9 @@ Reuses the iPhone's CloudKit credentials via WatchConnectivity — the watch nev
 
 ## Known limitations
 
-- **Your partner's device is inside the boundary, and nothing else is.** Since 2.0 each person owns an inbox zone in their own private CloudKit database and shares it with their partner, so access is enforced per zone by CloudKit rather than by a value anyone can read. Record contents are sealed with ChaCha20-Poly1305 under a key derived from the pair key, which never leaves the two devices — the storage provider holds ciphertext. What that does *not* protect against is a compromised phone: the key is on both of them, which is the right place for the boundary in a two-person app, but it is a boundary. Structural fields (state, timestamps, device IDs) stay plaintext because predicates and sorting need them.
+- **Your partner's device is inside the boundary, and nothing else is.** Since 2.0 each person owns an inbox zone in their own private CloudKit database and shares it with their partner, so access is enforced per zone by CloudKit rather than by a value anyone can read. Record contents are sealed with ChaCha20-Poly1305 under a key derived from the pair key, which never leaves the two devices — the storage provider holds ciphertext. What that does *not* protect against is a compromised device: the key is on both of them, which is the right place for the boundary in a two-person app, but it is a boundary. Structural fields (state, timestamps, device IDs) stay plaintext because predicates and sorting need them.
 - **Pre-2.0 records were in the public database and some may still be there.** Before 2.0 everything lived in a world-readable table with the `pairKey` as a plaintext field on the record — a lookup value, not a credential, so it protected nothing. Upgrading re-pairs under a new key and archives the old history locally; the originals are removed by a purge that runs once both partners have upgraded. Assume anything sent before 2.0 was readable by any authenticated iCloud client.
-- **Silent pushes for status updates can be throttled** by iOS if your phone is in Low Power Mode or the app has been force-quit. The "Seen / Acknowledged" indicator may take a moment to update.
+- **Silent pushes for status updates can be throttled** by iOS if your device is in Low Power Mode or the app has been force-quit. The "Seen / Acknowledged" indicator may take a moment to update.
 - **App icon** is generated by `Tools/generate_icons.py` (requires Pillow: `pip install pillow`). Re-run it after editing that script to update `App/Assets.xcassets/AppIcon.appiconset/` and `Watch/Watch/Assets.xcassets/AppIcon.appiconset/`.
 
 ## License

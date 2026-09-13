@@ -33,7 +33,7 @@ struct RootView: View {
         .alert("Erased, but not from iCloud", isPresented: $bindable.eraseLeftRemoteData) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Everything on this phone is gone. iCloud couldn't be reached, so the "
+            Text("Everything on this device is gone. iCloud couldn't be reached, so the "
                  + "alerts stored there may still exist — but the key that reads them has "
                  + "been destroyed, so nothing can open them. To clear the storage itself, "
                  + "delete the app's data from iCloud in iOS Settings.")
@@ -140,7 +140,7 @@ private struct ICloudGateView: View {
     private var detail: String {
         switch appState.iCloudStatus {
         case .noAccount:
-            return "Open Settings → \"Sign in to your iPhone\" with your Apple ID, then come back here."
+            return "Open Settings, sign in with your Apple ID, then come back here."
         case .restricted:
             return "Screen Time or a configuration profile is blocking iCloud on this device."
         case .temporarilyUnavailable:

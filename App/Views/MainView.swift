@@ -370,7 +370,7 @@ private struct OneWayBanner: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("You can reach \(displayName), not the other way round yet")
                     .font(.footnote.weight(.medium))
-                Text("Their phone finishes connecting on its own.")
+                Text("They finish connecting on their own.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

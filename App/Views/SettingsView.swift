@@ -154,7 +154,7 @@ struct SettingsView: View {
                             Label("History", systemImage: "clock")
                         }
                     } footer: {
-                        Text("Your earlier alerts, kept on this phone. They stay here "
+                        Text("Your earlier alerts, kept on this device. They stay here "
                              + "whatever happens to a pairing, and new ones will appear "
                              + "alongside them once you've paired again.")
                     }
@@ -218,10 +218,10 @@ struct SettingsView: View {
                     }
                     .disabled(isErasing)
                 } footer: {
-                    Text("Deletes your history on this phone, your settings, the key that "
+                    Text("Deletes your history on this device, your settings, the key that "
                          + "unlocks any of it, and — if you're online and signed in to "
                          + "iCloud — the alerts stored in your iCloud account. Nothing is "
-                         + "kept and nothing can be restored.\n\nWhat your partner's phone "
+                         + "kept and nothing can be restored.\n\nWhat your partner keeps "
                          + "holds is theirs to erase — but everything you sent them is "
                          + "locked with the key that goes here, so after this neither of "
                          + "you can read it.")
@@ -261,7 +261,7 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("This can't be undone. Your alert history, your pairing and your "
-                     + "settings are deleted from this phone, and from your iCloud account "
+                     + "settings are deleted from this device, and from your iCloud account "
                      + "if it can be reached — you'll be told if it can't. The pairing "
                      + "ends on your other devices too.")
             }
