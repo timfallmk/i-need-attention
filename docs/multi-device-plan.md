@@ -1,11 +1,16 @@
 # Multiple Devices Per Person
 
-**Status: design, unbuilt.** Covers [#68] (two installs on one Apple ID break each other's
-pairing) and the first half of [#72] (one person, several devices). Written before any code,
-in the present tense of the time; when the code lands, this file gets a status header like
-`docs/private-database-plan.md` has and stops being a description of the future.
+**Status: built, targeting 2.2.0.** Covers [#68] (two installs on one Apple Account break
+each other's pairing) and the first half of [#72] (one person, several devices). See
+`CLAUDE.md` → "Several devices, one person" for the as-built version; where the two disagree,
+the code and `CLAUDE.md` win.
 
-Target release: not yet fixed. Nothing here blocks 2.1.1, which is with App Review.
+**Everything below was written before the code, in the present tense of the time**, and is
+kept as the design log — the same shape `docs/private-database-plan.md` takes. Read it as
+reasoning, not as a description of the current code. Two things changed in the building and
+are corrected in place below: `Alert.state` turned out to be indexed already, and adoption
+moved out of zone resolution so that taking over a zone and joining the pairing it belongs to
+cannot come apart.
 
 [#68]: https://github.com/timfallmk/i-need-attention/issues/68
 [#72]: https://github.com/timfallmk/i-need-attention/issues/72
@@ -197,10 +202,16 @@ Sites to change: `AlertRecord`, `ArchivedAlert`, `AppState.handleIncomingChange`
 `HistoryView` (row direction and the partner-name heuristic), `DiagnosticsGatherer`. The
 `Alert` field is the one real schema change in this plan — a String, **not** indexed (zone
 membership is the filter, nothing queries the sender), added to `cloudkit-schema.ckdb` in the
-same commit and deployed Development → Production. Additive, so records written by older
-builds simply lack it and the fallback covers them; it changes nothing about who can read
+same commit and deployed Development → Production. It changes nothing about who can read
 `Alert`, which still carries its pre-2.0 `_icloud` grants for the public-database records that
-have not been purged yet. `Tools/AttentionCLI` writes
+have not been purged yet.
+
+**Corrected while building:** this first read "additive, so skipping the deploy costs
+multi-device support rather than breaking the app", and that is wrong in the direction that
+matters. Production's schema is locked and rejects a save naming a field it does not know, so
+a build that writes `senderUserID` against an undeployed container fails to send at all. The
+deploy is a hard prerequisite; additive describes how old and new *records* interoperate once
+the field exists, not what happens before it does. `SETUP.md` §4 says so. `Tools/AttentionCLI` writes
 `senderDeviceID` and can keep doing so; the fallback covers it.
 
 `DeviceIdentity.id` does not go away. It stays as what it has always been — the identifier of

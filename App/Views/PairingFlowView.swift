@@ -73,7 +73,7 @@ struct PairingFlowView: View {
         PairingNotice(
             title: "Your partner unpaired",
             systemImage: "person.badge.minus",
-            explanation: "They ended the pairing from their phone, so this one is unpaired too. Nothing went wrong here.",
+            explanation: "They ended the pairing from one of their devices, so this one is unpaired too. Nothing went wrong here.",
             reassurance: "Your history is still on this phone, under Settings."
         )
     }

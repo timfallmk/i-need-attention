@@ -130,6 +130,21 @@ struct PairState: Codable, Equatable {
         return true
     }
 
+    /// Whether a pairing blob is on disk, regardless of whether its key can be read.
+    ///
+    /// `load()` needs both and returns nil without the key, which makes it exactly the
+    /// wrong question to ask about a pairing another device may have ended: unpairing
+    /// drops the synchronizable keychain item and that deletion propagates, so the
+    /// device being told loses the key *first* and reads as never-paired. The blob
+    /// outlives the key and is the only key-independent evidence that this install
+    /// thought it was paired.
+    ///
+    /// Not evidence that it still is — a locked device before first unlock looks
+    /// identical — so callers pair it with something that is (the zone being gone).
+    static var hasStoredBlob: Bool {
+        UserDefaults.standard.data(forKey: storageKey) != nil
+    }
+
     static func clear() {
         PairSecrets.store.removeSecret(for: Constants.Keychain.pairKeyAccount)
         UserDefaults.standard.removeObject(forKey: storageKey)

@@ -46,33 +46,24 @@ extension CloudKitService {
             return .resolved(Self.zoneID(named: stored))
         }
 
-        let owned = Set(try await privateDB.allRecordZones().map(\.zoneID.zoneName))
-
-        if let stored = InboxZone.storedName {
-            // The ordinary case, and every install that exists today: we know our name
-            // and the server agrees it exists. One list call per launch, then the cache.
-            guard !owned.contains(stored) else {
-                ensuredZones.insert(stored)
-                return .resolved(Self.zoneID(named: stored))
-            }
-            // We have a name and the account does not have that zone. Deliberately not
-            // "look for another one to adopt": if this device holds a pairing, that
-            // pairing is over — ended from another device on this account — and the zone
-            // sitting there instead may well belong to whatever pairing replaced it.
-            // Adopting it would leave a `PairState` naming one partner and a zone
-            // belonging to another. The caller ends the pairing first; adoption then
-            // happens on a later pass, from a clean slate.
-            return .vanished
+        guard let stored = InboxZone.storedName else {
+            // Nothing has been minted. Whether there is a zone here to take over is
+            // `adoptableInboxZone`'s question, not this one's — see why below.
+            return .absent
         }
 
-        // Nothing stored, so nothing has been lost and there is nothing to end. Either a
-        // fresh install on an account that already pairs — the second-device case — or
-        // one whose pair key has not arrived yet, which reads the same and is retried.
-        guard let adopted = await adoptableInboxZone(among: owned) else { return .absent }
-        InboxZone.adopt(adopted)
-        ensuredZones.insert(adopted)
-        log.notice("adopted inbox zone owned by another device on this account")
-        return .resolved(Self.zoneID(named: adopted))
+        let owned = Set(try await privateDB.allRecordZones().map(\.zoneID.zoneName))
+        guard !owned.contains(stored) else {
+            // The ordinary case, and every install that exists today: we know our name
+            // and the server agrees it exists. One list call per launch, then the cache.
+            ensuredZones.insert(stored)
+            return .resolved(Self.zoneID(named: stored))
+        }
+        // A name whose zone the account does not have. What that *means* depends on
+        // whether this device holds a pairing, which this layer does not know:
+        // `AppState.endPairingIfOurZoneIsGone` reads it as a pairing ended elsewhere,
+        // and a device with no pairing reads it as a stale name to discard.
+        return .vanished
     }
 
     /// The zone this device owns, creating one if this account has none to resolve.
@@ -97,7 +88,19 @@ extension CloudKitService {
         return zoneID
     }
 
-    /// Which of this account's zones, if any, a second device may take over.
+    /// Which of this account's zones, if any, this device may take over — **without
+    /// taking it**. The caller adopts, and only once it can finish the job.
+    ///
+    /// That split is the point. Adoption used to happen inside `resolveInboxZone`, as a
+    /// side effect of merely asking which zone was ours, and two things fell out of it.
+    /// An adoption whose *pairing* half then failed — the partner's zone not in the
+    /// shared database yet, their profile unreadable — left this device owning the
+    /// pairing's zone while still showing the pairing screen; tapping Invite from there
+    /// would have handed the previous partner's records to the next partner's share.
+    /// And `ensureInboxZone`, which every pairing-start path calls, could take over an
+    /// existing pairing's zone when it should always be starting a fresh one. Neither is
+    /// reachable now: nothing adopts except `PairingService.adoptExistingPairing`, in the
+    /// same breath as saving the `PairState` that makes it true.
     ///
     /// Not "it carries the prefix". `tearDownInboxZone` rotates the stored name whether
     /// or not the zone delete succeeded — deliberately, since the old name is what the
@@ -119,11 +122,17 @@ extension CloudKitService {
     /// Sorted and first-match so that two devices running this seconds apart reach the
     /// same answer: agreeing matters more than which one is picked. Losers are left
     /// alone rather than deleted, because deleting a zone deletes its share with it.
-    private func adoptableInboxZone(among owned: Set<String>) async -> String? {
+    func adoptableInboxZone() async -> String? {
         guard let pairKey = PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) else {
             return nil
         }
-        for name in owned.filter({ $0.hasPrefix(InboxZone.namePrefix) }).sorted() {
+        guard let owned = try? await privateDB.allRecordZones() else { return nil }
+        let candidates = owned
+            .map(\.zoneID.zoneName)
+            .filter { $0.hasPrefix(InboxZone.namePrefix) }
+            .sorted()
+
+        for name in candidates {
             let recordID = CKRecord.ID(recordName: Constants.Profile.recordName,
                                        zoneID: Self.zoneID(named: name))
             guard let record = try? await privateDB.record(for: recordID),
@@ -135,6 +144,29 @@ extension CloudKitService {
             return name
         }
         return nil
+    }
+
+    /// Records that a discovered zone is now this device's, once the caller has what it
+    /// needs to act on that. Separate from finding it, for the reasons above.
+    func adoptInboxZone(named name: String) {
+        InboxZone.adopt(name)
+        ensuredZones.insert(name)
+        log.notice("adopted inbox zone owned by another device on this account")
+    }
+
+    /// Whether the zone this device believes it owns is gone from the account, asked
+    /// fresh rather than from `ensuredZones`.
+    ///
+    /// The cache is populated for the life of the process and never invalidated, which
+    /// is harmless for the write paths it exists to speed up and wrong for this one:
+    /// after a single successful resolution it would go on reporting the zone present
+    /// long after a sibling device deleted it, and the pairing would never be noticed as
+    /// ended. `zoneIsMissing` lists afresh and answers "can't tell" as false, which is
+    /// the standard this has to meet — the cost of a false positive is unpairing
+    /// somebody who is fine.
+    func ownedInboxZoneIsGone() async -> Bool {
+        guard let stored = InboxZone.storedName else { return false }
+        return await zoneIsMissing(Self.zoneID(named: stored))
     }
 
     static func zoneID(named name: String) -> CKRecordZone.ID {

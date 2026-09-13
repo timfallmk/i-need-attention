@@ -184,13 +184,14 @@ final class AppState {
             reconcileSnoozeState()
             if incoming == nil || incoming?.state == .acknowledged {
                 try? await UNUserNotificationCenter.current().setBadgeCount(0)
-            }
-            // The same sweep `handleAnsweredElsewhere` does, for the case its silent
-            // push cannot reach: a force-quit app is never woken by one, so a device
-            // that was closed when the alert was answered elsewhere still has the banner
-            // when it next opens.
-            if let answered = incoming, answered.state == .acknowledged {
-                await LocalNotifications.removeDelivered(matchingRecordName: answered.id.recordName)
+                // The same sweep `handleAnsweredElsewhere` does, for the case its silent
+                // push cannot reach: a force-quit app is never woken by one, so a device
+                // closed when the alert was answered elsewhere still has the banner when
+                // it next opens — and may have older ones behind it, since a coalesced
+                // push can leave several. Every one of them is stale under this
+                // condition, which is the same one that clears the badge: the newest
+                // incoming alert is answered or absent, so nothing is still waiting.
+                await LocalNotifications.removeDeliveredAlerts()
             }
         } catch {
             // Either fetch can raise this, and only one of them means anything: our own
@@ -304,7 +305,12 @@ final class AppState {
         if lastIncoming?.id.recordName == alert.id.recordName {
             lastIncoming = alert
         }
-        try? await UNUserNotificationCenter.current().setBadgeCount(0)
+        // Only when nothing is still waiting. The badge belongs to the app rather than to
+        // this alert, so clearing it for an older one answered on another device would
+        // drop the count for a newer one this device is still showing.
+        if lastIncoming == nil || lastIncoming?.state == .acknowledged {
+            try? await UNUserNotificationCenter.current().setBadgeCount(0)
+        }
         pushWatchSnapshot()
     }
 
@@ -615,39 +621,41 @@ final class AppState {
     }
 
     /// Ends the pairing when the zone *we* own is gone, which is what another device
-    /// signed into this Apple ID leaves behind when it unpairs or erases: the private
-    /// database is per account, so its `unpair()` deleted the zone every device on the
-    /// account was reading.
+    /// signed into this Apple Account leaves behind when it unpairs or erases: the
+    /// private database is per account, so its `unpair()` deleted the zone every device
+    /// on the account was reading.
     ///
     /// Same standard of proof as the partner-side check, for the same reason — the cost
-    /// of getting it wrong is unpairing somebody who is fine. `resolveInboxZone` only
-    /// says `.vanished` after a zone listing that *succeeded* and did not contain our
-    /// name; every failure throws instead, and a throw is "can't tell", which does
-    /// nothing. The iCloud guard is the same rule one step earlier: a signed-out or
+    /// of getting it wrong is unpairing somebody who is fine. `ownedInboxZoneIsGone`
+    /// lists the account's zones afresh and answers every failure as "can't tell", which
+    /// does nothing. The iCloud guard is that rule one step earlier: a signed-out or
     /// not-yet-determined account is not evidence of anything.
+    ///
+    /// Deliberately does not gate on `pair != nil`, which would miss the case this
+    /// exists for. The other device's unpair drops the synchronizable pair key, that
+    /// deletion propagates, and a device without the key loads no `PairState` at all —
+    /// so by the time this runs the pairing may already have gone quiet rather than
+    /// ended, leaving the pairing screen with nothing to say. `hasStoredBlob` is the
+    /// key-independent half; the zone being gone is what turns it from "can't read it
+    /// right now" into "it is over".
     ///
     /// Clears the stored zone name rather than rotating it, because there is no zone to
     /// tear down and a name held here is what would stop `adoptPairingFromThisAccount`
     /// picking up whatever pairing this account has next.
-    ///
-    /// Signing the device into a *different* Apple Account makes our zone unfindable
-    /// too, and blaming another device for that would simply be false. Mostly it never
-    /// reaches here — the pair key is synchronizable and therefore per account, so a
-    /// switched account loads no `PairState` at all and the guard above returns — but
-    /// the keychain can still be holding the old key for a moment, and that moment is
-    /// enough. So the pairing still ends, because it genuinely cannot work from this
-    /// account, and the notice is withheld rather than made up.
     func endPairingIfOurZoneIsGone() async {
-        guard pair != nil, iCloudStatus == .available else { return }
-        guard case .vanished = ((try? await CloudKitService.shared.resolveInboxZone()) ?? .absent) else {
-            return
-        }
+        guard iCloudStatus == .available else { return }
+        guard pair != nil || PairState.hasStoredBlob else { return }
+        guard await CloudKitService.shared.ownedInboxZoneIsGone() else { return }
 
-        // Which of the two causes this is, for a pairing that knows its own account.
-        // "Can't tell" takes the common cause, which is the one worth explaining.
+        // Which of the two causes this is. Signing into a different Apple Account makes
+        // our zone unfindable too, and blaming another device for that would be a plain
+        // lie. `AccountIdentity.id` is the last account this install actually saw, so it
+        // answers even for a pairing too old to carry `myUserID` and for one whose key
+        // has already gone — the cases the pairing alone cannot speak for.
         let sameAccount: Bool
-        if let mine = pair?.myUserID, let now = await CloudKitService.shared.currentUserID() {
-            sameAccount = mine == now
+        if let known = pair?.myUserID ?? AccountIdentity.id,
+           let now = await CloudKitService.shared.currentUserID() {
+            sameAccount = known == now
         } else {
             sameAccount = true
         }

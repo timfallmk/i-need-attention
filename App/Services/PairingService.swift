@@ -144,17 +144,24 @@ final class PairingService {
             return nil
         }
 
-        // Resolution is what adopts the zone, and it refuses to create one — so a launch
-        // that beats the key sync comes back `.absent` here rather than minting a rival.
-        // Anything short of `.resolved` means "not now" and is retried; `.vanished` in
-        // particular is `endPairingIfOurZoneIsGone`'s to handle, not ours, and it cannot
-        // arise here anyway since this only runs with no pairing to have lost.
-        guard case .resolved = ((try? await cloud.resolveInboxZone()) ?? .absent) else {
+        // Find the zone without taking it, and deliberately without consulting
+        // `resolveInboxZone`: a device that unpaired locally keeps a freshly rotated name
+        // whose zone was never created, and reading that as "we had a zone and lost it"
+        // would refuse to adopt the pairing this account has made since. With no pairing
+        // held, a stored name means nothing and adoption overwrites it.
+        guard let inbox = await cloud.adoptableInboxZone() else { return nil }
+
+        // Both halves before anything is written. An adoption that took the zone and then
+        // failed here would leave this device owning the pairing's inbox while still
+        // showing the pairing screen — and the next Invite would hand that zone, with the
+        // partner's records in it, to somebody new.
+        let saved = InboxZone.storedName
+        cloud.adoptInboxZone(named: inbox)
+        guard let theirs = await cloud.fetchPartnerProfile(pairKey: pairKey),
+              let ours = await cloud.adoptableOutgoingZone(pairKey: pairKey) else {
+            restore(inboxZone: saved)
             return nil
         }
-
-        guard let theirs = await cloud.fetchPartnerProfile(pairKey: pairKey),
-              let ours = await cloud.adoptableOutgoingZone(pairKey: pairKey) else { return nil }
 
         let state = PairState(
             pairKey: pairKey,
@@ -175,13 +182,28 @@ final class PairingService {
             // truth, and a pairing can legitimately be adopted mid-handshake.
             partnerCanReach: await cloud.partnerHasAcceptedInboxShare()
         )
-        guard state.save() else { return nil }
+        guard state.save() else {
+            restore(inboxZone: saved)
+            return nil
+        }
 
         log.notice("adopted a pairing already made by another device on this account")
         // Idempotent by subscription ID, and needed now rather than at next launch:
         // without it the first alert the partner sends would arrive silently.
         try? await cloud.registerSubscriptions()
         return state
+    }
+
+    /// Puts the zone name back when an adoption could not be finished, so a half-adopted
+    /// device does not go on owning a pairing it never joined. Clearing is the right undo
+    /// for "there was nothing stored before": a name that only ever came from this
+    /// abandoned attempt should not outlive it.
+    private func restore(inboxZone previous: String?) {
+        if let previous {
+            InboxZone.adopt(previous)
+        } else {
+            InboxZone.clear()
+        }
     }
 
     /// Poll for the joiner while the invite screen is up. The reconcile path covers the
