@@ -42,6 +42,21 @@ final class NotificationService: UNNotificationServiceExtension {
             return
         }
 
+        // Before anything is fetched or rendered. Every subscription this app owns is on
+        // the zone this account uses, so a push naming a different one is from a stale or
+        // queued subscription — a previous pairing's, or a rival zone on a pre-2.2
+        // account. Rendering it would put a foreign alert on the lock screen; the app's
+        // own zone check runs far too late to prevent that.
+        //
+        // A nil setting is "no opinion" rather than "no zone": refusing on missing local
+        // state would turn a first-launch race into a missed alert, which is the one
+        // outcome this app cannot have.
+        if let active = SharedSettings.inboxZoneName,
+           recordID.zoneID.zoneName != active {
+            contentHandler(mutable)
+            return
+        }
+
         let isAck = queryNotification.subscriptionID == Constants.SubscriptionID.outgoingAck
         let timeSensitive = SharedSettings.timeSensitiveEnabled
         if isAck {

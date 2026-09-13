@@ -614,6 +614,11 @@ final class AppState {
     /// only lists subscriptions while this is set.
     private var subscriptionsNeedRetry = false
 
+    /// True while `unpair()` is mid-teardown. The zone is deleted before `PairState` is
+    /// cleared, so a concurrent zone check can see exactly what an account-wide unpair
+    /// looks like and blame another device for what this one is doing.
+    private var unpairInProgress = false
+
     func registerSubscriptions() async {
         guard pair != nil || pendingInvite != nil else { return }
         do {
@@ -663,7 +668,19 @@ final class AppState {
         // Archives first, as every unpair does. The sent half is already unreachable —
         // that is what got us here — but the received half is in the zone we own, and
         // `fetchRecentAlerts` tolerates one zone failing without losing the other.
-        await unpair()
+        //
+        // Account-wide teardown only for a pairing we can prove is the current one. An
+        // unfingerprinted blob is trusted against whatever key is present, so it can
+        // describe a pairing that ended while this device was away — and `unpair()`
+        // deletes the synchronizable key and every subscription in the account, which
+        // for a pairing made since would destroy it from the device least involved.
+        // The own-zone path takes this care already; the hazard is identical here.
+        if PairState.hasKeyFingerprint {
+            await unpair()
+        } else {
+            log.notice("Pairing is not key-bound; tearing down locally rather than account-wide")
+            await endPairingAfterItEndedElsewhere()
+        }
         Haptics.warning()
         return true
     }
@@ -691,13 +708,14 @@ final class AppState {
     /// tear down and a name held here is what would stop `adoptPairingFromThisAccount`
     /// picking up whatever pairing this account has next.
     func endPairingIfOurZoneIsGone() async {
-        guard iCloudStatus == .available else { return }
+        guard iCloudStatus == .available, !unpairInProgress else { return }
         guard pair != nil || PairState.hasStoredBlob else { return }
         guard await CloudKitService.shared.ownedInboxZoneIsGone() else { return }
         // Re-checked after the listing, because the user's own Unpair can land inside
-        // that await: the teardown deletes the zone, this task resumes, finds it
-        // missing exactly as expected, and blames another device for what the person
-        // just did here. Both preconditions gone means the pairing ended locally.
+        // that await and looks identical from here: it deletes the zone first and clears
+        // `PairState` afterwards, so for that window the preconditions below still hold
+        // and only the flag tells the two apart.
+        guard !unpairInProgress else { return }
         guard pair != nil || PairState.hasStoredBlob else { return }
 
         // Which of the two causes this is. Signing into a different Apple Account makes
@@ -721,6 +739,8 @@ final class AppState {
     }
 
     func unpair() async {
+        unpairInProgress = true
+        defer { unpairInProgress = false }
         await archiveCurrentPairing()
         await PairingService.shared.unpair()
         forgetPairingLocally()

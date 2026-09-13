@@ -60,6 +60,7 @@ enum InboxZone {
         lock.lock()
         defer { lock.unlock() }
         UserDefaults.standard.set(name, forKey: storageKey)
+        SharedSettings.inboxZoneName = name
     }
 
     /// Called on the far side of an unpair. Returns the new name.
@@ -100,12 +101,16 @@ enum InboxZone {
         lock.lock()
         defer { lock.unlock() }
         UserDefaults.standard.removeObject(forKey: storageKey)
+        SharedSettings.inboxZoneName = nil
     }
 
     /// Caller holds `lock`.
     private static func mintLocked() -> String {
         let name = namePrefix + UUID().uuidString.lowercased()
         UserDefaults.standard.set(name, forKey: storageKey)
+        // Mirrored for the notification service extension, which is a separate process
+        // and cannot read this one's `UserDefaults`. See `SharedSettings.inboxZoneName`.
+        SharedSettings.inboxZoneName = name
         return name
     }
 }
