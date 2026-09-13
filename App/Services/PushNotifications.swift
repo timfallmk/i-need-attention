@@ -125,6 +125,24 @@ final class PushNotifications: NSObject {
         }
         log.notice("Push received for subscription \(queryNotification.subscriptionID ?? "nil", privacy: .public)")
 
+        // Checked before any branch dispatches, including the profile one. Subscription
+        // IDs are account-wide constants while the zone is per pairing, so a stale or
+        // queued subscription can deliver a record from a zone this device no longer
+        // uses — which would otherwise render a foreign alert, mark it seen, or clear the
+        // wrong banner. The profile branch sat above this check until now and so bypassed
+        // it entirely: a queued `pair-profile-v1` push from a previous pairing's zone
+        // reached `reconcileHalfFormedPair` and `refreshPartnerProfile`, which is a push
+        // from a pairing that has ended steering the one that replaced it.
+        //
+        // Fails open on a missing name, like the extension's copy of this rule: no stored
+        // zone is "no opinion, carry on" rather than "reject", because refusing on absent
+        // local state would turn a first-launch race into a missed alert.
+        if let mine = InboxZone.storedName, recordID.zoneID.zoneName != mine {
+            let zone = recordID.zoneID.zoneName
+            log.error("Push for unexpected zone \(zone, privacy: .public); ignoring")
+            return .noData
+        }
+
         if queryNotification.subscriptionID == Constants.SubscriptionID.pairProfile {
             // The partner introducing themselves — which closes the handshake — or
             // renaming themselves. Both land on the same record; which one it is depends
@@ -142,18 +160,6 @@ final class PushNotifications: NSObject {
 
         guard let pair = appState.pair else {
             log.error("Push arrived with no pairing loaded")
-            return .noData
-        }
-
-        // Every branch below reads a record out of the zone this account owns, so the
-        // zone is checked once here rather than trusted. Subscription IDs are
-        // account-wide and a pre-2.2 account can still be carrying a second inbox zone
-        // (see `docs/multi-device-plan.md`), so a stale or queued subscription can
-        // deliver a record from a zone this device no longer uses — which would
-        // otherwise render a foreign alert, mark it seen, or clear the wrong banner.
-        guard recordID.zoneID.zoneName == InboxZone.storedName else {
-            let zone = recordID.zoneID.zoneName
-            log.error("Push for unexpected zone \(zone, privacy: .public); ignoring")
             return .noData
         }
 

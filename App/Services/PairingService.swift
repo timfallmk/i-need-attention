@@ -549,7 +549,7 @@ final class PairingService {
     /// it cannot clobber the name or the share URL already there.
     @discardableResult
     func publishAccountIdentity(_ state: PairState) async -> Bool {
-        guard !AccountIdentityPublished.done, let zone = state.outgoingZone else { return false }
+        guard !AccountIdentityPublished.done, state.outgoingZone != nil else { return false }
 
         // Resolve it here rather than trusting `state.myUserID`, and refuse to record a
         // publish we cannot make. `writeProfile` looks the identity up itself and omits
@@ -562,7 +562,14 @@ final class PairingService {
         // Re-read rather than using the snapshot this was called with. `AppState` is
         // reentrant across awaits, so a rename can land between the caller loading its
         // state and this write — and writing the stale name would silently undo it.
-        let current = PairState.load() ?? state
+        // Both the zone and the fields come from the re-read, never one from each. Taking
+        // the zone from the caller's snapshot and the key from the reload is how this
+        // pairing's identity gets written into the *previous* pairing's zone — and
+        // `AccountIdentityPublished.done` then retires the one-time publish, so the
+        // current partner never learns this account at all.
+        guard let current = PairState.load(), let zone = current.outgoingZone else {
+            return false
+        }
         do {
             try await cloud.writeProfile(into: zone.zoneID,
                                          deviceID: current.myDeviceID,
