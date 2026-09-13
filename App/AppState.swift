@@ -687,10 +687,16 @@ final class AppState {
         // deletes the synchronizable key and every subscription in the account, which
         // for a pairing made since would destroy it from the device least involved.
         // The own-zone path takes this care already; the hazard is identical here.
-        if PairState.hasKeyFingerprint {
+        //
+        // Two things have to hold, not one. `hasKeyFingerprint` says the blob carries a
+        // fingerprint, not that it still matches the key in the keychain — and `pair` is
+        // a snapshot that outlives another device re-pairing under this process. Only a
+        // fresh `load()`, which checks the fingerprint against the current key, shows
+        // that the pairing about to be torn down is the one the account is in.
+        if PairState.hasKeyFingerprint, PairState.load()?.pairKey == pair.pairKey {
             await unpair()
         } else {
-            log.notice("Pairing is not key-bound; tearing down locally rather than account-wide")
+            log.notice("Pairing is not provably the account's current one; tearing down locally")
             await endPairingAfterItEndedElsewhere()
         }
         Haptics.warning()
@@ -855,6 +861,13 @@ final class AppState {
         // drops `isDemo`, without which the user is told their data is gone and then left
         // on a screen still saying "paired with Sam".
         endDemo()
+
+        // Same flag as `unpair()`, and for the same reason: the stores below are cleared
+        // after an await, and a reconcile suspended inside `refreshPartnerReachability`
+        // can resume afterwards and `save()` the pairing straight back. Erase promises
+        // the data is gone; a resurrection a second later breaks that promise silently.
+        unpairInProgress = true
+        defer { unpairInProgress = false }
 
         let remoteSucceeded = await PairingService.shared.eraseRemoteData()
         DataErasure.eraseLocalData(settings: settings)
@@ -1194,8 +1207,17 @@ final class AppState {
     /// holds. The pair key is the identity: it is minted per pairing, so a different one
     /// — or none — means the pairing ended or was replaced while the caller was awaiting,
     /// and whatever it is about to write describes something that no longer exists.
+    ///
+    /// Asks the keychain rather than `self.pair`, and the difference is the whole point.
+    /// `pair` is an in-memory snapshot loaded once; the pair key is *synchronizable*, so
+    /// another device can replace it under this process without anything here noticing.
+    /// A guard that compared `pair` against the captured copy would find them equal —
+    /// both being the old pairing — and wave through a `save()` that writes the old key
+    /// back over the new one, for every device on the account. `PairState.load()` applies
+    /// the fingerprint check against the key actually in the keychain, which is the only
+    /// answer worth having. Same rule as `PairingService.stillDescribesTheCurrentPairing`.
     private func stillPaired(as captured: PairState) -> Bool {
-        !unpairInProgress && pair?.pairKey == captured.pairKey
+        !unpairInProgress && PairState.load()?.pairKey == captured.pairKey
     }
 
 }
