@@ -27,6 +27,7 @@ enum DataErasure {
         CutoverNotice.needsRepair = false
         PartnerUnpairedNotice.happened = false
         UnpairedElsewhereNotice.happened = false
+        AccountIdentityPublished.done = false
         DismissedOutgoing.clear()
 
         LegacyPairing.clear()
@@ -41,6 +42,7 @@ enum DataErasure {
 
         settings.resetToDefaults()
         DeviceIdentity.reset()
+        AccountIdentity.clear()
 
         // Last, so the defaults `resetToDefaults` just mirrored into the suite go too.
         // The getters there fall back to the same values, so the NSE reads an erased

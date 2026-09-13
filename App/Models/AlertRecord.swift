@@ -14,6 +14,12 @@ struct AlertRecord: Identifiable, Equatable {
     /// so archived pre-2.0 records round-trip unchanged.
     var pairKey: String
     var senderDeviceID: String
+    /// Nil on every record written before per-account identity, which is what the
+    /// `PairState.isMine` fallback is for. Never empty-string for "absent": the
+    /// difference between "this person has no account identity recorded" and "their
+    /// account identity is the empty string" is the difference between falling back and
+    /// matching everything.
+    var senderUserID: String?
     var senderName: String
     var message: String
     var createdAt: Date
@@ -41,6 +47,7 @@ struct AlertRecord: Identifiable, Equatable {
         self.id = record.recordID
         self.pairKey = record[Constants.AlertField.pairKey] as? String ?? ""
         self.senderDeviceID = senderDeviceID
+        self.senderUserID = record[Constants.AlertField.senderUserID] as? String
         self.createdAt = record.creationDate ?? Date()
         self.state = state
         self.seenAt = record[Constants.AlertField.seenAt] as? Date

@@ -51,7 +51,7 @@ struct HistoryView: View {
                 ForEach(sections) { section in
                     Section {
                         ForEach(section.alerts) { alert in
-                            HistoryRow(alert: alert, isMine: section.myDeviceID == alert.senderDeviceID)
+                            HistoryRow(alert: alert, isMine: section.isMine(alert))
                         }
                     } header: {
                         HistorySectionHeader(section: section)
@@ -103,9 +103,15 @@ struct HistorySection: Identifiable {
     let alerts: [AlertRecord]
     let startedAt: Date
     let endedAt: Date?
-    /// Which device ID counts as "me" for these rows. Carried per section because it is
-    /// only reliably the current one for the current pairing.
-    let myDeviceID: String
+    /// Who counts as "me" for these rows. Carried per section because it is only
+    /// reliably the current pairing's for the current pairing: an adopted pairing takes
+    /// the device ID a *previous* device introduced this person by, so the one this
+    /// install would name is not it.
+    let me: SenderIdentity
+
+    func isMine(_ alert: AlertRecord) -> Bool {
+        me.matches(userID: alert.senderUserID, deviceID: alert.senderDeviceID)
+    }
 
     var isCurrent: Bool { endedAt == nil }
 
@@ -129,7 +135,7 @@ struct HistorySection: Identifiable {
                 alerts: current,
                 startedAt: current.map(\.createdAt).min() ?? Date(),
                 endedAt: nil,
-                myDeviceID: pair.myDeviceID
+                me: pair.me
             )
         )
         result += closedSections(from: archive, excluding: pairingID)
@@ -156,7 +162,11 @@ struct HistorySection: Identifiable {
                     alerts: pairing.alerts.map(AlertRecord.init(archived:)),
                     startedAt: pairing.startedAt,
                     endedAt: pairing.endedAt ?? pairing.alerts.map(\.createdAt).max() ?? pairing.startedAt,
-                    myDeviceID: DeviceIdentity.id
+                    // A closed pairing has no `PairState` left to ask, so this is the
+                    // account identity as last seen plus this install's device ID. Rows
+                    // archived before per-account identity carry no `senderUserID` and
+                    // fall back to the device comparison, exactly as they did before.
+                    me: SenderIdentity(deviceID: DeviceIdentity.id, userID: AccountIdentity.id)
                 )
             }
     }
@@ -166,15 +176,19 @@ struct HistorySection: Identifiable {
     private static func legacySection() -> HistorySection? {
         let rows = LegacyHistoryArchive.load()?.alerts ?? []
         guard !rows.isEmpty else { return nil }
-        let me = DeviceIdentity.id
-        let partner = rows.first { $0.senderDeviceID != me && !$0.senderName.isEmpty }?.senderName
+        // Pre-2.0 rows predate account identity entirely and were all written by this
+        // install, so the device comparison is the only one that means anything here.
+        let me = SenderIdentity(deviceID: DeviceIdentity.id, userID: nil)
+        let partner = rows.first {
+            !me.matches(userID: $0.senderUserID, deviceID: $0.senderDeviceID) && !$0.senderName.isEmpty
+        }?.senderName
         return HistorySection(
             id: "legacy-pre-2.0",
             partnerName: partner ?? "Before this version",
             alerts: rows.map(AlertRecord.init(archived:)),
             startedAt: rows.map(\.createdAt).min() ?? Date(),
             endedAt: rows.map(\.createdAt).max() ?? Date(),
-            myDeviceID: me
+            me: me
         )
     }
 }

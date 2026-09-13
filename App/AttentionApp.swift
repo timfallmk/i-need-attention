@@ -76,7 +76,7 @@ struct AttentionApp: App {
                     await appState.endPairingIfOurZoneIsGone()
                     await appState.adoptPairingFromThisAccount()
                     await appState.reconcileHalfFormedPair()
-                    await appState.refreshPartnerName()
+                    await appState.refreshPartnerProfile()
                     await appState.reconcileLatestAlert()
                 }
             }

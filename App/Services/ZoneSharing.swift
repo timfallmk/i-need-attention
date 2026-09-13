@@ -246,6 +246,10 @@ extension CloudKitService {
 /// What the partner has told us about themselves, read out of the zone we own.
 struct PartnerProfile {
     let deviceID: String
+    /// Nil when the partner is still on a build that does not write it. That is what
+    /// keeps `PairState.partnerUserID` nil and the comparison on device IDs, which is
+    /// correct for a partner who by definition has only one device on that build.
+    let userID: String?
     let name: String
     /// Set only on the joiner's first write, carrying the share of their zone back.
     let shareURL: URL?
@@ -269,6 +273,7 @@ extension CloudKitService {
                       name: String,
                       shareURL: URL?,
                       pairKey: String) async throws {
+        let userID = await currentUserID()
         let db = database(for: zoneID)
         let recordID = CKRecord.ID(recordName: Constants.Profile.recordName, zoneID: zoneID)
         // Fetch-then-modify rather than a blind save: a retry after a partial failure, or
@@ -278,6 +283,12 @@ extension CloudKitService {
             ?? CKRecord(recordType: Constants.RecordType.profile, recordID: recordID)
 
         record[Constants.Profile.deviceID] = deviceID as CKRecordValue
+        // Every profile write carries it, not just the first: this is how a pairing made
+        // before per-account identity learns it, without a migration step or a version
+        // check. A rename is enough, and so is the profile write at the end of pairing.
+        if let userID {
+            record[Constants.Profile.userID] = userID as CKRecordValue
+        }
         record[Constants.Profile.nameSealed] =
             try PairCrypto.seal(name, pairKey: pairKey, field: Constants.Profile.nameSealed) as CKRecordValue
         if let shareURL {
@@ -328,6 +339,7 @@ extension CloudKitService {
             .flatMap { $0.isCloudKitShare ? $0 : nil }
         return PartnerProfile(
             deviceID: deviceID,
+            userID: record[Constants.Profile.userID] as? String,
             name: name,
             shareURL: shareURL,
             legacyHistoryCapturedAt: record[Constants.Profile.legacyHistoryCapturedAt] as? Date
@@ -354,7 +366,8 @@ extension CloudKitService {
     /// over, and sorted-first keeps two devices in agreement.
     func adoptableOutgoingZone(pairKey: String) async -> (zoneID: CKRecordZone.ID,
                                                           myName: String,
-                                                          myDeviceID: String)? {
+                                                          myDeviceID: String,
+                                                          myUserID: String?)? {
         guard let zones = try? await sharedDB.allRecordZones() else { return nil }
         for zone in zones.map(\.zoneID).sorted(by: { $0.zoneName < $1.zoneName }) {
             let recordID = CKRecord.ID(recordName: Constants.Profile.recordName, zoneID: zone)
@@ -365,7 +378,8 @@ extension CloudKitService {
                                                field: Constants.Profile.nameSealed) else {
                 continue
             }
-            return (zone, UntrustedText.name(name), deviceID)
+            return (zone, UntrustedText.name(name), deviceID,
+                    record[Constants.Profile.userID] as? String)
         }
         return nil
     }

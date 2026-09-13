@@ -59,6 +59,12 @@ enum Constants {
 
         static let deviceID = "deviceID"
 
+        /// Who this person is to CloudKit, rather than which of their devices wrote the
+        /// record. Absent on profiles written before 2.2, which is what makes the whole
+        /// migration additive: a pairing learns it the first time either side writes a
+        /// profile under a build that has it, and falls back to `deviceID` until then.
+        static let userID = "userID"
+
         /// Sealed like every other human-readable field. A display name in the clear
         /// beside encrypted alert contents would be a hole in the same wall.
         static let nameSealed = "nameSealed"
@@ -91,7 +97,20 @@ enum Constants {
         /// Pre-2.0 only. Zone membership is the boundary from 2.0, so new records don't
         /// carry it — but the history capture still parses records that do.
         static let pairKey = "pairKey"
+        /// Per *install*, and that is exactly its limitation: one person can hold
+        /// several devices on one Apple Account, so this answers "which phone" when
+        /// every reader is really asking "which of us". Still written, still read as
+        /// the fallback, because records from before `senderUserID` carry nothing else.
         static let senderDeviceID = "senderDeviceID"
+
+        /// Per *account*: `CKContainer.userRecordID().recordName`. The identity the
+        /// question "was this mine or theirs?" is actually about, and stable across
+        /// every device a person signs in on.
+        ///
+        /// Not indexed. Zone membership is the filter and nothing queries the sender —
+        /// the pre-2.0 design's `senderDeviceID` predicate is what the zone replaced.
+        static let senderUserID = "senderUserID"
+
         static let state = "state"
         static let seenAt = "seenAt"
         static let acknowledgedAt = "acknowledgedAt"

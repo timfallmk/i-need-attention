@@ -88,7 +88,7 @@ final class PairingService {
         guard let profile = await cloud.fetchPartnerProfile(pairKey: pending.pairKey),
               let theirShare = profile.shareURL else { return nil }
 
-        let (partnerZoneID, _) = try await cloud.acceptShare(at: theirShare)
+        let (partnerZoneID, partnerUserID) = try await cloud.acceptShare(at: theirShare)
 
         let state = PairState(
             pairKey: pending.pairKey,
@@ -96,6 +96,11 @@ final class PairingService {
             myName: pending.myName,
             partnerDeviceID: profile.deviceID,
             partnerName: profile.name,
+            myUserID: await cloud.currentUserID(),
+            // Their own profile write is the authority; the share's owner identity is
+            // the fallback for a joiner still on a build that writes no userID, and it
+            // says the same thing by a different route.
+            partnerUserID: profile.userID ?? partnerUserID?.recordName,
             outgoingZone: ZoneRef(partnerZoneID),
             partnerCanReach: true
         )
@@ -160,6 +165,11 @@ final class PairingService {
             myName: ours.myName,
             partnerDeviceID: theirs.deviceID,
             partnerName: theirs.name,
+            // Ours is asked directly rather than taken from the profile: this device is
+            // the same account, so `currentUserID` is the same answer and is available
+            // even when a previous device wrote its profile before this field existed.
+            myUserID: await cloud.currentUserID() ?? ours.myUserID,
+            partnerUserID: theirs.userID,
             outgoingZone: ZoneRef(ours.zoneID),
             // Asked rather than assumed. The share's participants are the source of
             // truth, and a pairing can legitimately be adopted mid-handshake.
@@ -255,6 +265,10 @@ final class PairingService {
             myName: myName,
             partnerDeviceID: invite.inviterDeviceID,
             partnerName: invite.inviterName,
+            myUserID: await cloud.currentUserID(),
+            // Known here for free: accepting their share is what told us who owns it,
+            // and it is the same identity their own profile will carry.
+            partnerUserID: inviterUserID.recordName,
             outgoingZone: ZoneRef(inviterZoneID),
             partnerCanReach: false
         )
@@ -303,15 +317,57 @@ final class PairingService {
     ///
     /// Returns the updated state only when the name actually changed, so callers don't
     /// write on every foreground.
-    func refreshPartnerName(_ state: PairState) async -> PairState? {
+    func refreshFromPartnerProfile(_ state: PairState) async -> PairState? {
         guard let profile = await cloud.fetchPartnerProfile(pairKey: state.pairKey) else { return nil }
-        guard profile.deviceID == state.partnerDeviceID else { return nil }
-        guard !profile.name.isEmpty, profile.name != state.partnerName else { return nil }
+
+        // Which "them" wrote this. Once both sides have an account identity that is the
+        // comparison to make, because the partner's profile carries whichever of their
+        // devices last wrote it and matching on that would reject their second phone.
+        let sameParty: Bool
+        if let known = state.partnerUserID, let writer = profile.userID {
+            sameParty = known == writer
+        } else {
+            sameParty = profile.deviceID == state.partnerDeviceID
+        }
+        guard sameParty else { return nil }
 
         var updated = state
-        updated.partnerName = profile.name
-        guard updated.save() else { return nil }
+        // Backfill: a pairing made before per-account identity learns the partner's the
+        // first time they write a profile under a build that carries one. No migration
+        // step and no version check — just a field that starts arriving.
+        if updated.partnerUserID == nil, let writer = profile.userID {
+            updated.partnerUserID = writer
+        }
+        if !profile.name.isEmpty { updated.partnerName = profile.name }
+
+        guard updated != state, updated.save() else { return nil }
         return updated
+    }
+
+    /// Writes our own profile into the partner's zone for no reason but to publish this
+    /// account's identity, once per pairing per device.
+    ///
+    /// Needed because the backfill above is otherwise a deadlock: each side learns the
+    /// other's identity by reading a profile, and neither writes one except on a rename.
+    /// Whoever upgrades first would wait for a write the other has no reason to make.
+    /// One unconditional write breaks it, and `writeProfile` fetches-then-modifies, so
+    /// it cannot clobber the name or the share URL already there.
+    @discardableResult
+    func publishAccountIdentity(_ state: PairState) async -> Bool {
+        guard !AccountIdentityPublished.done, state.myUserID != nil,
+              let zone = state.outgoingZone else { return false }
+        do {
+            try await cloud.writeProfile(into: zone.zoneID,
+                                         deviceID: state.myDeviceID,
+                                         name: state.myName,
+                                         shareURL: nil,
+                                         pairKey: state.pairKey)
+            AccountIdentityPublished.done = true
+            return true
+        } catch {
+            log.error("account identity publish: \(error.localizedDescription)")
+            return false
+        }
     }
 
     /// Wipes local pairing state and tears down the zone this pairing used.

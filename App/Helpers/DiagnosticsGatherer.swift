@@ -52,7 +52,8 @@ enum DiagnosticsGatherer {
         }
         return alerts.map { alert in
             DiagnosticsReport.Event(
-                direction: alert.senderDeviceID == pair.myDeviceID ? .outgoing : .incoming,
+                direction: pair.isMine(senderUserID: alert.senderUserID,
+                                       senderDeviceID: alert.senderDeviceID) ? .outgoing : .incoming,
                 state: alert.state.rawValue,
                 createdAt: alert.createdAt,
                 seenAt: alert.seenAt,

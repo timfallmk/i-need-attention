@@ -66,6 +66,53 @@ final class PairStateTests: XCTestCase {
         )
     }
 
+    // MARK: - Account identities
+
+    func testAccountIdentitiesAreNilUntilLearned() {
+        let state = makePairState()
+        XCTAssertNil(state.myUserID)
+        XCTAssertNil(state.partnerUserID)
+        // Which is the whole fallback condition: with neither side carrying one, the
+        // comparison is the device one, exactly as it was before.
+        XCTAssertTrue(state.isMine(senderUserID: nil, senderDeviceID: "device-A"))
+    }
+
+    func testAccountIdentitiesSurviveARoundTrip() {
+        var state = makePairState()
+        state.myUserID = "_me"
+        state.partnerUserID = "_them"
+        XCTAssertTrue(state.save())
+
+        let loaded = PairState.load()
+        XCTAssertEqual(loaded?.myUserID, "_me")
+        XCTAssertEqual(loaded?.partnerUserID, "_them")
+    }
+
+    /// The migration is additive rather than versioned, which only works if a blob
+    /// written before these fields existed still decodes. It does, because `Codable`
+    /// reads a missing optional as nil — and nil is the case the fallback handles.
+    func testABlobWithoutAccountIdentitiesStillLoads() {
+        let legacy = #"{"myDeviceID":"device-A","myName":"Alice","partnerDeviceID":"device-B","partnerName":"Bob","partnerCanReach":true}"#
+        UserDefaults.standard.set(Data(legacy.utf8), forKey: PairState.storageKey)
+        secrets.setSecret("test-pair-key", for: Constants.Keychain.pairKeyAccount)
+
+        let loaded = PairState.load()
+        XCTAssertEqual(loaded?.partnerName, "Bob")
+        XCTAssertTrue(loaded?.partnerCanReach == true)
+        XCTAssertNil(loaded?.myUserID)
+        XCTAssertNil(loaded?.partnerUserID)
+    }
+
+    /// An alert this person sent from a device this install has never heard of. The
+    /// account identity is what makes it theirs; without it this was the bug.
+    func testIsMinePrefersTheAccountIdentity() {
+        var state = makePairState(myDeviceID: "iphone")
+        state.myUserID = "_me"
+
+        XCTAssertTrue(state.isMine(senderUserID: "_me", senderDeviceID: "ipad"))
+        XCTAssertFalse(state.isMine(senderUserID: "_them", senderDeviceID: "iphone"))
+    }
+
     // MARK: - Equatable
 
     func testPairStatesWithSameFieldsAreEqual() {

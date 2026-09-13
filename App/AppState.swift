@@ -141,7 +141,7 @@ final class AppState {
         // scenePhase change firing (.onChange skips the initial value).
         await reconcileLatestAlert()
         await reconcileHalfFormedPair()
-        await refreshPartnerName()
+        await refreshPartnerProfile()
         await LegacyHistoryCapture.run()
         await refreshNotificationStatus()
         pushWatchSnapshot()
@@ -273,7 +273,7 @@ final class AppState {
     func handleIncomingChange(_ alert: AlertRecord) async {
         guard let pair else { return }
 
-        if alert.senderDeviceID == pair.myDeviceID {
+        if pair.isMine(senderUserID: alert.senderUserID, senderDeviceID: alert.senderDeviceID) {
             // Shouldn't arrive any more — our own alerts live in the partner's zone and
             // nothing subscribes there — but harmless to keep for a record fetched some
             // other way.
@@ -282,9 +282,18 @@ final class AppState {
                 if alert.state == .seen { Haptics.tick() }
                 if alert.state == .acknowledged { Haptics.success() }
             }
-        } else if alert.senderDeviceID == pair.partnerDeviceID {
-            // The partner sent something new — a snooze on a *previous* incoming no longer
-            // applies, so cancel its pending re-notification before it can fire.
+        } else {
+            // Everything else in the zone we own is theirs, and that is a claim about
+            // the zone rather than about the sender: only an accepted share participant
+            // can write there, and we are not writing into our own inbox.
+            //
+            // It used to test `senderDeviceID == pair.partnerDeviceID`, which silently
+            // dropped an alert sent from the partner's *second* device — no branch, no
+            // log line, no banner. Deciding by zone cannot have that failure, whether or
+            // not either side has an account identity yet.
+
+            // A snooze on a *previous* incoming no longer applies, so cancel its pending
+            // re-notification before it can fire.
             if let current = snooze, current.recordName != alert.id.recordName {
                 cancelSnooze()
             }
@@ -582,21 +591,31 @@ final class AppState {
     /// tear down and a name held here is what would stop `adoptPairingFromThisAccount`
     /// picking up whatever pairing this account has next.
     ///
-    /// One known imprecision, in the explanation rather than the action: signing the
-    /// device into a *different* Apple Account also makes our zone unfindable, and this
-    /// then says the pairing was ended elsewhere when really it was left behind. Ending
-    /// it is still right — that pairing cannot work from this account — but the wording
-    /// is wrong, and it stays wrong until `PairState` carries the account's own record
-    /// ID and the two causes can be told apart. Tracked with the rest of #72.
+    /// Signing the device into a *different* Apple Account makes our zone unfindable
+    /// too, and blaming another device for that would simply be false. Mostly it never
+    /// reaches here — the pair key is synchronizable and therefore per account, so a
+    /// switched account loads no `PairState` at all and the guard above returns — but
+    /// the keychain can still be holding the old key for a moment, and that moment is
+    /// enough. So the pairing still ends, because it genuinely cannot work from this
+    /// account, and the notice is withheld rather than made up.
     func endPairingIfOurZoneIsGone() async {
         guard pair != nil, iCloudStatus == .available else { return }
         guard case .vanished = ((try? await CloudKitService.shared.resolveInboxZone()) ?? .absent) else {
             return
         }
 
-        log.notice("Our own inbox zone is gone; the pairing was ended from another device")
-        UnpairedElsewhereNotice.happened = true
-        pairingEndedOnAnotherDevice = true
+        // Which of the two causes this is, for a pairing that knows its own account.
+        // "Can't tell" takes the common cause, which is the one worth explaining.
+        let sameAccount: Bool
+        if let mine = pair?.myUserID, let now = await CloudKitService.shared.currentUserID() {
+            sameAccount = mine == now
+        } else {
+            sameAccount = true
+        }
+
+        log.notice("Our own inbox zone is gone; ending the pairing (same account: \(sameAccount))")
+        UnpairedElsewhereNotice.happened = sameAccount
+        pairingEndedOnAnotherDevice = sameAccount
         // Archives first, as every unpair does. The received half went with the zone,
         // but the alerts we *sent* are in the partner's zone and still readable until
         // the teardown drops the share, so the sweep is not pointless.
@@ -874,7 +893,10 @@ final class AppState {
     /// rather than for that install. A confirmation sheet here would be asking
     /// permission to read state that is already on the device.
     func adoptPairingFromThisAccount() async {
-        guard pair == nil, pendingInvite == nil else { return }
+        // `!isDemo` for the same reason `startDemo` guards on `pair == nil`: the two are
+        // alternative states, and a foreground during a walkthrough must not quietly
+        // turn it into a real pairing underneath the person trying the app out.
+        guard pair == nil, pendingInvite == nil, !isDemo else { return }
         guard let adopted = await PairingService.shared.adoptExistingPairing() else { return }
 
         applyPair(adopted)
@@ -909,11 +931,29 @@ final class AppState {
         }
     }
 
-    /// Pulls a partner rename out of our own zone. Cheap enough to run on every
-    /// foreground; the profile subscription is what makes it immediate.
-    func refreshPartnerName() async {
-        guard let pair else { return }
-        guard let updated = await PairingService.shared.refreshPartnerName(pair) else { return }
+    /// Pulls whatever the partner has told us about themselves out of the zone we own:
+    /// a rename, and — once — the account identity that replaces device IDs for deciding
+    /// whose alert is whose. Cheap enough to run on every foreground; the profile
+    /// subscription is what makes it immediate.
+    ///
+    /// Publishes ours in the same pass, because the exchange deadlocks otherwise: each
+    /// side learns the other's by reading a profile, and nothing writes one except a
+    /// rename, so whoever upgraded first would wait forever.
+    func refreshPartnerProfile() async {
+        guard var pair else { return }
+
+        // Ours costs nothing after the first call — `currentUserID` caches for the life
+        // of the process — and a pairing made before per-account identity has to pick it
+        // up from somewhere.
+        if pair.myUserID == nil, let mine = await CloudKitService.shared.currentUserID() {
+            pair.myUserID = mine
+            if pair.save() { self.pair = pair }
+        }
+        await PairingService.shared.publishAccountIdentity(pair)
+
+        guard let updated = await PairingService.shared.refreshFromPartnerProfile(pair) else {
+            return
+        }
         self.pair = updated
         SharedSettings.partnerName = updated.partnerName
         pushWatchSnapshot()
