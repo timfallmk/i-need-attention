@@ -182,7 +182,7 @@ a second install") rather than something this change can close.
 ### The subscriptions need nothing
 
 Constant subscription IDs in a per-account database are only wrong when they name different
-zones. Once every device discovers the same zone, `registerSubscriptions` finds all four live
+zones. Once every device discovers the same zone, `registerSubscriptions` finds them all live
 and saves nothing — and CloudKit fans a subscription's push out to every device registered on
 the account, so the second device gets the banner without owning a subscription of its own.
 The delete-stale branch stays exactly as it is; re-pairing still needs it.
@@ -209,8 +209,9 @@ both zones and must keep rendering:
 
 Sites to change: `AlertRecord`, `ArchivedAlert`, `AppState.handleIncomingChange`,
 `HistoryView` (row direction and the partner-name heuristic), `DiagnosticsGatherer`. The
-`Alert` field is the one real schema change in this plan — a String, **not** indexed (zone
-membership is the filter, nothing queries the sender), added to `cloudkit-schema.ckdb` in the
+`Alert` field is one of the two schema changes in this plan — `PairProfile.userID` is the
+other, added so each side can learn the other's identity without a share round trip. Both are
+Strings and **neither** is indexed (zone membership is the filter, nothing queries the sender), added to `cloudkit-schema.ckdb` in the
 same commit and deployed Development → Production. It changes nothing about who can read
 `Alert`, which still carries its pre-2.0 `_icloud` grants for the public-database records that
 have not been purged yet.

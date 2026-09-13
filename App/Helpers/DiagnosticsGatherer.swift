@@ -12,6 +12,7 @@ import UIKit
 enum DiagnosticsGatherer {
     static func gather(from state: AppState) async -> DiagnosticsReport {
         let pair = state.pair
+        let census = await CloudKitService.shared.inboxZoneCensus()
 
         return DiagnosticsReport(
             appVersion: bundleString("CFBundleShortVersionString"),
@@ -35,7 +36,8 @@ enum DiagnosticsGatherer {
                 pairKey: pair?.pairKey
             ),
             subscriptions: await CloudKitService.shared.subscriptionStates(),
-            ownedInboxZones: await CloudKitService.shared.ownedInboxZoneCount(),
+            ownedInboxZones: census?.owned,
+            usableInboxZones: census?.usable,
             events: await recentEvents(pair: pair)
         )
     }

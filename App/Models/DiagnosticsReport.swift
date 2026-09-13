@@ -80,11 +80,15 @@ struct DiagnosticsReport: Equatable {
     /// CloudKit round trip; the gatherer always fills it.
     var subscriptions: [SubscriptionState] = []
 
-    /// How many inbox zones this Apple Account owns. More than one means two installs
-    /// each minted their own before 2.2.0 and are still retiring each other's
-    /// subscriptions — #68, which until this row nothing could see. Nil means the
-    /// listing failed, which is not the same as none.
+    /// How many inbox zones this Apple Account owns, and how many are usable — a zone
+    /// whose `PairProfile` opens under the current pair key. More than one *usable* zone
+    /// means two installs each minted their own before 2.2.0 and are still retiring each
+    /// other's subscriptions: #68, which until this row nothing could see. A difference
+    /// between the two numbers is an orphan from a teardown whose delete failed, which
+    /// is untidy rather than broken. Nil means it could not be determined, which is not
+    /// the same as none.
     var ownedInboxZones: Int?
+    var usableInboxZones: Int?
 
     var events: [Event]
 
@@ -147,17 +151,20 @@ struct DiagnosticsReport: Equatable {
         for subscription in subscriptions {
             out.append("\(subscription.id): \(subscription.status.rawValue)")
         }
-        switch ownedInboxZones {
-        case .none:
-            out.append("Inbox zones owned: unknown")
-        case .some(let count) where count <= 1:
-            // Zero is the ordinary state before a first pairing and after an unpair, so
-            // it reads plainly. Only a second zone is the collision worth shouting about.
-            out.append("Inbox zones owned: \(count)")
-        case .some(let count):
+        switch (ownedInboxZones, usableInboxZones) {
+        case (.none, _), (_, .none):
+            out.append("Inbox zones: unknown")
+        case (.some(let owned), .some(let usable)) where usable > 1:
             // Loud on purpose: this is the one line that identifies a pairing already in
             // the state #68 describes, and it reads as healthy from everywhere else.
-            out.append("Inbox zones owned: \(count) — EXPECTED 1, RE-PAIR TO FIX")
+            out.append("Inbox zones: \(owned) (\(usable) in use) — EXPECTED 1, RE-PAIR TO FIX")
+        case (.some(let owned), .some(let usable)) where owned != usable:
+            // Untidy rather than broken: a zone left behind by a teardown whose delete
+            // failed. Re-pairing would not clear it, so this deliberately does not say to.
+            out.append("Inbox zones: \(owned) (\(usable) in use, rest abandoned)")
+        case (.some(let owned), _):
+            // Zero is the ordinary state before a first pairing and after an unpair.
+            out.append("Inbox zones: \(owned)")
         }
         out.append("Ack subscription: \(ackSubscriptionUnavailable ? "UNAVAILABLE" : "ok")")
         if let reason = ackSubscriptionFailureReason {
