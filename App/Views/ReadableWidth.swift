@@ -2,23 +2,30 @@ import SwiftUI
 import UIKit
 
 enum Layout {
-    /// Extra leading room at the top of the screen for the window controls iPadOS draws
-    /// inside a window's top-left corner.
+    /// Extra leading room for the window controls iPadOS draws inside a window's
+    /// top-left corner, applied only where they can actually reach the title.
     ///
     /// Turning multitasking on is what created this: the controls did not exist while the
-    /// app was full-screen only, and iPadOS does not reserve safe area for them — the top
-    /// bar sits inside the safe area already and was still overlapped. So the room has to
-    /// be made here.
+    /// app was full-screen only, and iPadOS reserves no safe area for them — the top bar
+    /// sits inside the safe area already and was overlapped anyway.
     ///
-    /// Keyed on idiom rather than size class deliberately. A narrow iPad window reports a
-    /// compact width exactly like a phone, but it still has window controls, so a
-    /// size-class test would leave them overlapping in the case most likely to be used.
+    /// Both halves of the condition earn their place. **Idiom**, because an iPhone has no
+    /// window controls and must keep its existing 24pt. **Compact width**, because the
+    /// hazard is not "is this an iPad" but "is the content column close enough to the
+    /// window's leading edge for the controls to reach it". `readableWidth` centres that
+    /// column, so a full-screen or wide window already leaves a margin far bigger than
+    /// the controls — at the regular-width threshold the margin is over 120pt against
+    /// controls under 80pt wide — and insetting there only pushes the title away from an
+    /// edge nothing is sitting on. That is what it looked like, and it looked wrong.
     ///
-    /// The number is eyeballed against a screenshot rather than derived — Apple publishes
-    /// no metric for it. Too large only wastes space; too small puts the controls back on
-    /// top of the title, which is the failure worth catching.
-    static var windowControlsInset: CGFloat {
-        UIDevice.current.userInterfaceIdiom == .pad ? 68 : 0
+    /// Still eyeballed rather than derived; Apple publishes no metric. Too large wastes
+    /// space in the one case that needs it, too small puts the controls back on the
+    /// title.
+    static func windowControlsInset(_ widthClass: UserInterfaceSizeClass?) -> CGFloat {
+        guard UIDevice.current.userInterfaceIdiom == .pad, widthClass == .compact else {
+            return 0
+        }
+        return 44
     }
 
     /// How wide content is allowed to grow before it stops filling the screen.
@@ -47,5 +54,20 @@ extension View {
     func readableWidth() -> some View {
         frame(maxWidth: Layout.readableWidth)
             .frame(maxWidth: .infinity)
+    }
+
+    /// Keeps a hand-rolled top bar clear of the iPadOS window controls. A no-op on
+    /// iPhone and in any window wide enough that `readableWidth` already centres the
+    /// content away from them.
+    func windowControlsInset() -> some View {
+        modifier(WindowControlsInset())
+    }
+}
+
+private struct WindowControlsInset: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var widthClass
+
+    func body(content: Content) -> some View {
+        content.padding(.leading, Layout.windowControlsInset(widthClass))
     }
 }
