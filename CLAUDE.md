@@ -217,13 +217,19 @@ Two things deliberately not built, both in `docs/multi-device-plan.md`:
 
 - **A count of devices on the account.** CloudKit exposes no such list, and producing one
   needs a new record type.
-- **A repair for a pairing already in the #68 state.** Discovery prevents two installs from
-  minting rival zones; it does not fix two that already did, because both have a stored name
-  whose zone exists and so both resolve as healthy. `Settings → Diagnostics` reports
-  "Inbox zones owned" so the state is visible at all, and the fix is to pair again once.
-  The same row covers the one race that can still produce it: a second device whose pair
-  key has not synced yet shows the pairing screen, and tapping Show Code rather than
-  waiting mints a rival zone. See `docs/multi-device-plan.md` → "Known residual".
+- **A device count.** As above.
+
+`AppState.endPairingIfStoredOneIsNotOurs` is what repairs a pairing already in the #68 state,
+and it got there sideways: the guard that stops a pre-key-binding `PairState` blob driving
+account-wide CloudKit work needs the same question a repair needs — does the `PairProfile` in
+the zone we claim open under the key we hold? An install in the #68 state answers no, ends its
+stale pairing locally, and adopts the account's real one. Note that the `Settings →
+Diagnostics` "Inbox zones" row cannot diagnose #68 by itself: the second install's pairing
+minted a new key, so the first zone reads as abandoned rather than as a second live one.
+
+One race can still produce a rival zone: a second device whose pair key has not synced yet
+shows the pairing screen, and tapping Show Code rather than waiting mints one. See
+`docs/multi-device-plan.md` → "Known residual".
 
 ### Watch
 

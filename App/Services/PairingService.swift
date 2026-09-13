@@ -196,6 +196,45 @@ final class PairingService {
         return state
     }
 
+    /// Settles whether a pairing blob written before key binding still describes the
+    /// pairing this account is actually in, and stamps it so the question is asked once.
+    ///
+    /// `PairState.load()` trusts an unfingerprinted blob against whatever key is in the
+    /// keychain, which is right for an ordinary upgrade and wrong if the account has
+    /// re-paired since. Until it is settled, that blob can drive account-wide CloudKit
+    /// work: `registerSubscriptions` would resolve the old zone — still present when a
+    /// teardown's delete failed — and repoint the constant, account-wide subscription
+    /// IDs at it, taking the *new* pairing's pushes with them. Worse, the account
+    /// identity backfill calls `save()`, which stamps a fingerprint computed from the
+    /// current key, binding the stale blob to a pairing it was never part of and hiding
+    /// the mismatch for good.
+    ///
+    /// The test is the one adoption uses: does the `PairProfile` in the zone we claim
+    /// open under the key we hold? Only the partner writes that record, and only under
+    /// the key of the pairing it belongs to.
+    ///
+    /// **Returns false only when the blob is proved to belong to a different key.**
+    /// Everything else returns true and changes nothing: already bound, no blob, a
+    /// pairing still mid-handshake (no profile written yet), or CloudKit out of reach.
+    /// Acting on "cannot tell" here would unpair people whose network was merely down.
+    func settleLegacyPairing() async -> Bool {
+        guard PairState.hasStoredBlob, !PairState.hasKeyFingerprint else { return true }
+        guard let state = PairState.load(), state.isComplete,
+              let zoneName = InboxZone.storedName else { return true }
+        guard let belongs = await cloud.inboxZoneBelongs(toKey: state.pairKey,
+                                                         zoneNamed: zoneName) else {
+            return true
+        }
+        if belongs {
+            // Stamp it, so this costs one record read per upgraded install rather than
+            // one per launch — and so the ordinary fingerprint check takes over from here.
+            state.save()
+            return true
+        }
+        log.notice("Stored pairing does not belong to the current pair key")
+        return false
+    }
+
     /// Drops the stored zone name so the pairing about to start gets a brand new one.
     ///
     /// Unconditional, after several attempts to be cleverer than that. Each one asked

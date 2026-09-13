@@ -182,6 +182,13 @@ extension CloudKitService {
     /// sealed under a key that no longer exists and does not count; two that both open
     /// are two live pairings, which is exactly the state worth shouting about.
     ///
+    /// What this cannot see, and it is worth being honest about: the *original* #68
+    /// state does not produce two usable zones. When the second install paired it minted
+    /// a new key, so the first install's zone is sealed under the old one and reports as
+    /// abandoned. `AppState.endPairingIfStoredOneIsNotOurs` is what actually resolves
+    /// that, from the affected install rather than from this count — this row is for
+    /// seeing the shape of an account, not for diagnosing #68 on its own.
+    ///
     /// Nil rather than zero when the listing or the key is unavailable: "can't tell"
     /// must not read as "none".
     func inboxZoneCensus() async -> (owned: Int, usable: Int)? {
@@ -204,6 +211,23 @@ extension CloudKitService {
             usable += 1
         }
         return (owned.count, usable)
+    }
+
+    /// Whether the `PairProfile` in one of this account's own zones opens under the
+    /// given key — the same test adoption uses, pointed at a zone we already claim.
+    ///
+    /// Nil is "cannot tell", and covers two different things on purpose: no profile yet
+    /// (a pairing still mid-handshake writes one only when the joiner arrives) and no
+    /// network. Neither is evidence of anything, and the caller must not act on them.
+    func inboxZoneBelongs(toKey pairKey: String, zoneNamed name: String) async -> Bool? {
+        let recordID = CKRecord.ID(recordName: Constants.Profile.recordName,
+                                   zoneID: Self.zoneID(named: name))
+        guard let record = try? await privateDB.record(for: recordID),
+              let sealed = record[Constants.Profile.nameSealed] as? Data else {
+            return nil
+        }
+        return PairCrypto.opened(sealed, pairKey: pairKey,
+                                 field: Constants.Profile.nameSealed) != nil
     }
 
     static func zoneID(named name: String) -> CKRecordZone.ID {
