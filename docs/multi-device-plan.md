@@ -262,8 +262,17 @@ and it is the whole visible surface of the feature.
 Sequenced so each step is shippable on its own and the riskiest thing lands on top of the
 safest.
 
-1. **Zone discovery.** The enabler, and a no-op for every install that exists. Closes the
-   subscription half of #68 as a side effect: they stop fighting once the zone agrees.
+1. **Zone discovery, and adopting the pairing that goes with it.** The enabler, and a
+   no-op for every install that exists. Closes the subscription half of #68 as a side
+   effect: they stop fighting once the zone agrees. Discovery alone would have been
+   unreachable on the device that needs it — `registerSubscriptions` only runs for an
+   install that already believes it is paired — so the adopting half ships with it:
+   `adoptExistingPairing` reads the partner's zone out of the shared database (share
+   acceptance is per account, so it is already there) and builds a `PairState` from the
+   two profiles. It takes `myDeviceID` from the profile a previous device wrote into the
+   partner's zone rather than from this install, so the account keeps presenting one
+   identity and the partner does not drop the newcomer's alerts. That makes step 3 a
+   robustness change rather than a prerequisite.
 2. **Unpaired-elsewhere notice.** Small, and discovery case (2) is meaningless without it.
 3. **Person identity.** The additive `senderUserID` migration. Fixes the dropped-alert bug in
    `handleIncomingChange` that already exists.

@@ -308,6 +308,42 @@ extension CloudKitService {
         )
     }
 
+    /// The partner's zone in our *shared* database, together with what a previous device
+    /// on this account told them about us.
+    ///
+    /// For a second device joining an existing pairing this is the other half of
+    /// `resolveInboxZone`: that one finds where alerts arrive, this one finds where they
+    /// are sent. No share needs accepting — acceptance is recorded per account, so the
+    /// first device's acceptance already put the partner's zone in this database.
+    ///
+    /// The profile read back is the one *we* wrote into their zone, so it carries the
+    /// name and the device identifier the partner already knows this person by. Taking
+    /// both from there rather than from this install is what keeps the pairing looking
+    /// like one person: the partner matches incoming alerts against a single
+    /// `senderDeviceID`, and a newcomer that introduced itself with its own would have
+    /// its alerts silently dropped on their side.
+    ///
+    /// Same adoptability rule as the inbox zone, for the same reason: a zone whose
+    /// profile will not open under the current pair key belongs to a pairing that is
+    /// over, and sorted-first keeps two devices in agreement.
+    func adoptableOutgoingZone(pairKey: String) async -> (zoneID: CKRecordZone.ID,
+                                                          myName: String,
+                                                          myDeviceID: String)? {
+        guard let zones = try? await sharedDB.allRecordZones() else { return nil }
+        for zone in zones.map(\.zoneID).sorted(by: { $0.zoneName < $1.zoneName }) {
+            let recordID = CKRecord.ID(recordName: Constants.Profile.recordName, zoneID: zone)
+            guard let record = try? await sharedDB.record(for: recordID),
+                  let deviceID = record[Constants.Profile.deviceID] as? String,
+                  let name = PairCrypto.opened(record[Constants.Profile.nameSealed] as? Data,
+                                               pairKey: pairKey,
+                                               field: Constants.Profile.nameSealed) else {
+                continue
+            }
+            return (zone, UntrustedText.name(name), deviceID)
+        }
+        return nil
+    }
+
     /// Whether anyone has accepted this device's share — i.e. whether the partner can
     /// write into our inbox zone. The share's participants are the source of truth;
     /// `PairState.partnerCanReach` is only a cache of this.

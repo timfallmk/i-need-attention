@@ -116,6 +116,10 @@ final class AppState {
             // A pending remote invite may have been accepted while this app was gone —
             // the silent push never reaches a force-quit app, so reconcile on launch.
             await reconcilePendingInvite()
+            // Before concluding this install is unpaired: another device on this Apple
+            // ID may already have done the pairing, in which case there is nothing to
+            // ask the user for.
+            await adoptPairingFromThisAccount()
             if pair == nil && pendingInvite == nil {
                 // No pair and no in-flight invite = no subscriptions = no useful
                 // diagnostic. Clear any stale flag. (A pending invite's registrations
@@ -806,6 +810,32 @@ final class AppState {
             self.pair = updated
             pushWatchSnapshot()
         }
+    }
+
+    /// Adopts a pairing another device signed into this Apple ID has already made.
+    ///
+    /// Runs on launch and on every foreground rather than once, because what it waits
+    /// on — the pair key arriving over iCloud Keychain — happens on its own schedule and
+    /// announces nothing. A device that comes up too early simply finds nothing and is
+    /// picked up by the next pass, which is why every failure inside is silent.
+    ///
+    /// The user is not asked. Nothing is being granted that they have not already
+    /// granted: Apple authenticated the account, the key synced under their iCloud
+    /// Keychain, and the share the first device accepted was accepted for the account
+    /// rather than for that install. A confirmation sheet here would be asking
+    /// permission to read state that is already on the device.
+    func adoptPairingFromThisAccount() async {
+        guard pair == nil, pendingInvite == nil else { return }
+        guard let adopted = await PairingService.shared.adoptExistingPairing() else { return }
+
+        applyPair(adopted)
+        // A fresh install has no name of its own, and the pairing knows the one the
+        // partner already sees. Only fill a blank — never overwrite a name the user has
+        // typed on this device.
+        if UntrustedText.name(settings.displayName).isEmpty {
+            settings.displayName = adopted.myName
+        }
+        Haptics.success()
     }
 
     /// Polls until both directions are live, for as long as the one-way banner is up.
