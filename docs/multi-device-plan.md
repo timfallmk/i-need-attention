@@ -79,8 +79,20 @@ the name can be *found* rather than invented:
    on retiring each other's subscriptions. Discovery prevents the state from arising; it does
    not repair one already there. Repairing means deciding which of the two zones is real and
    moving a live pairing onto it, which is not worth doing untested, so 2.2.0 reports the
-   condition in `Settings → Diagnostics` ("Inbox zones owned") and an affected pair re-pairs
-   once. The repair itself is a follow-up.
+   condition in `Settings → Diagnostics` ("Inbox zones") and an affected pair re-pairs once.
+
+   **And then the repair arrived anyway, from an unexpected direction.** Guarding against a
+   pre-key-binding blob driving account-wide CloudKit work — `registerSubscriptions` pointing
+   the account's subscriptions at a dead zone that a failed teardown left behind — needs
+   exactly the question a repair needs: does the `PairProfile` in the zone we claim open
+   under the key we hold? An install in the #68 state answers no, ends its stale pairing
+   locally, and adopts the account's real one. See
+   `AppState.endPairingIfStoredOneIsNotOurs`.
+
+   Which also means the census cannot diagnose #68 by itself, and the plan was wrong to
+   imply it could: the second install's pairing minted a new key, so the first zone is
+   sealed under the old one and counts as abandoned rather than as a second live zone. The
+   row shows the shape of an account; the repair is what resolves the state.
 2. A stored name whose zone does not exist → either a name minted a moment ago and not yet
    created, or a pairing ended from another device. `PairState` tells them apart: no local
    pairing means the former, a local pairing means the latter. See "Unpairing is account-wide".

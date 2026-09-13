@@ -105,6 +105,13 @@ final class AppState {
     func bootstrap() async {
         await refreshICloudStatus()
 
+        // Before anything registers: a pairing blob written before key binding is
+        // trusted against whatever key is present, and if it turns out to belong to a
+        // pairing that is already over, `registerSubscriptions` would point this
+        // account's subscriptions at its dead zone and take the live pairing's pushes
+        // with them.
+        await endPairingIfStoredOneIsNotOurs()
+
         if pair != nil || pendingInvite != nil {
             SharedSettings.partnerName = pair?.partnerName
             // Subscriptions are on our own zone and carry no pair-specific predicate,
@@ -683,6 +690,32 @@ final class AppState {
         }
         Haptics.warning()
         return true
+    }
+
+    /// Ends a pairing whose stored blob turns out to belong to a different pair key.
+    ///
+    /// The narrow case this exists for is an install upgraded to key-bound `PairState`
+    /// whose blob has not been re-saved yet, on an account that has re-paired since, with
+    /// the old zone still present because a teardown's delete failed. Everything about
+    /// that reads as healthy — the blob loads, the zone resolves — and the device would
+    /// go on registering the account's subscriptions against a zone nobody writes to.
+    ///
+    /// It is also the one repair for a pairing already in the #68 state, which arrives
+    /// here rather than as its own migration: the stale install stops using its dead zone
+    /// and `adoptPairingFromThisAccount` picks up the pairing the account really has.
+    ///
+    /// Local teardown only, and for the usual reason — the key and the subscriptions are
+    /// account-wide and by now belong to somebody else's pairing.
+    func endPairingIfStoredOneIsNotOurs() async {
+        guard pair != nil, iCloudStatus == .available, !unpairInProgress else { return }
+        let stillOurs = await PairingService.shared.settleLegacyPairing()
+        guard !stillOurs, !unpairInProgress else { return }
+
+        log.notice("Stored pairing belongs to a different key; ending it on this device")
+        UnpairedElsewhereNotice.happened = true
+        pairingEndedOnAnotherDevice = true
+        await endPairingAfterItEndedElsewhere()
+        Haptics.warning()
     }
 
     /// Ends the pairing when the zone *we* own is gone, which is what another device
