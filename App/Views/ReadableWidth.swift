@@ -1,6 +1,26 @@
 import SwiftUI
+import UIKit
 
 enum Layout {
+    /// Extra leading room at the top of the screen for the window controls iPadOS draws
+    /// inside a window's top-left corner.
+    ///
+    /// Turning multitasking on is what created this: the controls did not exist while the
+    /// app was full-screen only, and iPadOS does not reserve safe area for them — the top
+    /// bar sits inside the safe area already and was still overlapped. So the room has to
+    /// be made here.
+    ///
+    /// Keyed on idiom rather than size class deliberately. A narrow iPad window reports a
+    /// compact width exactly like a phone, but it still has window controls, so a
+    /// size-class test would leave them overlapping in the case most likely to be used.
+    ///
+    /// The number is eyeballed against a screenshot rather than derived — Apple publishes
+    /// no metric for it. Too large only wastes space; too small puts the controls back on
+    /// top of the title, which is the failure worth catching.
+    static var windowControlsInset: CGFloat {
+        UIDevice.current.userInterfaceIdiom == .pad ? 68 : 0
+    }
+
     /// How wide content is allowed to grow before it stops filling the screen.
     ///
     /// Every custom layout in the app is built on `maxWidth: .infinity`, which is the
