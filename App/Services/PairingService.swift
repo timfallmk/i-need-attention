@@ -34,11 +34,14 @@ final class PairingService {
     /// is cancelled first — which revokes its share — so "renew" is just a new invite,
     /// and the old QR code stops working rather than lingering as a live credential.
     func startInviting(myName: String) async throws -> PairingInvite {
+        // Asked before cancelling, because cancelling destroys the evidence.
+        let zoneIsOurs = ownsStoredInboxZone()
         if let previous = PendingInvite.load() {
             guard await cancelInvite(previous) else {
                 throw AttentionError.inviteCleanupFailed
             }
         }
+        if !zoneIsOurs { InboxZone.clear() }
 
         try await cloud.ensureInboxZone()
         // A share left over from an earlier partner or invite would come back from
@@ -194,6 +197,23 @@ final class PairingService {
         return state
     }
 
+    /// Whether the zone name this device has stored belongs to something it is actually
+    /// part of — a live pairing, or an invite it is still offering.
+    ///
+    /// It can fail to. `tearDownInboxZone` rotates the name whether or not the delete
+    /// succeeded, and an unpair on another device deletes the zone without touching this
+    /// one's `UserDefaults`, so a stored name can outlive every reason it existed. A
+    /// zone-wide share hands over the *whole* zone, so starting a new pairing on top of
+    /// an orphan that survived a failed delete would give the new partner everything the
+    /// previous one left in it — the exact leak per-pairing names exist to prevent. It
+    /// would also point this account's subscriptions at a zone nobody writes to.
+    ///
+    /// So the pairing-start paths ask first, and mint fresh when the answer is no.
+    private func ownsStoredInboxZone() -> Bool {
+        guard InboxZone.storedName != nil else { return false }
+        return PairState.load() != nil || PendingInvite.load() != nil
+    }
+
     /// Puts the zone name back when an adoption could not be finished, so a half-adopted
     /// device does not go on owning a pairing it never joined. Clearing is the right undo
     /// for "there was nothing stored before": a name that only ever came from this
@@ -242,6 +262,7 @@ final class PairingService {
         guard let invite = PairingInvite.from(qrPayload: payload) else {
             throw AttentionError.pairNotFound
         }
+        let zoneIsOurs = ownsStoredInboxZone()
         // Joining someone else's pair abandons any invite we were offering ourselves —
         // and revokes its share, so a code we handed out earlier can't still be used.
         if let ownPending = PendingInvite.load() {
@@ -261,6 +282,7 @@ final class PairingService {
         // share_B names the inviter rather than carrying a bearer token: their identity
         // came back with the share we just accepted. A failure to look them up would
         // otherwise leave the pair permanently one-directional, so it isn't swallowed.
+        if !zoneIsOurs { InboxZone.clear() }
         try await cloud.ensureInboxZone()
         // Same reason as the inviter side: an existing share is returned as it stands,
         // so it would never come to name this partner.
