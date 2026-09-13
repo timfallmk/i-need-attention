@@ -135,6 +135,7 @@ final class NotificationService: UNNotificationServiceExtension {
             if let alertRecordName = record[Constants.AlertStatusField.alertRecordName] as? String {
                 var ui = content.userInfo
                 ui[Constants.NotificationUserInfo.recordName] = alertRecordName
+                ui[Constants.NotificationUserInfo.zoneName] = record.recordID.zoneID.zoneName
                 content.userInfo = ui
             }
             return
@@ -149,6 +150,7 @@ final class NotificationService: UNNotificationServiceExtension {
 
         var ui = content.userInfo
         ui[Constants.NotificationUserInfo.recordName] = record.recordID.recordName
+        ui[Constants.NotificationUserInfo.zoneName] = record.recordID.zoneID.zoneName
         content.userInfo = ui
     }
 

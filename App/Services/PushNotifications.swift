@@ -298,8 +298,27 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
         }
 
         // Inline ack actions only ever apply to an incoming alert, which lives in the
-        // zone this device owns — the bare record name in the payload has no zone.
-        let recordID = CKRecord.ID(recordName: recordName, zoneID: CloudKitService.inboxZoneID)
+        // zone this device owns — but *which* zone it owned is the question, because a
+        // delivered banner outlives its pairing. It sits on the lock screen until somebody
+        // touches it, and by then the account may have re-paired into a different zone.
+        //
+        // Rebuilding the ID against whatever zone is current is how an ack on a stale
+        // banner writes an `AlertStatus` into the *new* partner's zone, about an alert
+        // they never sent — a cross-pairing write, which is the whole thing per-pairing
+        // zones exist to prevent. `CloudKitService.inboxZoneID` would also *mint* a zone
+        // by way of `currentName` on a device that has none, outside a pairing start.
+        //
+        // So the notification carries the zone it was built for, and it has to still be
+        // ours. A banner from before this change has no zone to check and is not worth
+        // guessing about: the alert it names is in a zone that pairing has since left.
+        guard let banner = userInfo[Constants.NotificationUserInfo.zoneName] as? String,
+              let mine = InboxZone.storedName, banner == mine else {
+            log.notice("Ack action for a notification from another pairing's zone; ignoring")
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [notificationID])
+            completionHandler()
+            return
+        }
+        let recordID = CKRecord.ID(recordName: recordName, zoneID: CloudKitService.zoneID(named: mine))
         Task { @MainActor in
             defer { completionHandler() }
             // The delegate is nonisolated and holds no AppState; the persisted pairing
