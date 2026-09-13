@@ -196,6 +196,14 @@ enum Constants {
         /// NSE whenever it resolves the record; its absence means the NSE fell back to a
         /// generic body, which is worth telling apart from a notification about nothing.
         static let recordName = "recordName"
+
+        /// The zone the record above lives in, as it was when the notification was
+        /// built. A delivered banner outlives the pairing it belongs to — it sits on the
+        /// lock screen until somebody touches it — and the inline ack actions rebuild a
+        /// `CKRecord.ID` to write against. Without this they rebuild it in whatever zone
+        /// is current, so acting on a banner from a previous pairing writes an
+        /// `AlertStatus` into the *new* partner's zone about an alert they never sent.
+        static let zoneName = "zoneName"
     }
 
     enum WatchMessage {
