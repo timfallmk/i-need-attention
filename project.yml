@@ -91,9 +91,23 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         UIBackgroundModes:
           - remote-notification
+        # Split by idiom rather than widened, because the two devices want different
+        # answers. A phone held sideways is a phone someone is about to put down; the
+        # button is the whole UI and rotating it buys nothing. An iPad is routinely
+        # used in landscape and in a Stage Manager tile, where refusing to rotate reads
+        # as broken. `~ipad` is an Info.plist key suffix iOS resolves at load time, so
+        # this is one binary with two answers rather than a runtime check.
+        #
+        # `UIRequiresFullScreen` is gone rather than moved: it only ever governed iPad
+        # multitasking, so it did nothing on iPhone, and opting out of multitasking is
+        # what made the app a poor Stage Manager citizen.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         NSCameraUsageDescription: "Used once during pairing so you can scan the other phone's QR code."
         CFBundleURLTypes:
           - CFBundleURLName: com.timfallmk.attention.pair
@@ -110,7 +124,12 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.timfallmk.attention
-        TARGETED_DEVICE_FAMILY: "1"
+        # 1,2 = iPhone and iPad. The Apple Silicon Mac and Vision Pro checkboxes in
+        # App Store Connect run this same iPad binary in compatibility mode, so all
+        # three surfaces in #72 §2 hang off this one value — there is no separate
+        # macOS or visionOS target, and `SUPPORTS_MACCATALYST` stays NO because
+        # "Designed for iPad" and Catalyst are different mechanisms.
+        TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: App/Attention.entitlements
@@ -149,6 +168,12 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.timfallmk.attention.notification-service
+        # Stated rather than inherited. An extension has to cover at least its host's
+        # families or the host won't install, and this matched only by way of Xcode's
+        # default for iOS extensions already being 1,2 while the app said 1 — a
+        # mismatch that happened to be harmless in the safe direction. Writing it down
+        # means the next change to the app's families is visibly a change to both.
+        TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: NotificationService/NotificationService.entitlements
         SKIP_INSTALL: YES
