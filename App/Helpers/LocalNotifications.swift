@@ -14,12 +14,23 @@ enum LocalNotifications {
         "snooze-\(recordName)"
     }
 
-    static func scheduleSnooze(recordName: String, title: String, body: String, until: Date) {
+    /// `zoneName` carries the alert's zone through to the reminder, and is not optional
+    /// decoration: the reminder reuses `ATTENTION_PING`, so its Acknowledge action lands
+    /// in the same handler as a real banner — and that handler now requires the zone,
+    /// because an ack rebuilt against the wrong one writes into the next pairing. Without
+    /// it a snoozed alert could be re-notified and then refuse to be acknowledged.
+    static func scheduleSnooze(recordName: String,
+                               zoneName: String?,
+                               title: String,
+                               body: String,
+                               until: Date) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.categoryIdentifier = Constants.NotificationAction.category
-        content.userInfo = [Constants.NotificationUserInfo.recordName: recordName]
+        var info: [String: Any] = [Constants.NotificationUserInfo.recordName: recordName]
+        if let zoneName { info[Constants.NotificationUserInfo.zoneName] = zoneName }
+        content.userInfo = info
         content.badge = 1
         // Mirror NotificationService.applyPriority (the critical path is disabled — Apple
         // denied the entitlement — so only the time-sensitive branch is relevant here).

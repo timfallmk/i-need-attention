@@ -459,6 +459,7 @@ final class AppState {
         if !isDemo {
             LocalNotifications.scheduleSnooze(
                 recordName: recordName,
+                zoneName: alert.id.zoneID.zoneName,
                 title: alert.senderName.isEmpty ? "Attention" : alert.senderName,
                 body: alert.message,
                 until: until
@@ -869,7 +870,18 @@ final class AppState {
         unpairInProgress = true
         defer { unpairInProgress = false }
 
-        let remoteSucceeded = await PairingService.shared.eraseRemoteData()
+        // Only tear down remotely what this install actually owns. Settings is reachable
+        // from the unpaired screen, and a second device that has not adopted yet has no
+        // pairing of its own — but `eraseRemoteData` deletes *every* subscription in the
+        // private database, which is per account, so erasing local data on the unpaired
+        // device would stop pushes on the paired ones. `deleteInboxZone` would also mint
+        // a zone by way of `currentName` purely in order to delete it.
+        //
+        // Nothing of ours remotely means nothing to fail at, so the erase still succeeds.
+        let ownsRemoteState = PairState.load() != nil || PendingInvite.load() != nil
+        let remoteSucceeded = ownsRemoteState
+            ? await PairingService.shared.eraseRemoteData()
+            : true
         DataErasure.eraseLocalData(settings: settings)
         DataErasure.clearNotifications()
 
