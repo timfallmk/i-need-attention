@@ -68,6 +68,12 @@ private struct WindowControlsInset: ViewModifier {
     @Environment(\.horizontalSizeClass) private var widthClass
 
     func body(content: Content) -> some View {
-        content.padding(.leading, Layout.windowControlsInset(widthClass))
+        let inset = Layout.windowControlsInset(widthClass)
+        // Size class changes at a threshold rather than continuously, so dragging a
+        // window across it moves the title in one 44pt step. Animating the value turns
+        // that into a slide, which is only ever visible mid-resize.
+        content
+            .padding(.leading, inset)
+            .animation(.easeInOut(duration: 0.2), value: inset)
     }
 }
