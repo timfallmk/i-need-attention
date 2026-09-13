@@ -34,6 +34,11 @@ final class CloudKitService: @unchecked Sendable {
     /// is the one piece it now has.
     let ensuredZones = EnsuredZones()
 
+    /// This account's CloudKit user record name, once fetched. Same reason as
+    /// `ensuredZones` for the lock: this type is `@unchecked Sendable` on the strength
+    /// of having no shared mutable state, and this is the second piece it now has.
+    let cachedUserID = CachedUserID()
+
     private init() {
         self.container = CKContainer(identifier: Constants.cloudKitContainerID)
         self.publicDB = container.publicCloudDatabase
@@ -45,6 +50,25 @@ final class CloudKitService: @unchecked Sendable {
 
     func accountStatus() async throws -> CKAccountStatus {
         try await container.accountStatus()
+    }
+
+    /// This Apple Account's identity in this container, as CloudKit names it.
+    ///
+    /// Stable across every device the person signs in on, which is the whole reason it
+    /// replaces `DeviceIdentity.id` as the answer to "was this mine or theirs?". Cached
+    /// for the life of the process because it is a network call that cannot change while
+    /// the app is running: switching accounts relaunches the app.
+    ///
+    /// Returns nil rather than throwing. Nothing here is worth failing a send or a
+    /// launch over — a record written without it falls back to the device identity, and
+    /// the next write picks it up.
+    func currentUserID() async -> String? {
+        if let cached = cachedUserID.value { return cached }
+        guard let recordID = try? await container.userRecordID() else { return nil }
+        cachedUserID.set(recordID.recordName)
+        // Write through, so the history sheet can ask the same question without awaiting.
+        AccountIdentity.id = recordID.recordName
+        return recordID.recordName
     }
 
     // MARK: - Pair record
@@ -146,6 +170,11 @@ final class CloudKitService: @unchecked Sendable {
         let record = CKRecord(recordType: Constants.RecordType.alert,
                               recordID: CKRecord.ID(recordName: UUID().uuidString, zoneID: zone.zoneID))
         record[Constants.AlertField.senderDeviceID] = pair.myDeviceID as CKRecordValue
+        // Both, deliberately. The account identity is what the receiver should match on,
+        // and the device identity is what a partner still on an older build has.
+        if let myUserID = pair.myUserID {
+            record[Constants.AlertField.senderUserID] = myUserID as CKRecordValue
+        }
         record[Constants.AlertField.state] = Constants.AlertState.sent.rawValue as CKRecordValue
         record[Constants.AlertField.critical] = (critical ? 1 : 0) as CKRecordValue
         try AlertRecord.seal(name: pair.myName, message: message, ackEmoji: nil,
@@ -688,6 +717,24 @@ final class CloudKitService: @unchecked Sendable {
         info.shouldSendContentAvailable = true
         sub.notificationInfo = info
         return sub
+    }
+}
+
+/// Lock-guarded box for this account's CloudKit user record name. Write-once in
+/// practice — the value cannot change while the process lives, since switching Apple
+/// Accounts relaunches the app — so there is nothing to invalidate.
+final class CachedUserID: @unchecked Sendable {
+    private var name: String?
+    private let lock = NSLock()
+
+    var value: String? {
+        lock.lock(); defer { lock.unlock() }
+        return name
+    }
+
+    func set(_ newValue: String) {
+        lock.lock(); defer { lock.unlock() }
+        name = newValue
     }
 }
 

@@ -32,3 +32,26 @@ enum DeviceIdentity {
         UserDefaults.standard.removeObject(forKey: nameKey)
     }
 }
+
+/// The CloudKit user record name for the Apple Account this device is signed into, as
+/// last seen. Per *account*, where `DeviceIdentity.id` is per install.
+///
+/// Cached here only so synchronous readers can use it — the history sheet decides which
+/// rows are yours while building sections, with no place to await a network call. The
+/// authority is `CloudKitService.currentUserID()`, which writes through to this.
+///
+/// Stale is harmless and self-correcting: it is refreshed on the next launch that reaches
+/// CloudKit, and a wrong value can only make an archived row render on the wrong side of
+/// the history sheet. Nothing routes an alert by it.
+enum AccountIdentity {
+    private static let key = "attention.accountUserID"
+
+    static var id: String? {
+        get { UserDefaults.standard.string(forKey: key) }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}

@@ -18,6 +18,22 @@ struct PairState: Codable, Equatable {
     var partnerDeviceID: String
     var partnerName: String
 
+    /// Account-scoped identities — `CKContainer.userRecordID().recordName` for each
+    /// side — and the reason they are optional is the whole of the migration.
+    ///
+    /// The device IDs above answer "which phone", and everything that reads them is
+    /// really asking "which of us". That was the same question while each person had
+    /// one device and stopped being one the moment they could have two: an alert sent
+    /// from your iPad reads as *incoming* on your iPhone, and an alert from your
+    /// partner's second device matches neither side and is dropped without a trace.
+    ///
+    /// Nil means "not learned yet", which is every pairing made before this and is
+    /// handled by falling back to the device comparison rather than by a migration
+    /// step. A pairing fills them in the first time each side writes a profile under a
+    /// build that carries one; until then it behaves exactly as it did before.
+    var myUserID: String?
+    var partnerUserID: String?
+
     /// The partner's inbox zone, in our shared database, once we have accepted their
     /// share. Non-nil is exactly what "we can send" means — alerts are written here.
     var outgoingZone: ZoneRef?
@@ -34,6 +50,19 @@ struct PairState: Codable, Equatable {
     /// "paired", and must never offer a button that would silently do nothing.
     var isComplete: Bool { canSend && partnerCanReach }
 
+    /// Who counts as "me" for this pairing.
+    var me: SenderIdentity { SenderIdentity(deviceID: myDeviceID, userID: myUserID) }
+
+    /// Whether a record came from this person, given whichever identifiers it carries.
+    ///
+    /// Note what it does *not* do: conclude "theirs" from "not mine". A record in the
+    /// zone we own can only have been written by a share participant, so the caller that
+    /// knows which zone a record came from is better placed to decide than a device-ID
+    /// match — which is exactly what silently dropped a partner's second phone.
+    func isMine(senderUserID: String?, senderDeviceID: String) -> Bool {
+        me.matches(userID: senderUserID, deviceID: senderDeviceID)
+    }
+
     /// v3 is the 2.0 shape. v1 and v2 described pairings in the public database, which
     /// 2.0 abandons — `LegacyPairing` reads those, and only to salvage their history.
     static let storageKey = "attention.pair.v3"
@@ -46,6 +75,11 @@ struct PairState: Codable, Equatable {
         var partnerName: String
         var outgoingZone: ZoneRef?
         var partnerCanReach: Bool
+        /// Optional in the Swift sense *and* absent from blobs written by earlier
+        /// builds, which decode fine because `Codable` treats a missing optional as nil.
+        /// That is what lets this ship without a storage version bump.
+        var myUserID: String?
+        var partnerUserID: String?
     }
 
     /// Returns nil when the keychain has no key for a stored pairing. Real causes are
@@ -66,6 +100,8 @@ struct PairState: Codable, Equatable {
             myName: stored.myName,
             partnerDeviceID: stored.partnerDeviceID,
             partnerName: stored.partnerName,
+            myUserID: stored.myUserID,
+            partnerUserID: stored.partnerUserID,
             outgoingZone: stored.outgoingZone,
             partnerCanReach: stored.partnerCanReach
         )
@@ -82,7 +118,9 @@ struct PairState: Codable, Equatable {
             partnerDeviceID: partnerDeviceID,
             partnerName: partnerName,
             outgoingZone: outgoingZone,
-            partnerCanReach: partnerCanReach
+            partnerCanReach: partnerCanReach,
+            myUserID: myUserID,
+            partnerUserID: partnerUserID
         )
         guard let data = try? JSONEncoder().encode(stored),
               PairSecrets.store.setSecret(pairKey, for: Constants.Keychain.pairKeyAccount) else {
@@ -95,6 +133,9 @@ struct PairState: Codable, Equatable {
     static func clear() {
         PairSecrets.store.removeSecret(for: Constants.Keychain.pairKeyAccount)
         UserDefaults.standard.removeObject(forKey: storageKey)
+        // Pairing-scoped, so it goes with the pairing rather than living on to tell the
+        // next partner's zone that it has already been told who we are.
+        UserDefaults.standard.removeObject(forKey: AccountIdentityPublished.storageKey)
     }
 }
 
@@ -124,6 +165,41 @@ enum PartnerUnpairedNotice {
     static let storageKey = "attention.partnerUnpaired.v1"
 
     static var happened: Bool {
+        get { UserDefaults.standard.bool(forKey: storageKey) }
+        set { UserDefaults.standard.set(newValue, forKey: storageKey) }
+    }
+}
+
+/// Who "me" is when deciding whether a record was sent by this person.
+///
+/// One type rather than the comparison written out at each site, because the fallback is
+/// the subtle part and four copies of it would not stay identical. The account identity
+/// wins whenever *both* ends of the comparison have one; anything else falls back to the
+/// per-install identity, which is all a record written before this carries.
+///
+/// Both halves of that condition matter. A `userID` on our side but not on the record
+/// means an older record and must fall back; the reverse means an older pairing that has
+/// not learned ours yet, and must fall back too. Comparing a present value against a nil
+/// one would answer "not mine" for every alert this person ever sent.
+struct SenderIdentity: Equatable {
+    let deviceID: String
+    let userID: String?
+
+    func matches(userID sender: String?, deviceID senderDevice: String) -> Bool {
+        if let userID, let sender { return sender == userID }
+        return senderDevice == deviceID
+    }
+}
+
+/// Whether this device has written a profile carrying its account identity into the
+/// partner's zone, for this pairing.
+///
+/// Pairing-scoped rather than install-scoped, which is why `PairState.clear()` drops it:
+/// a new pairing is a new partner with a new zone and nothing published into it yet.
+enum AccountIdentityPublished {
+    static let storageKey = "attention.accountIdentityPublished.v1"
+
+    static var done: Bool {
         get { UserDefaults.standard.bool(forKey: storageKey) }
         set { UserDefaults.standard.set(newValue, forKey: storageKey) }
     }

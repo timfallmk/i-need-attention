@@ -15,6 +15,13 @@ DEFINE SCHEMA
         "___recordID"    REFERENCE,
 
         deviceID         STRING,
+
+        /* Who this person is to CloudKit, rather than which of their devices wrote the
+           record. Absent on profiles written by earlier builds, which is what keeps the
+           migration additive: a pairing learns it the first time either side writes a
+           profile under a build that has it. */
+        userID           STRING,
+
         nameSealed       BYTES,
         shareURLSealed   BYTES,
 
@@ -86,6 +93,13 @@ DEFINE SCHEMA
 
         pairKey          STRING QUERYABLE SORTABLE,
         senderDeviceID   STRING QUERYABLE,
+
+        /* Per-account sender identity, so several devices belonging to one person read
+           as that person rather than as several strangers. Additive: records written
+           before it simply lack it and readers fall back to senderDeviceID. Not
+           queryable — the zone is the filter, which is what it was in 2.0 too. */
+        senderUserID     STRING,
+
         senderName       STRING,
         message          STRING,
         state            STRING QUERYABLE,

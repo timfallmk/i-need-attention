@@ -45,6 +45,8 @@ final class DataErasureTests: XCTestCase {
         CutoverNotice.needsRepair = true
         PartnerUnpairedNotice.happened = true
         UnpairedElsewhereNotice.happened = true
+        AccountIdentityPublished.done = true
+        AccountIdentity.id = "_abc123"
         DismissedOutgoing.recordName = "alert-1"
 
         UserDefaults.standard.set(Data("{}".utf8), forKey: LegacyPairing.storageKeyV1)
@@ -75,6 +77,8 @@ final class DataErasureTests: XCTestCase {
         XCTAssertFalse(CutoverNotice.needsRepair)
         XCTAssertFalse(PartnerUnpairedNotice.happened)
         XCTAssertFalse(UnpairedElsewhereNotice.happened)
+        XCTAssertFalse(AccountIdentityPublished.done)
+        XCTAssertNil(AccountIdentity.id)
         XCTAssertNil(DismissedOutgoing.recordName)
 
         XCTAssertFalse(LegacyPairing.exists)

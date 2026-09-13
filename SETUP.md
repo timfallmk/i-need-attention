@@ -78,6 +78,8 @@ Go to <https://icloud.developer.apple.com/dashboard> → select your container �
 - [ ] Under **Indexes**, verify `Alert.recordName` shows `QUERYABLE` — from 2.0 both alert reads enumerate a whole zone rather than filtering on `pairKey`, and CloudKit refuses that without this index. Symptom if it's missing: pairing works, alerts are written fine, and the receiver shows **All quiet** forever
 - [ ] Under **Indexes**, verify `AlertStatus.state` shows `QUERYABLE` — the subscription that delivers the "they got back to you" banner filters on it, and without the index that banner silently never arrives
 
+> **Upgrading an existing container:** two fields were added for multi-device support — `Alert.senderUserID` and `PairProfile.userID`, both `String` and neither indexed. Re-import `cloudkit-schema.ckdb` into Development and deploy to Production. Nothing filters on either, so no index is needed and none should be added: the zone is the filter, which is what 2.0 made it. Both are additive — records written before them simply lack the field and the app falls back to the per-install `senderDeviceID` — so an old build and a new one interoperate in both directions, and skipping the deploy costs you multi-device support rather than breaking the app.
+
 ### What 2.0 changed here, and what it means for this page
 
 From 2.0 the app's records live in **per-user private database zones**, not in the public database. Each person owns one zone and shares it with their partner, so access is enforced by CloudKit per zone rather than by a lookup value everyone can read. Two consequences for setup:

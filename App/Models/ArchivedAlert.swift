@@ -13,6 +13,9 @@ import Foundation
 struct ArchivedAlert: Codable, Equatable, Identifiable {
     var recordName: String
     var senderDeviceID: String
+    /// Absent on rows archived by earlier builds, and on every genuinely pre-2.0 row.
+    /// Decodes as nil from those blobs, which is exactly the fallback case.
+    var senderUserID: String?
     var senderName: String
     var message: String
     var createdAt: Date
@@ -27,6 +30,7 @@ struct ArchivedAlert: Codable, Equatable, Identifiable {
     init(_ alert: AlertRecord) {
         self.recordName = alert.id.recordName
         self.senderDeviceID = alert.senderDeviceID
+        self.senderUserID = alert.senderUserID
         self.senderName = alert.senderName
         self.message = alert.message
         self.createdAt = alert.createdAt
@@ -48,6 +52,7 @@ extension AlertRecord {
         self.id = CKRecord.ID(recordName: archived.recordName)
         self.pairKey = ""
         self.senderDeviceID = archived.senderDeviceID
+        self.senderUserID = archived.senderUserID
         self.senderName = archived.senderName
         self.message = archived.message
         self.createdAt = archived.createdAt

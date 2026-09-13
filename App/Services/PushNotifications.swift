@@ -136,7 +136,7 @@ final class PushNotifications: NSObject {
             // one-way banner up until something else foregrounded the app.
             await appState.reconcilePendingInvite()
             await appState.reconcileHalfFormedPair()
-            await appState.refreshPartnerName()
+            await appState.refreshPartnerProfile()
             return .newData
         }
 

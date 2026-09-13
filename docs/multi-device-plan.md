@@ -286,8 +286,17 @@ safest.
    identity and the partner does not drop the newcomer's alerts. That makes step 3 a
    robustness change rather than a prerequisite.
 2. **Unpaired-elsewhere notice.** Small, and discovery case (2) is meaningless without it.
-3. **Person identity.** The additive `senderUserID` migration. Fixes the dropped-alert bug in
-   `handleIncomingChange` that already exists.
+3. **Person identity.** The additive `senderUserID` migration, plus `PairProfile.userID` so
+   each side can learn the other's without a share round trip. One `SenderIdentity` holds
+   the fallback rule — account identity when *both* ends have one, per-install identity
+   otherwise — because four hand-written copies of that condition would not stay identical.
+   Two things the writing turned up: the exchange deadlocks unless something publishes an
+   identity unprompted (each side learns the other's by reading a profile, and nothing
+   writes one except a rename), so a pairing publishes once per device; and the
+   dropped-alert bug in `handleIncomingChange` is better fixed by deciding from the *zone*
+   than by adding a second identity to the same match — only a share participant can write
+   into the zone we own, so anything there that is not ours is theirs, whether or not
+   either side has an account identity yet.
 4. **The fifth subscription.** Code only — `Alert.state` is already indexed.
 5. **The Settings line.**
 
