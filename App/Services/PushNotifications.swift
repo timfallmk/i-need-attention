@@ -287,6 +287,9 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
             let content = response.notification.request.content
             LocalNotifications.scheduleSnooze(
                 recordName: recordName,
+                // Carried through from the banner being snoozed, so the reminder's own
+                // Acknowledge can still be matched to the zone the alert lives in.
+                zoneName: userInfo[Constants.NotificationUserInfo.zoneName] as? String,
                 title: content.title,
                 body: content.body,
                 until: until
