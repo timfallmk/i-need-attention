@@ -185,6 +185,13 @@ final class AppState {
             if incoming == nil || incoming?.state == .acknowledged {
                 try? await UNUserNotificationCenter.current().setBadgeCount(0)
             }
+            // The same sweep `handleAnsweredElsewhere` does, for the case its silent
+            // push cannot reach: a force-quit app is never woken by one, so a device
+            // that was closed when the alert was answered elsewhere still has the banner
+            // when it next opens.
+            if let answered = incoming, answered.state == .acknowledged {
+                await LocalNotifications.removeDelivered(matchingRecordName: answered.id.recordName)
+            }
         } catch {
             // Either fetch can raise this, and only one of them means anything: our own
             // zone missing is a gap `bootstrap` closes, the partner's means they have
@@ -268,6 +275,38 @@ final class AppState {
     }
 
     // MARK: - Receiving
+
+    /// An alert *sent to us* has been acknowledged — possibly on this device, possibly
+    /// on another one signed into the same Apple Account.
+    ///
+    /// It exists for the second case, and only code running on this device can serve it:
+    /// `removeDeliveredNotifications` reaches the notification centre of its own process
+    /// and nothing else, so a banner sitting on this phone for an alert answered on the
+    /// iPad can be taken down by this phone or by nobody. In an app whose whole premise
+    /// is one urgent notification, a pile of banners for things already answered is what
+    /// would make a second device worse than no second device.
+    ///
+    /// Everything here is idempotent, because the subscription cannot filter on who
+    /// wrote the change and so fires for this device's own acknowledgements too.
+    func handleAnsweredElsewhere(_ alert: AlertRecord) async {
+        guard let pair, alert.state == .acknowledged else { return }
+        // Only ever about alerts we received. One we sent lives in the partner's zone and
+        // could not have triggered a subscription on ours, but the check is free and the
+        // branch below would otherwise overwrite `lastIncoming` with our own alert.
+        guard !pair.isMine(senderUserID: alert.senderUserID,
+                           senderDeviceID: alert.senderDeviceID) else { return }
+
+        await LocalNotifications.removeDelivered(matchingRecordName: alert.id.recordName)
+        if snooze?.recordName == alert.id.recordName { cancelSnooze() }
+        // Only when it is the one we are showing. A device that never saw this alert —
+        // force-quit, or the push coalesced — has nothing to update, and surfacing an
+        // older alert it had already moved past would be worse than leaving it.
+        if lastIncoming?.id.recordName == alert.id.recordName {
+            lastIncoming = alert
+        }
+        try? await UNUserNotificationCenter.current().setBadgeCount(0)
+        pushWatchSnapshot()
+    }
 
     /// Called by PushNotifications when a new alert (or alert update) arrives.
     func handleIncomingChange(_ alert: AlertRecord) async {

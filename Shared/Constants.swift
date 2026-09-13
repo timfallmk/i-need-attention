@@ -152,7 +152,7 @@ enum Constants {
         static let alertRecordName = "alertRecordName"
     }
 
-    /// All four are `CKQuerySubscription`s on this device's *own* inbox zone in the
+    /// All five are `CKQuerySubscription`s on this account's *own* inbox zone in the
     /// private database. Nothing subscribes to the partner's zone: the shared database
     /// accepts only `CKDatabaseSubscription`, whose notifications name a database
     /// rather than a record. Everything this device needs to be told about is therefore
@@ -170,10 +170,32 @@ enum Constants {
         /// handshake, and a partner's rename.
         static let pairProfile = "pair-profile-v1"
 
+        /// An alert *we received* becoming acknowledged, which on a single device is
+        /// never news — this device did it — and on a second one is the only way to
+        /// find out. `removeDeliveredNotifications` reaches only the notification centre
+        /// of the process that calls it, so a banner on the iPad can be cleared by code
+        /// running on the iPad and by nothing else. Without this, every device a person
+        /// owns accumulates banners for alerts they have already answered.
+        ///
+        /// Silent, and distinct from `incomingAlerts` despite watching the same record
+        /// type in the same zone: that one fires on creation only, so nothing today
+        /// notices an Alert in our own zone changing state.
+        static let incomingAnswered = "incoming-answered-v1"
+
         /// The ones this app owns. `registerSubscriptions` needs to tell them apart from
         /// anything else in the database so it can retire the ones left pointing at a
         /// previous pairing's zone without touching subscriptions it didn't create.
-        static let all: Set<String> = [incomingAlerts, outgoingStatus, outgoingAck, pairProfile]
+        static let all: Set<String> = [incomingAlerts, outgoingStatus, outgoingAck,
+                                       pairProfile, incomingAnswered]
+    }
+
+    /// Keys the notification service extension puts into a rendered push's `userInfo`,
+    /// and the app reads back out of a delivered or tapped notification.
+    enum NotificationUserInfo {
+        /// The `CKRecord.ID.recordName` of the alert a notification is about. Set by the
+        /// NSE whenever it resolves the record; its absence means the NSE fell back to a
+        /// generic body, which is worth telling apart from a notification about nothing.
+        static let recordName = "recordName"
     }
 
     enum WatchMessage {

@@ -56,4 +56,26 @@ final class SubscriptionPredicatesTests: XCTestCase {
     func testOutgoingAckUsesTheStateField() {
         XCTAssertTrue(SubscriptionPredicates.outgoingAck().predicateFormat.contains(Constants.AlertStatusField.state))
     }
+
+    // MARK: - Incoming answered
+
+    /// It filters on `Alert.state`, not `AlertStatus.state`. The two fields are spelled
+    /// the same, so a predicate built from the wrong constant would look right, compile,
+    /// and watch the wrong record type.
+    func testIncomingAnsweredFiltersOnTheAlertStateField() {
+        XCTAssertTrue(
+            SubscriptionPredicates.incomingAnswered()
+                .predicateFormat.contains(Constants.AlertField.state)
+        )
+    }
+
+    func testIncomingAnsweredMatchesOnlyAcknowledged() {
+        for state in [Constants.AlertState.sent, .seen] {
+            let record = [Constants.AlertField.state: state.rawValue]
+            XCTAssertFalse(SubscriptionPredicates.incomingAnswered().evaluate(with: record),
+                           "\(state.rawValue) should not fire the banner-clearing push")
+        }
+        let acked = [Constants.AlertField.state: Constants.AlertState.acknowledged.rawValue]
+        XCTAssertTrue(SubscriptionPredicates.incomingAnswered().evaluate(with: acked))
+    }
 }

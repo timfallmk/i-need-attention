@@ -110,7 +110,7 @@ final class NotificationService: UNNotificationServiceExtension {
             // record, not to this one.
             if let alertRecordName = record[Constants.AlertStatusField.alertRecordName] as? String {
                 var ui = content.userInfo
-                ui["recordName"] = alertRecordName
+                ui[Constants.NotificationUserInfo.recordName] = alertRecordName
                 content.userInfo = ui
             }
             return
@@ -124,7 +124,7 @@ final class NotificationService: UNNotificationServiceExtension {
         applyPriority(senderRequestedCritical: senderRequestedCritical, to: content)
 
         var ui = content.userInfo
-        ui["recordName"] = record.recordID.recordName
+        ui[Constants.NotificationUserInfo.recordName] = record.recordID.recordName
         content.userInfo = ui
     }
 

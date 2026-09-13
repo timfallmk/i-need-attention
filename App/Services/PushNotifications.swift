@@ -159,6 +159,19 @@ final class PushNotifications: NSObject {
             return .newData
         }
 
+        if queryNotification.subscriptionID == Constants.SubscriptionID.incomingAnswered {
+            // An alert *sent to us* has been acknowledged, which this device may or may
+            // not have been the one to do. Either way the job is the same and idempotent.
+            do {
+                let alert = try await CloudKitService.shared.fetchAlert(recordID: recordID, pair: pair)
+                await appState.handleAnsweredElsewhere(alert)
+                return .newData
+            } catch {
+                log.error("fetch answered alert failed: \(error.localizedDescription)")
+                return .failed
+            }
+        }
+
         do {
             let alert = try await CloudKitService.shared.fetchAlert(recordID: recordID, pair: pair)
             await appState.handleIncomingChange(alert)
@@ -225,7 +238,7 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
         // look identical from the outside, and they are completely different bugs.
         log.notice("Notification response: action=\(actionID, privacy: .public) category=\(categoryID, privacy: .public)")
 
-        guard let recordName = userInfo["recordName"] as? String else {
+        guard let recordName = userInfo[Constants.NotificationUserInfo.recordName] as? String else {
             // The NSE sets this whenever it resolves the record. Missing means it fell
             // back to the generic body — worth knowing, since the banner still looked
             // almost right.
