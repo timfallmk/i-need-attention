@@ -168,7 +168,7 @@ final class PairingService {
             // Ours is asked directly rather than taken from the profile: this device is
             // the same account, so `currentUserID` is the same answer and is available
             // even when a previous device wrote its profile before this field existed.
-            myUserID: await cloud.currentUserID() ?? ours.myUserID,
+            myUserID: (await cloud.currentUserID()) ?? ours.myUserID,
             partnerUserID: theirs.userID,
             outgoingZone: ZoneRef(ours.zoneID),
             // Asked rather than assumed. The share's participants are the source of

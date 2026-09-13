@@ -27,7 +27,7 @@ final class SubscriptionPredicatesTests: XCTestCase {
         assertStructure(SubscriptionPredicates.pairProfile(), matches: NSPredicate(value: true))
     }
 
-    // MARK: - The one predicate that still filters
+    // MARK: - The two predicates that still filter
 
     func testOutgoingAckMatchesOnlyAcknowledged() {
         assertStructure(
@@ -59,23 +59,38 @@ final class SubscriptionPredicatesTests: XCTestCase {
 
     // MARK: - Incoming answered
 
-    /// It filters on `Alert.state`, not `AlertStatus.state`. The two fields are spelled
-    /// the same, so a predicate built from the wrong constant would look right, compile,
-    /// and watch the wrong record type.
-    func testIncomingAnsweredFiltersOnTheAlertStateField() {
-        XCTAssertTrue(
-            SubscriptionPredicates.incomingAnswered()
-                .predicateFormat.contains(Constants.AlertField.state)
+    func testIncomingAnsweredMatchesOnlyAcknowledged() {
+        assertStructure(
+            SubscriptionPredicates.incomingAnswered(),
+            matches: NSPredicate(
+                format: "%K == %@",
+                Constants.AlertField.state, Constants.AlertState.acknowledged.rawValue
+            )
         )
     }
 
-    func testIncomingAnsweredMatchesOnlyAcknowledged() {
+    /// Matching "seen" would fire on the partner's phone merely displaying the alert,
+    /// and this push exists to *remove* a banner — clearing one that is still wanted.
+    func testIncomingAnsweredDoesNotMatchEarlierStates() {
         for state in [Constants.AlertState.sent, .seen] {
-            let record = [Constants.AlertField.state: state.rawValue]
-            XCTAssertFalse(SubscriptionPredicates.incomingAnswered().evaluate(with: record),
-                           "\(state.rawValue) should not fire the banner-clearing push")
+            let record = ["state": state.rawValue]
+            XCTAssertFalse(
+                SubscriptionPredicates.incomingAnswered().evaluate(with: record),
+                "\(state.rawValue) must not clear a banner"
+            )
         }
-        let acked = [Constants.AlertField.state: Constants.AlertState.acknowledged.rawValue]
+    }
+
+    func testIncomingAnsweredMatchesAnAcknowledgedRecord() {
+        let acked = ["state": Constants.AlertState.acknowledged.rawValue]
         XCTAssertTrue(SubscriptionPredicates.incomingAnswered().evaluate(with: acked))
     }
+
+    // Deliberately not asserted here: that this one reads `Alert.state` while
+    // `outgoingAck` reads `AlertStatus.state`. Both constants are the string "state",
+    // so the two predicates are byte-identical and no assertion over `predicateFormat`
+    // can tell them apart. What separates them is the `recordType` passed alongside, at
+    // the subscription rather than in the predicate — so a test here claiming to catch
+    // a swapped constant would pass either way and prove nothing.
 }
+
