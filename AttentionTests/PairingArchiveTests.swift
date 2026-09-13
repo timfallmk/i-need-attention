@@ -224,6 +224,58 @@ final class InboxZoneTests: XCTestCase {
         XCTAssertEqual(InboxZone.storedName, minted)
     }
 
+    // MARK: - The App Group copy the extension reads
+
+    /// The NSE cannot read this process's `UserDefaults`, so the App Group copy is the
+    /// only thing its zone filter can consult — and that filter fails open, which means
+    /// a missing copy costs the protection without costing a banner. Invisible, in other
+    /// words, which is why it is asserted rather than assumed.
+    func testMintingPublishesTheNameToTheAppGroup() {
+        let minted = InboxZone.currentName
+        XCTAssertEqual(SharedSettings.inboxZoneName, minted)
+    }
+
+    func testAdoptingPublishesTheNameToTheAppGroup() {
+        let discovered = InboxZone.namePrefix + "99999999-8888-7777-6666-555555555555"
+        InboxZone.adopt(discovered)
+        XCTAssertEqual(SharedSettings.inboxZoneName, discovered)
+    }
+
+    /// The case that made this worth a test: an install paired before 2.2.0 has a name in
+    /// `UserDefaults` and nothing in the App Group, because minting, adopting and
+    /// clearing are the only writers and an upgrade runs none of them. Reading the name
+    /// has to be enough to repair that, or the filter never engages for an existing
+    /// install.
+    func testReadingTheNameRepairsAnAppGroupCopyThatWasNeverWritten() {
+        let minted = InboxZone.currentName
+        SharedSettings.inboxZoneName = nil
+
+        XCTAssertEqual(InboxZone.storedName, minted)
+        XCTAssertEqual(SharedSettings.inboxZoneName, minted)
+
+        SharedSettings.inboxZoneName = nil
+        XCTAssertEqual(InboxZone.currentName, minted)
+        XCTAssertEqual(SharedSettings.inboxZoneName, minted)
+    }
+
+    /// Reads mirror a name, never the absence of one: blanking the extension's copy is
+    /// `clear()`'s job, and a read path that could do it would be a new way to lose the
+    /// filter rather than a way to keep it.
+    func testReadingNoNameLeavesTheAppGroupCopyAlone() {
+        let stale = InboxZone.namePrefix + "00000000-0000-4000-8000-000000000000"
+        InboxZone.clear()
+        SharedSettings.inboxZoneName = stale
+
+        XCTAssertNil(InboxZone.storedName)
+        XCTAssertEqual(SharedSettings.inboxZoneName, stale)
+    }
+
+    func testClearingRemovesTheAppGroupCopy() {
+        _ = InboxZone.currentName
+        InboxZone.clear()
+        XCTAssertNil(SharedSettings.inboxZoneName)
+    }
+
     /// Adoption is how a second device on one Apple Account stops minting a rival: the
     /// name comes from a zone the account already owns rather than from here.
     func testAdoptPersistsAndIsWhatEverythingElseReads() {
