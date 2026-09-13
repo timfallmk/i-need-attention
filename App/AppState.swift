@@ -111,8 +111,7 @@ final class AppState {
             // so an outstanding invite needs them registered too: the joiner's profile
             // record is what closes the handshake, and its push arrives on the same
             // subscription a completed pair uses.
-            try? await CloudKitService.shared.registerSubscriptions()
-            refreshSubscriptionDiagnostics()
+            await registerSubscriptions()
         }
         // Before anything reads the pairing as live: another device on this Apple ID may
         // have ended it while this one was gone, and the zone it deleted is the one this
@@ -333,15 +332,19 @@ final class AppState {
                 if alert.state == .seen { Haptics.tick() }
                 if alert.state == .acknowledged { Haptics.success() }
             }
-        } else {
+        } else if alert.id.zoneID.zoneName == InboxZone.storedName {
             // Everything else in the zone we own is theirs, and that is a claim about
             // the zone rather than about the sender: only an accepted share participant
-            // can write there, and we are not writing into our own inbox.
+            // can write there, and we are not writing into our own inbox. Since it is a
+            // claim about the zone, the zone is checked rather than assumed — the router
+            // takes the record ID straight from the push, so a subscription left on an
+            // orphaned zone would otherwise deliver a previous pairing's alert here as
+            // if it were current.
             //
-            // It used to test `senderDeviceID == pair.partnerDeviceID`, which silently
-            // dropped an alert sent from the partner's *second* device — no branch, no
-            // log line, no banner. Deciding by zone cannot have that failure, whether or
-            // not either side has an account identity yet.
+            // The rejected case used to be `senderDeviceID == pair.partnerDeviceID`,
+            // which silently dropped an alert sent from the partner's *second* device —
+            // no branch, no log line, no banner. Deciding by zone cannot have that
+            // failure, whether or not either side has an account identity yet.
 
             // A snooze on a *previous* incoming no longer applies, so cancel its pending
             // re-notification before it can fire.
@@ -356,6 +359,13 @@ final class AppState {
             } catch {
                 log.error("markAlertSeen: \(error.localizedDescription)")
             }
+        } else {
+            // Neither ours nor from the zone we own. Logged rather than dropped in
+            // silence: the only way here is a push for a zone this device no longer
+            // uses, which is worth seeing in Console rather than inferring from a
+            // notification that never arrived.
+            let zone = alert.id.zoneID.zoneName
+            log.error("Alert from unexpected zone \(zone, privacy: .public); ignoring")
         }
         pushWatchSnapshot()
     }
@@ -587,6 +597,31 @@ final class AppState {
         // diagnostic flag now so SettingsView reflects the just-attempted save.
         refreshSubscriptionDiagnostics()
         pushWatchSnapshot()
+    }
+
+    /// Set when subscription registration failed, so a foreground can try again.
+    ///
+    /// Every site that registers does it best-effort, and nothing retried until the next
+    /// cold launch — which for an adopted pairing means a device that looks paired,
+    /// reads and writes fine, and never receives a push. Cheap once clear: the retry
+    /// only lists subscriptions while this is set.
+    private var subscriptionsNeedRetry = false
+
+    func registerSubscriptions() async {
+        guard pair != nil || pendingInvite != nil else { return }
+        do {
+            try await CloudKitService.shared.registerSubscriptions()
+            subscriptionsNeedRetry = false
+        } catch {
+            subscriptionsNeedRetry = true
+            log.error("registerSubscriptions: \(error.localizedDescription)")
+        }
+        refreshSubscriptionDiagnostics()
+    }
+
+    func retrySubscriptionsIfNeeded() async {
+        guard subscriptionsNeedRetry else { return }
+        await registerSubscriptions()
     }
 
     /// Mirrors the App-Group flag onto the @Observable property so SwiftUI re-renders.
@@ -992,6 +1027,10 @@ final class AppState {
         guard let adopted = await PairingService.shared.adoptExistingPairing() else { return }
 
         applyPair(adopted)
+        // Immediately rather than at next launch: without it the first alert the partner
+        // sends would arrive silently. Tracked so a transient failure is retried on the
+        // next foreground instead of leaving an apparently-paired device with no pushes.
+        await registerSubscriptions()
         // A fresh install has no name of its own, and the pairing knows the one the
         // partner already sees. Only fill a blank — never overwrite a name the user has
         // typed on this device.

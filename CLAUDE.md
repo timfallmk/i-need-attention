@@ -221,6 +221,9 @@ Two things deliberately not built, both in `docs/multi-device-plan.md`:
   minting rival zones; it does not fix two that already did, because both have a stored name
   whose zone exists and so both resolve as healthy. `Settings → Diagnostics` reports
   "Inbox zones owned" so the state is visible at all, and the fix is to pair again once.
+  The same row covers the one race that can still produce it: a second device whose pair
+  key has not synced yet shows the pairing screen, and tapping Show Code rather than
+  waiting mints a rival zone. See `docs/multi-device-plan.md` → "Known residual".
 
 ### Watch
 

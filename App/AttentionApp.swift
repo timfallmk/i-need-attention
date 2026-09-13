@@ -72,9 +72,14 @@ struct AttentionApp: App {
                 Task {
                     await appState.refreshICloudStatus()
                     await appState.refreshNotificationStatus()
-                    await appState.reconcilePendingInvite()
+                    // Before `reconcilePendingInvite`, which can reach
+                    // `completeInviterPairing` → `ensureInboxZone` and rotate a vanished
+                    // name away — destroying the evidence that it vanished. `bootstrap`
+                    // already runs them in this order.
                     await appState.endPairingIfOurZoneIsGone()
+                    await appState.reconcilePendingInvite()
                     await appState.adoptPairingFromThisAccount()
+                    await appState.retrySubscriptionsIfNeeded()
                     await appState.reconcileHalfFormedPair()
                     await appState.refreshPartnerProfile()
                     await appState.reconcileLatestAlert()
