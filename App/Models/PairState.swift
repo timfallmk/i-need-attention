@@ -80,6 +80,10 @@ struct PairState: Codable, Equatable {
         /// That is what lets this ship without a storage version bump.
         var myUserID: String?
         var partnerUserID: String?
+
+        /// Which pair key this blob belongs to — see `load()`. Absent on blobs written
+        /// before this, which decode as nil and are accepted; the next save adds one.
+        var pairKeyFingerprint: String?
     }
 
     /// Returns nil when the keychain has no key for a stored pairing. Real causes are
@@ -92,6 +96,20 @@ struct PairState: Codable, Equatable {
         guard let data = UserDefaults.standard.data(forKey: storageKey),
               let stored = try? JSONDecoder().decode(Stored.self, from: data),
               let pairKey = PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) else {
+            return nil
+        }
+        // The two halves are stored apart and only one of them is account-wide, so
+        // nothing else stops them coming from different pairings. A device that was away
+        // while the person unpaired and paired again finds its own stale blob beside the
+        // *new* key, and without this would load a pairing that names the old partner
+        // and the old zone while holding the key to neither. Every use of that state is
+        // wrong, and some of them write.
+        //
+        // Only checked when the blob carries a fingerprint. One written before this does
+        // not, and is trusted until the next save adds one — which the account-identity
+        // backfill does on the first foreground after upgrading.
+        if let expected = stored.pairKeyFingerprint,
+           expected != PairCrypto.lookupHash(pairKey: pairKey) {
             return nil
         }
         return PairState(
@@ -120,7 +138,8 @@ struct PairState: Codable, Equatable {
             outgoingZone: outgoingZone,
             partnerCanReach: partnerCanReach,
             myUserID: myUserID,
-            partnerUserID: partnerUserID
+            partnerUserID: partnerUserID,
+            pairKeyFingerprint: PairCrypto.lookupHash(pairKey: pairKey)
         )
         guard let data = try? JSONEncoder().encode(stored),
               PairSecrets.store.setSecret(pairKey, for: Constants.Keychain.pairKeyAccount) else {

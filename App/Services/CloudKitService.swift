@@ -63,10 +63,18 @@ final class CloudKitService: @unchecked Sendable {
     /// launch over — a record written without it falls back to the device identity, and
     /// the next write picks it up.
     func currentUserID() async -> String? {
-        if let cached = cachedUserID.value { return cached }
+        // The write-through happens on both paths, not just the slow one. `DataErasure`
+        // clears `AccountIdentity.id` but cannot reach this in-process cache, so an erase
+        // followed by a re-pair without relaunching would take `myUserID` from the cache
+        // while leaving the durable copy nil — and closed-pairing history would then fall
+        // back to a device ID the erase had just reset.
+        if let cached = cachedUserID.value {
+            AccountIdentity.id = cached
+            return cached
+        }
         guard let recordID = try? await container.userRecordID() else { return nil }
         cachedUserID.set(recordID.recordName)
-        // Write through, so the history sheet can ask the same question without awaiting.
+        // So the history sheet can ask the same question without awaiting.
         AccountIdentity.id = recordID.recordName
         return recordID.recordName
     }

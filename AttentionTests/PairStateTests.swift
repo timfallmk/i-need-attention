@@ -113,6 +113,37 @@ final class PairStateTests: XCTestCase {
         XCTAssertFalse(state.isMine(senderUserID: "_them", senderDeviceID: "iphone"))
     }
 
+    // MARK: - The blob and the key have to belong together
+
+    /// The two halves are stored apart and only the key is account-wide, so nothing else
+    /// stops them coming from different pairings. This is what a device that was away
+    /// while its person unpaired and paired again comes back to: its own stale blob, and
+    /// the new pairing's key beside it. Loading that would name the old partner and the
+    /// old zone while holding the key to neither.
+    func testAPairingDoesNotLoadAgainstADifferentKey() {
+        XCTAssertTrue(makePairState(pairKey: "key-one").save())
+        XCTAssertNotNil(PairState.load())
+
+        secrets.setSecret("key-two", for: Constants.Keychain.pairKeyAccount)
+        XCTAssertNil(PairState.load())
+    }
+
+    func testAPairingStillLoadsAgainstItsOwnKey() {
+        XCTAssertTrue(makePairState(pairKey: "key-one").save())
+        secrets.setSecret("key-one", for: Constants.Keychain.pairKeyAccount)
+        XCTAssertNotNil(PairState.load())
+    }
+
+    /// A blob written before the fingerprint existed carries none, and has to keep
+    /// loading — the check is additive, not a version bump. The next save adds one.
+    func testABlobWithoutAFingerprintIsTrusted() {
+        let legacy = #"{"myDeviceID":"device-A","myName":"Alice","partnerDeviceID":"device-B","partnerName":"Bob","partnerCanReach":false}"#
+        UserDefaults.standard.set(Data(legacy.utf8), forKey: PairState.storageKey)
+        secrets.setSecret("any-key-at-all", for: Constants.Keychain.pairKeyAccount)
+
+        XCTAssertNotNil(PairState.load())
+    }
+
     // MARK: - Equatable
 
     func testPairStatesWithSameFieldsAreEqual() {

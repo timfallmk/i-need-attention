@@ -186,12 +186,18 @@ final class AppState {
                 try? await UNUserNotificationCenter.current().setBadgeCount(0)
                 // The same sweep `handleAnsweredElsewhere` does, for the case its silent
                 // push cannot reach: a force-quit app is never woken by one, so a device
-                // closed when the alert was answered elsewhere still has the banner when
-                // it next opens — and may have older ones behind it, since a coalesced
-                // push can leave several. Every one of them is stale under this
-                // condition, which is the same one that clears the badge: the newest
-                // incoming alert is answered or absent, so nothing is still waiting.
-                await LocalNotifications.removeDeliveredAlerts()
+                // closed when the alert was answered elsewhere still has that banner when
+                // it next opens.
+                //
+                // Only this record's, deliberately. Clearing the whole category would
+                // also take a banner that is still wanted: `fetchMostRecentIncoming`
+                // returns the newest alert by creation date, and its being acknowledged
+                // says nothing about an older one that is still `sent`. Removing a
+                // notification the user has not answered is a worse failure than leaving
+                // a stale one they have.
+                if let answered = incoming {
+                    await LocalNotifications.removeDelivered(matchingRecordName: answered.id.recordName)
+                }
             }
         } catch {
             // Either fetch can raise this, and only one of them means anything: our own
