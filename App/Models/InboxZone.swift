@@ -11,11 +11,24 @@ import Foundation
 ///
 /// So unpairing deletes the zone (after `AppState.unpair` has archived it locally) and
 /// rotates this value; the next pairing starts empty. There is deliberately no fixed
-/// fallback name: a name only ever comes into existence here, which means there is no
-/// second path by which two pairings could end up sharing a zone.
+/// fallback name: a name is either minted here or adopted from a zone this Apple ID
+/// already owns, and `adopt` will only take a zone the current pair key can open — so
+/// there is still no path by which two *pairings* end up sharing a zone.
+///
+/// Per-pairing is not the same as per-install, and the difference is the whole of #68.
+/// Several devices signed into one Apple ID share one private database, one pair key and
+/// one pairing, so they must share one zone; discovery is how the second device finds the
+/// first one's instead of minting a rival that would then fight it over the
+/// account-wide subscriptions.
 enum InboxZone {
     private static let storageKey = "attention.inboxZone.v1"
     private static let lock = NSLock()
+
+    /// Every name this app has ever minted starts with this, which is what makes a zone
+    /// belonging to this app distinguishable from anything else in the private database.
+    /// `CloudKitService.resolveInboxZone` needs that to find the zone a *different*
+    /// device on the same Apple ID already owns, instead of minting a rival one.
+    static let namePrefix = "attention-inbox-"
 
     /// Minted on first use and persisted. The mint is behind a lock because this is
     /// reached from `CloudKitService`, which is not actor-isolated: two concurrent
@@ -26,6 +39,27 @@ enum InboxZone {
         defer { lock.unlock() }
         if let stored = UserDefaults.standard.string(forKey: storageKey) { return stored }
         return mintLocked()
+    }
+
+    /// The stored name, without minting one. The difference from `currentName` matters
+    /// in exactly one place and it is load-bearing: a device that has not yet synced the
+    /// pair key must be able to ask "do I have a zone?" and get "no" rather than silently
+    /// becoming the owner of a second one.
+    static var storedName: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return UserDefaults.standard.string(forKey: storageKey)
+    }
+
+    /// Takes over a zone this Apple ID already owns, found by discovery rather than
+    /// minted here. Only `CloudKitService.resolveInboxZone` calls it, and only for a zone
+    /// whose `PairProfile` opened under the pair key this account currently holds — the
+    /// prefix alone is not enough, because a failed teardown can leave a previous
+    /// pairing's zone behind under the same prefix.
+    static func adopt(_ name: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        UserDefaults.standard.set(name, forKey: storageKey)
     }
 
     /// Called on the far side of an unpair. Returns the new name.
@@ -70,7 +104,7 @@ enum InboxZone {
 
     /// Caller holds `lock`.
     private static func mintLocked() -> String {
-        let name = "attention-inbox-" + UUID().uuidString.lowercased()
+        let name = namePrefix + UUID().uuidString.lowercased()
         UserDefaults.standard.set(name, forKey: storageKey)
         return name
     }

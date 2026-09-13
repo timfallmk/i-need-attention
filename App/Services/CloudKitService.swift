@@ -119,8 +119,12 @@ final class CloudKitService: @unchecked Sendable {
 
     /// The inbox zone this device owns — where the partner's alerts to us land. The
     /// name is per-pairing (see `InboxZone`), so this is a lookup rather than a constant.
+    ///
+    /// Mints a name if none is stored, so it is for callers that already know a pairing
+    /// exists. Anything that runs before or outside one wants `resolveInboxZone`, which
+    /// comes back nil instead of quietly making this device the owner of a second zone.
     static var inboxZoneID: CKRecordZone.ID {
-        CKRecordZone.ID(zoneName: InboxZone.currentName, ownerName: CKCurrentUserDefaultName)
+        zoneID(named: InboxZone.currentName)
     }
 
     /// Which database a zone is reached through. Our own inbox zone is in the private
@@ -406,7 +410,7 @@ final class CloudKitService: @unchecked Sendable {
     // MARK: - Subscriptions
 
     /// Registers (idempotently) the four query subscriptions this app needs, all of them
-    /// on this device's own inbox zone in the private database:
+    /// on the inbox zone this *account* owns, in the private database:
     ///  - Incoming alerts: visible alert push when the partner sends.
     ///  - Outgoing status: silent push when the partner leaves a status notice.
     ///  - Outgoing ack: visible alert push for the notice that says they acknowledged,
@@ -426,7 +430,15 @@ final class CloudKitService: @unchecked Sendable {
     /// Settings → Diagnostics row says so rather than the banner just never arriving.
     /// Throws only when nothing saved at all.
     func registerSubscriptions() async throws {
-        let zoneID = try await ensureInboxZone()
+        // Resolve rather than ensure: this runs at every launch, and a device that has
+        // no zone to resolve — a second device whose pair key has not synced yet — must
+        // not answer that by creating one. See `resolveInboxZone`. There is nothing to
+        // subscribe to either way, so returning is the whole handling; the next
+        // foreground tries again.
+        guard let zoneID = try await resolveInboxZone() else {
+            log.notice("no inbox zone to subscribe to yet")
+            return
+        }
         let existing = try await privateDB.allSubscriptions()
 
         // Existing is not the same as usable. The four subscription IDs are constants
@@ -435,6 +447,12 @@ final class CloudKitService: @unchecked Sendable {
         // Matching on ID alone would find them all present, save nothing, and leave a
         // pair that looks healthy and never pushes. Only a subscription watching the
         // zone we own right now counts; the rest are deleted in the same operation.
+        //
+        // This is also why the zone above has to be *resolved* rather than minted. Two
+        // devices on one Apple ID share this database, so if they disagreed about which
+        // zone is theirs, each would arrive here and retire the other's subscriptions as
+        // stale — #68, and silent on both sides. Agreeing on the zone is what makes this
+        // block safe to keep: it still only ever retires a previous *pairing*.
         var live = Set<String>()
         var stale: [String] = []
         for subscription in existing where Constants.SubscriptionID.all.contains(subscription.subscriptionID) {
@@ -553,7 +571,10 @@ final class CloudKitService: @unchecked Sendable {
     /// Best effort — this feeds the diagnostics export, which matters most precisely when
     /// CloudKit isn't working, so a failure reports "unknown" rather than blocking.
     func subscriptionStates() async -> [DiagnosticsReport.SubscriptionState] {
-        let zoneID = Self.inboxZoneID
+        // Non-minting: a diagnostics screen is the last place that should bring a zone
+        // name into existence. With no name stored, nothing can match and every row
+        // reports its real state of "not watching the zone we own".
+        let zoneID = InboxZone.storedName.map(Self.zoneID(named:))
         let existing = (try? await privateDB.allSubscriptions()) ?? []
         let byID = Dictionary(
             existing.map { ($0.subscriptionID, $0) },
@@ -563,7 +584,7 @@ final class CloudKitService: @unchecked Sendable {
             guard let subscription = byID[id] else {
                 return DiagnosticsReport.SubscriptionState(id: id, status: .missing)
             }
-            let matches = (subscription as? CKQuerySubscription)?.zoneID == zoneID
+            let matches = zoneID != nil && (subscription as? CKQuerySubscription)?.zoneID == zoneID
             return DiagnosticsReport.SubscriptionState(id: id, status: matches ? .ok : .staleZone)
         }
     }
