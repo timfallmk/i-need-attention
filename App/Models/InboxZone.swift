@@ -26,8 +26,8 @@ enum InboxZone {
 
     /// Every name this app has ever minted starts with this, which is what makes a zone
     /// belonging to this app distinguishable from anything else in the private database.
-    /// `CloudKitService.resolveInboxZone` needs that to find the zone a *different*
-    /// device on the same Apple ID already owns, instead of minting a rival one.
+    /// `CloudKitService.adoptableInboxZone` needs that to find the zone a *different*
+    /// device on the same Apple Account already owns, instead of minting a rival one.
     static let namePrefix = "attention-inbox-"
 
     /// Minted on first use and persisted. The mint is behind a lock because this is
@@ -52,10 +52,10 @@ enum InboxZone {
     }
 
     /// Takes over a zone this Apple ID already owns, found by discovery rather than
-    /// minted here. Only `CloudKitService.resolveInboxZone` calls it, and only for a zone
-    /// whose `PairProfile` opened under the pair key this account currently holds — the
-    /// prefix alone is not enough, because a failed teardown can leave a previous
-    /// pairing's zone behind under the same prefix.
+    /// minted here. Reached through `CloudKitService.adoptInboxZone(named:)`, and only
+    /// for a zone whose `PairProfile` opened under the pair key this account currently
+    /// holds — the prefix alone is not enough, because a failed teardown can leave a
+    /// previous pairing's zone behind under the same prefix.
     static func adopt(_ name: String) {
         lock.lock()
         defer { lock.unlock() }

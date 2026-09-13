@@ -54,6 +54,22 @@ enum LocalNotifications {
     /// Two callers: snoozing, which dismisses the banner it replaces, and an alert
     /// answered on another of this person's devices, which is the only way that device
     /// can reach this one's notification centre.
+    /// Clears every delivered alert banner, for the case where the record names are not
+    /// worth enumerating because all of them are stale: the caller has established that
+    /// the newest incoming alert is answered or gone, so nothing behind it is waiting.
+    ///
+    /// Scoped by category so it takes only this app's alert banners — the sender-side
+    /// "they got back to you" notices use a different one and are swept separately.
+    static func removeDeliveredAlerts() async {
+        let center = UNUserNotificationCenter.current()
+        let delivered = await center.deliveredNotifications()
+        let ids = delivered
+            .filter { $0.request.content.categoryIdentifier == Constants.NotificationAction.category }
+            .map(\.request.identifier)
+        guard !ids.isEmpty else { return }
+        center.removeDeliveredNotifications(withIdentifiers: ids)
+    }
+
     static func removeDelivered(matchingRecordName recordName: String) async {
         let center = UNUserNotificationCenter.current()
         let delivered = await center.deliveredNotifications()
