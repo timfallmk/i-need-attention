@@ -590,6 +590,11 @@ private struct ScanCodeView: View {
             }
             .padding(.bottom, 16)
         }
+        // Applied inside the overlay below, not outside it: the "Pairing…" dimmer is
+        // meant to cover the whole screen and ignores the safe area to do it, so capping
+        // its width would letterbox the one thing that should not be.
+        .scrollsWhenTight()
+        .readableWidth()
         .overlay {
             if working {
                 Color.black.opacity(0.35).ignoresSafeArea()
