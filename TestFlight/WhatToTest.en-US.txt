@@ -1,31 +1,31 @@
-2.1 adds four things that have never run on a real device, only in CI. That is what this build is for. No re-pairing this time, and nothing about where your data lives has changed.
+2.2 is about one thing: several devices belonging to the same person. Sign in on your iPad as well as your phone and both should work, with no second QR scan and no re-pairing. You do not need to re-pair for this build.
 
-The app is now called Attention on the home screen. The App Store listing keeps the longer name; iOS was squashing it to "PleaseGive…" under the icon.
+One word changes meaning, and it is the destructive one. UNPAIRING IS NOW ACCOUNT-WIDE. It always was, underneath — the storage it deletes belongs to your Apple Account, not to one phone — but the button used to say "Unpair this phone", which was a lie. Unpair on any device and you are unpaired on all of them. The confirmation now says so.
 
 WHAT TO TRY
 
-1. Try it without a partner. On the pairing screen there is a new "Try it without a partner". It runs a self-contained demo: a scripted partner called Sam, nothing sent, nothing stored. Press the button and the status should go Sent, then Seen, then acknowledged. A few seconds in, an alert should arrive from Sam so you can answer it with an emoji. Tap Exit and you should land back on the pairing screen with everything as it was.
+1. Sign in on a second device. Any device signed in to the same Apple Account: your iPad, an old phone, anything. Install this build and open it. It should come up ALREADY PAIRED, with your partner's name and your history, without asking you to scan anything. If it shows the pairing screen instead, that is the single most important thing you could report.
 
-   To reach it you have to be unpaired, so do this on a spare device or before you re-pair.
+   Give iCloud Keychain a moment before deciding. The second device needs the pairing key to sync over, and that is not instant. If it shows the pairing screen, wait a minute and reopen the app before reporting it.
 
-   Your watch will say "Not paired" throughout, which is correct — the demo is not a pairing. Nothing to check there.
+2. Send and receive from both. Press the button from the iPad, then from the phone. Your partner should get one alert either way, and it should look the same to them. Then have your partner send you one.
 
-2. Deny the camera, then scan. Settings, Attention, Camera, off. Now tap Scan Code. You should get an explanation and an Open Settings button, not a black rectangle. Turn the camera back on and return to the app — the screen should notice by itself and show the scanner without you tapping anything.
+   THIS IS THE PART I MOST WANT REPORTED: does the alert arrive on BOTH your devices, or only one? This is the thing that could not be tested before shipping — it needs two real devices on one account, and it is the assumption everything else rests on.
 
-3. Erase all my data. Do this LAST, and only if you are willing to lose the pairing and the history on that phone, because it is not reversible. Settings, bottom, Erase all my data. It should take you back to pairing with no history, no partner, and your name cleared. Your partner's phone should then show the same "they ended it" note as in 4 — erasing removes the storage they write into, so from their side it looks like an unpair, which is exactly what it is. Their own history stays on their phone.
+3. Answer on one, watch the other. With an alert showing on both your devices, answer it on one of them. The banner on the OTHER one should disappear by itself within a few seconds. It should not sit there waiting to be swiped away.
 
-4. Unpairing now tells the other person. This used to be the worst rough edge in 2.0: if one of you unpaired, the other phone carried on showing the button and every send failed with a useless error, forever. Have one of you unpair. The other should end up back at the pairing screen with a note saying the partner ended it and that nothing went wrong — either when they next press the button, or when they next open the app.
+4. Unpair, and watch the other devices. Do this LAST — it ends the pairing for both of you. Unpair from one device. Your other device should return to the pairing screen with a note saying it was unpaired from another device. Your partner's phone should say they were unpaired by you. Nobody should end up on a pairing screen with no explanation.
 
-   It should NOT say this if you simply go offline, or turn airplane mode on, or sign out of iCloud. Being unable to reach your partner is not the same as them leaving, and the app is supposed to tell those apart. If a flaky connection ever unpairs you, that is the most important thing you could report.
-
-ALSO WORTH A LOOK
-
-5. Settings, Open Source. Two entries, Unicode Emoji Data and Notification Sound.
-
-6. Normal use. Send, acknowledge, snooze, rename yourself. None of it changed, so anything that behaves differently from 2.0 is a bug.
+5. Normal use. Send, acknowledge, snooze, rename yourself. None of it changed, so anything that behaves differently from 2.1 is a bug.
 
 KNOWN ROUGH EDGES
 
-- The demo's snooze shows the pill flipping to Snoozed but never re-notifies you. That is deliberate — a reminder about a partner who doesn't exist, arriving an hour after you left the demo, would be worse.
+- Just after you send, the status can briefly read "All quiet" instead of "Sent". The alert was sent and your partner will get it; only the pill is wrong, and it corrects itself. Already logged.
 
-- Detection of your partner unpairing (4 above) is driven by the next failure rather than by a live signal, so it happens when you next send or open the app, not the instant they leave.
+- The pairing screen may show a blank name field even though the app knows your name. Type it again; nothing is lost. Already logged.
+
+- Settings, Diagnostics may show "Inbox zones: 3 (1 in use, rest abandoned)" or similar. As long as it says 1 in use, that is fine and cosmetic. If it ever says EXPECTED 1, RE-PAIR TO FIX, that one is real and worth reporting.
+
+- Detection of your partner unpairing still happens when you next send or open the app, rather than the instant they leave. Unchanged from 2.1.
+
+- Answering from a snoozed reminder was broken during development and is fixed here, but has only been tested in a simulator. If you snooze an alert and then answer it from the reminder that arrives later, check your partner actually sees the answer.
