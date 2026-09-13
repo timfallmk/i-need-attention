@@ -33,8 +33,8 @@ anyone can make.</p>
 
 <h2>What the app is</h2>
 
-<p>Two people pair their phones by scanning a QR code in person. Either can then press a
-button, and the other's phone shows a notification. The other person can acknowledge it.
+<p>Two people pair their devices by scanning a QR code in person. Either can then press a
+button, and the other's device shows a notification. The other person can acknowledge it.
 That is the entire product, and it is the reason the data involved is so small.</p>
 
 <h2>Where your data lives</h2>
@@ -53,7 +53,7 @@ policy</a> applies to that layer.</p>
 
 <p>Before anything is written to iCloud, the human-readable parts are encrypted on your
 device with ChaCha20-Poly1305, under a key derived (HKDF-SHA256) from a secret created
-when you paired. That secret exists only on the two paired phones. It travels once, in
+when you paired. That secret exists only on the paired devices. It travels once, in
 the QR code you scan in person, and is never sent to any server.</p>
 
 <div class="tablewrap">
@@ -80,7 +80,7 @@ your identity anywhere.</p>
 <div class="callout">
 <p><strong>The honest limit.</strong> Encryption protects your content from the storage
 provider. It does not protect you from the other person, who by design can read
-everything you send them; nor from someone who has unlocked access to either phone,
+everything you send them; nor from someone who has unlocked access to either device,
 since the key is on both. In a two-person app that is the right place for the boundary,
 but it is a boundary, and you should know where it sits.</p>
 </div>
@@ -88,7 +88,7 @@ but it is a boundary, and you should know where it sits.</p>
 <h2>Notifications</h2>
 
 <p>Notifications are delivered through Apple Push Notification service. To receive them
-your device registers a push token with Apple. The notification your phone receives is
+your device registers a push token with Apple. The notification your device receives is
 decrypted on your device, not in transit — Apple delivers a signal, and the app fetches
 and unlocks the content locally.</p>
 
@@ -101,7 +101,7 @@ It is never uploaded anywhere.</li>
 cooldown length.</li>
 <li><strong>The pairing key</strong>, in the iOS Keychain. If you have iCloud Keychain
 enabled, iOS may sync it to your other Apple devices, as it does with saved passwords.
-This is deliberate: without it, restoring a phone from backup would leave you unable to
+This is deliberate: without it, restoring a device from backup would leave you unable to
 read your own history.</li>
 <li><strong>Stability data.</strong> If iOS reports that the app crashed or froze, the
 app keeps a count and the short reason text the operating system supplies. Call stacks
