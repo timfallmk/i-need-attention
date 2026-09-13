@@ -62,6 +62,26 @@ extension View {
     func windowControlsInset() -> some View {
         modifier(WindowControlsInset())
     }
+
+    /// Scrolls when the content is taller than the space it is given, and otherwise
+    /// leaves it exactly as it was.
+    ///
+    /// A `VStack` taller than its container overflows *symmetrically*, so the excess goes
+    /// up past the safe area as well as down — which is how the main screen's title ended
+    /// up underneath the macOS window title bar. Every full-screen layout here is a stack
+    /// of fixed-height pieces separated by `Spacer`s, so every one of them has this shape
+    /// once a window gets short enough.
+    ///
+    /// The unscrolled variant stays first deliberately: inside a `ScrollView` the
+    /// `Spacer`s collapse to nothing and the content bunches against the top, which is
+    /// wrong on every phone and in any window with room to spare. Scrolling is the
+    /// fallback for the case that would otherwise overflow, not the default.
+    func scrollsWhenTight() -> some View {
+        ViewThatFits(in: .vertical) {
+            self
+            ScrollView { self }
+        }
+    }
 }
 
 private struct WindowControlsInset: ViewModifier {

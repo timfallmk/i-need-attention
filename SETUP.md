@@ -1,14 +1,21 @@
 # Setup Checklist
 
-Exact step-by-step from zero to two paired phones running the app via TestFlight. Do these in order.
+Exact step-by-step from zero to two paired devices running the app via TestFlight. Do these in
+order. The walkthrough says "phones" throughout because that is the ordinary case and the
+steps read better for it — but from 2.2.0 either end can be an iPad, or a Mac or Vision Pro
+running the iPad build, and nothing in the pairing steps changes. See §7b for which
+destinations are offered.
 
 ## 0. Prerequisites
 
 - [ ] Mac with **Xcode 15+** installed
 - [ ] **Apple Developer Program** membership ($99/yr) — required for CloudKit, push, App Groups, TestFlight
-- [ ] Both target **iPhones on iOS 17+**, signed in to their own Apple IDs
+- [ ] Both target devices on **iOS 17+ / iPadOS 17+**, signed in to their own Apple IDs — two
+      iPhones, or an iPhone and an iPad; several devices on *one* Apple Account pair once and
+      are then all paired, so the two here means two people, not two pieces of hardware
 - [ ] Both Apple IDs (or just yours, if you're inviting your partner as an external tester) accessible to add as TestFlight testers
-- [ ] Optional: Apple Watch on watchOS 10+ paired to phone A and/or B
+- [ ] Optional: Apple Watch on watchOS 10+ paired to phone A and/or B. Genuinely phone-only —
+      a watch pairs to an iPhone, and the app degrades quietly on a device that has none
 - [ ] Install XcodeGen: `brew install xcodegen`
 
 ## 1. Get the code and pick a bundle prefix

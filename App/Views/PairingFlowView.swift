@@ -181,6 +181,7 @@ struct PairingFlowView: View {
 
             Spacer()
         }
+        .scrollsWhenTight()
         .readableWidth()
     }
 }
@@ -404,6 +405,8 @@ private struct ShowCodeView: View {
             }
             .padding(.bottom, 16)
         }
+        .scrollsWhenTight()
+        .readableWidth()
         .task {
             await start()
         }

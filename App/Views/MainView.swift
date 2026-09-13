@@ -19,19 +19,9 @@ struct MainView: View {
         ZStack {
             backdrop.ignoresSafeArea()
 
-            // Once an incoming alert adds its pill and its action row, the stack is
-            // taller than a short window — and a VStack that overflows does so
-            // symmetrically, pushing the top bar up past the safe area and under the
-            // macOS title bar. Scrolling is the honest answer.
-            //
-            // The unscrolled variant stays first so Spacers keep distributing on a tall
-            // screen, which is every phone and most of the time: inside a ScrollView they
-            // collapse to nothing and the content would bunch at the top.
-            ViewThatFits(in: .vertical) {
-                mainStack
-                ScrollView { mainStack }
-            }
-            .readableWidth()
+            mainStack
+                .scrollsWhenTight()
+                .readableWidth()
         }
         // Self-guards and returns immediately once both directions are live, so this is
         // a no-op for every launch but the one right after pairing.
