@@ -169,20 +169,41 @@ extension CloudKitService {
         return await zoneIsMissing(Self.zoneID(named: stored))
     }
 
-    /// How many inbox zones this Apple Account owns. One is healthy; more than one is
-    /// #68 in its original form, and until now nothing anywhere could see it.
+    /// How many inbox zones this Apple Account owns, and how many of them are usable.
     ///
-    /// Two installs that each minted a zone *before* 2.2.0 both come up with a stored
-    /// name whose zone exists, so both resolve as fine and go on retiring each other's
-    /// subscriptions — discovery prevents the state, it does not repair it. Repairing it
-    /// means deciding which zone is the real one and moving a live pairing onto it, which
-    /// is not something to do untested on a hunch, so this only reports. The fix for an
-    /// affected pair is to pair again once; `SETUP.md` says so.
+    /// The second number is the one that means anything. Counting prefixed zones alone
+    /// would report the orphan `tearDownInboxZone` deliberately leaves behind when a
+    /// delete fails as if it were the #68 collision — and tell the person to re-pair,
+    /// which cannot clear an orphan and only adds a third zone. Advice that cannot work
+    /// is worse than no row at all.
     ///
-    /// Nil rather than zero when the listing fails: "can't tell" must not read as "none".
-    func ownedInboxZoneCount() async -> Int? {
-        guard let owned = try? await privateDB.allRecordZones() else { return nil }
-        return owned.filter { $0.zoneID.zoneName.hasPrefix(InboxZone.namePrefix) }.count
+    /// Usable means the same thing it means to adoption: a `PairProfile` that opens
+    /// under the pair key this account currently holds. A zone from an ended pairing is
+    /// sealed under a key that no longer exists and does not count; two that both open
+    /// are two live pairings, which is exactly the state worth shouting about.
+    ///
+    /// Nil rather than zero when the listing or the key is unavailable: "can't tell"
+    /// must not read as "none".
+    func inboxZoneCensus() async -> (owned: Int, usable: Int)? {
+        guard let pairKey = PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) else {
+            return nil
+        }
+        guard let zones = try? await privateDB.allRecordZones() else { return nil }
+
+        let owned = zones.map(\.zoneID.zoneName).filter { $0.hasPrefix(InboxZone.namePrefix) }
+        var usable = 0
+        for name in owned {
+            let recordID = CKRecord.ID(recordName: Constants.Profile.recordName,
+                                       zoneID: Self.zoneID(named: name))
+            guard let record = try? await privateDB.record(for: recordID),
+                  PairCrypto.opened(record[Constants.Profile.nameSealed] as? Data,
+                                    pairKey: pairKey,
+                                    field: Constants.Profile.nameSealed) != nil else {
+                continue
+            }
+            usable += 1
+        }
+        return (owned.count, usable)
     }
 
     static func zoneID(named name: String) -> CKRecordZone.ID {

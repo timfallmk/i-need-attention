@@ -588,6 +588,13 @@ final class AppState {
         partnerEndedPairing = false
         UnpairedElsewhereNotice.happened = false
         pairingEndedOnAnotherDevice = false
+        // Optimistic, and cleared by the first successful registration. The QR pairing
+        // paths register inside `PairingService` with their own best-effort handling, so
+        // a transient failure there would never reach the retry flag — and the newly
+        // paired device would receive nothing until it was relaunched. Setting it here
+        // costs one subscription listing on the next foreground, which finds them live
+        // and saves nothing.
+        subscriptionsNeedRetry = true
         // Completing a pair consumes any pending invite (the service layer clears the
         // persisted copy); re-sync the observable mirror.
         self.pendingInvite = PendingInvite.load()

@@ -236,39 +236,43 @@ final class DiagnosticsReportTests: XCTestCase {
         XCTAssertFalse(text.contains("STALE ZONE"))
     }
 
-    // MARK: - Inbox zone count
+    // MARK: - Inbox zone census
 
-    /// The one line that makes an already-broken #68 pairing visible. It has to be loud
-    /// and it has to distinguish "none found" from "could not look": a failed listing
-    /// reading as zero would accuse a healthy install.
-    func testInboxZoneCountRendersUnknownWhenTheListingFailed() {
+    private func census(owned: Int?, usable: Int?) -> String {
         var report = makeReport()
-        report.ownedInboxZones = nil
-        XCTAssertTrue(report.render().contains("Inbox zones owned: unknown"))
+        report.ownedInboxZones = owned
+        report.usableInboxZones = usable
+        return report.render()
     }
 
-    /// Zero is the ordinary state before a first pairing and after an unpair. Shouting
-    /// at every unpaired user would make the row noise, and noise is how a real one gets
-    /// ignored.
-    func testInboxZoneCountIsQuietWhenThereAreNone() {
-        var report = makeReport()
-        report.ownedInboxZones = 0
-        let text = report.render()
-        XCTAssertTrue(text.contains("Inbox zones owned: 0"))
+    /// A failed listing must not read as "none" — the whole row exists to accuse, and an
+    /// accusation from missing data is worse than no row.
+    func testCensusIsUnknownWhenEitherNumberIsMissing() {
+        XCTAssertTrue(census(owned: nil, usable: nil).contains("Inbox zones: unknown"))
+        XCTAssertTrue(census(owned: 2, usable: nil).contains("Inbox zones: unknown"))
+        XCTAssertTrue(census(owned: nil, usable: 1).contains("Inbox zones: unknown"))
+    }
+
+    /// Zero is ordinary before a first pairing and after an unpair; one is healthy.
+    func testCensusIsQuietForNoneOrOne() {
+        for count in 0...1 {
+            let text = census(owned: count, usable: count)
+            XCTAssertTrue(text.contains("Inbox zones: \(count)"))
+            XCTAssertFalse(text.contains("RE-PAIR"), "\(count) zones should not accuse")
+        }
+    }
+
+    /// Two *usable* zones is the #68 collision, and the only case that earns the shout.
+    func testCensusShoutsAtTwoUsableZones() {
+        let text = census(owned: 2, usable: 2)
+        XCTAssertTrue(text.contains("Inbox zones: 2 (2 in use) — EXPECTED 1, RE-PAIR TO FIX"))
+    }
+
+    /// A healthy zone beside an orphan from a failed teardown. Re-pairing cannot clear
+    /// an orphan — it only adds a third — so this must report without giving that advice.
+    func testCensusReportsAnOrphanWithoutTellingAnyoneToRePair() {
+        let text = census(owned: 2, usable: 1)
+        XCTAssertTrue(text.contains("Inbox zones: 2 (1 in use, rest abandoned)"))
         XCTAssertFalse(text.contains("RE-PAIR"))
-    }
-
-    func testInboxZoneCountIsQuietWhenThereIsExactlyOne() {
-        var report = makeReport()
-        report.ownedInboxZones = 1
-        let text = report.render()
-        XCTAssertTrue(text.contains("Inbox zones owned: 1"))
-        XCTAssertFalse(text.contains("RE-PAIR"))
-    }
-
-    func testInboxZoneCountShoutsWhenTheAccountOwnsMoreThanOne() {
-        var report = makeReport()
-        report.ownedInboxZones = 2
-        XCTAssertTrue(report.render().contains("Inbox zones owned: 2 — EXPECTED 1, RE-PAIR TO FIX"))
     }
 }

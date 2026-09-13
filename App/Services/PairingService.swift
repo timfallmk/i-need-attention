@@ -34,14 +34,13 @@ final class PairingService {
     /// is cancelled first — which revokes its share — so "renew" is just a new invite,
     /// and the old QR code stops working rather than lingering as a live credential.
     func startInviting(myName: String) async throws -> PairingInvite {
-        // Asked before cancelling, because cancelling destroys the evidence.
-        let zoneIsOurs = ownsStoredInboxZone()
         if let previous = PendingInvite.load() {
             guard await cancelInvite(previous) else {
                 throw AttentionError.inviteCleanupFailed
             }
         }
-        if !zoneIsOurs { InboxZone.clear() }
+        // After the cancel, so the revoke above still targets the zone it belongs to.
+        startingFreshPairing()
 
         try await cloud.ensureInboxZone()
         // A share left over from an earlier partner or invite would come back from
@@ -197,30 +196,24 @@ final class PairingService {
         return state
     }
 
-    /// Whether the zone name this device has stored belongs to something it is actually
-    /// part of — a live pairing, or an invite it is still offering.
+    /// Drops the stored zone name so the pairing about to start gets a brand new one.
     ///
-    /// It can fail to. `tearDownInboxZone` rotates the name whether or not the delete
-    /// succeeded, and an unpair on another device deletes the zone without touching this
-    /// one's `UserDefaults`, so a stored name can outlive every reason it existed. A
-    /// zone-wide share hands over the *whole* zone, so starting a new pairing on top of
-    /// an orphan that survived a failed delete would give the new partner everything the
-    /// previous one left in it — the exact leak per-pairing names exist to prevent. It
-    /// would also point this account's subscriptions at a zone nobody writes to.
+    /// Unconditional, after several attempts to be cleverer than that. Each one asked
+    /// some version of "is the stored zone still ours?" and each had a hole, because
+    /// *every* reuse leaks: an invite's zone has been joinable by anyone who scanned the
+    /// QR, and they become a share participant able to write into it; a live pairing's
+    /// zone holds the partner's records; and a blob that looks loadable during the
+    /// keychain-sync window can be a pairing this device has not yet reconciled. A
+    /// zone-wide share hands over the *whole* zone, so in all three the next partner
+    /// receives what the last occupant left.
     ///
-    /// So the pairing-start paths ask first, and mint fresh when the answer is no.
-    private func ownsStoredInboxZone() -> Bool {
-        guard InboxZone.storedName != nil else { return false }
-        if PairState.load() != nil || PendingInvite.load() != nil { return true }
-
-        // Nothing loaded — but "no pairing" and "cannot read the pairing yet" are
-        // different answers and only one of them means the zone is an orphan. Before the
-        // first unlock after a reboot the keychain is unavailable, the blob stays put,
-        // and minting a rival zone on the strength of a locked keychain would abandon a
-        // perfectly good pairing. A key that *is* readable and still does not open the
-        // blob is the orphan case, and falls through to false.
-        return PairState.hasStoredBlob
-            && PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) == nil
+    /// The cost is an orphaned zone whenever a pairing start replaces one that was
+    /// already created — abandoned, empty of anything the next partner could see, and no
+    /// longer shared with anybody, since the callers revoke first. `ownedInboxZoneCount`
+    /// counts usable zones rather than prefixed ones precisely so these do not read as
+    /// the #68 collision.
+    private func startingFreshPairing() {
+        InboxZone.clear()
     }
 
     /// Puts the zone name back when an adoption could not be finished, so a half-adopted
@@ -271,7 +264,6 @@ final class PairingService {
         guard let invite = PairingInvite.from(qrPayload: payload) else {
             throw AttentionError.pairNotFound
         }
-        let zoneIsOurs = ownsStoredInboxZone()
         // Joining someone else's pair abandons any invite we were offering ourselves —
         // and revokes its share, so a code we handed out earlier can't still be used.
         if let ownPending = PendingInvite.load() {
@@ -279,6 +271,7 @@ final class PairingService {
                 throw AttentionError.inviteCleanupFailed
             }
         }
+        startingFreshPairing()
 
         let (inviterZoneID, owner) = try await cloud.acceptShare(at: invite.shareURL)
         // Without their identity the share back would be minted with no participant and
@@ -291,7 +284,6 @@ final class PairingService {
         // share_B names the inviter rather than carrying a bearer token: their identity
         // came back with the share we just accepted. A failure to look them up would
         // otherwise leave the pair permanently one-directional, so it isn't swallowed.
-        if !zoneIsOurs { InboxZone.clear() }
         try await cloud.ensureInboxZone()
         // Same reason as the inviter side: an existing share is returned as it stands,
         // so it would never come to name this partner.
@@ -417,12 +409,16 @@ final class PairingService {
         // the life of the process, so once it answers here it answers there too.
         guard await cloud.currentUserID() != nil else { return false }
 
+        // Re-read rather than using the snapshot this was called with. `AppState` is
+        // reentrant across awaits, so a rename can land between the caller loading its
+        // state and this write — and writing the stale name would silently undo it.
+        let current = PairState.load() ?? state
         do {
             try await cloud.writeProfile(into: zone.zoneID,
-                                         deviceID: state.myDeviceID,
-                                         name: state.myName,
+                                         deviceID: current.myDeviceID,
+                                         name: current.myName,
                                          shareURL: nil,
-                                         pairKey: state.pairKey)
+                                         pairKey: current.pairKey)
             AccountIdentityPublished.done = true
             return true
         } catch {
