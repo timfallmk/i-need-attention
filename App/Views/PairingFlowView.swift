@@ -57,27 +57,12 @@ struct PairingFlowView: View {
     /// reasonably conclude the app had lost their pairing, or broken — and the one thing
     /// they can't discover on their own is that their partner has to update too.
     private var cutoverNotice: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Pairing has changed", systemImage: "lock.rotation")
-                .font(.subheadline.weight(.semibold))
-            Text("This version keeps your alerts in private iCloud storage that only the two of you can reach, and that means pairing again — once. Your history is still here.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            Text("You'll both need this version installed before it will work.")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.orange.opacity(0.12))
+        PairingNotice(
+            title: "Pairing has changed",
+            systemImage: "lock.rotation",
+            explanation: "This version keeps your alerts in private iCloud storage that only the two of you can reach, and that means pairing again — once. Your history is still here.",
+            reassurance: "You'll both need this version installed before it will work."
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
-        )
-        .padding(.horizontal, 20)
     }
 
     /// Unpairing deletes the zone the partner writes into, so their device discovers it
@@ -85,36 +70,37 @@ struct PairingFlowView: View {
     /// the pairing screen with no explanation, which reads as having lost the pairing by
     /// itself — the one thing a two-person app cannot afford to look like.
     private var partnerUnpairedNotice: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Your partner unpaired", systemImage: "person.badge.minus")
-                .font(.subheadline.weight(.semibold))
-            Text("They ended the pairing from their phone, so this one is unpaired too. Nothing went wrong here.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            Text("Your history is still on this phone, under Settings.")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.orange.opacity(0.12))
+        PairingNotice(
+            title: "Your partner unpaired",
+            systemImage: "person.badge.minus",
+            explanation: "They ended the pairing from their phone, so this one is unpaired too. Nothing went wrong here.",
+            reassurance: "Your history is still on this phone, under Settings."
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+    }
+
+    /// The same question again — "why am I on this screen?" — with a third answer, and
+    /// the only one where nobody else was involved. Unpairing now ends the pairing for
+    /// the person rather than for the device, so a phone that did nothing at all can
+    /// arrive here because an iPad did.
+    private var unpairedElsewhereNotice: some View {
+        PairingNotice(
+            title: "Unpaired on your other device",
+            systemImage: "ipad.and.iphone",
+            explanation: "This pairing was ended from another device signed in to your Apple Account, so it's ended here too. Nothing went wrong here.",
+            reassurance: "Your history is still on this phone, under Settings."
         )
-        .padding(.horizontal, 20)
     }
 
     private var chooser: some View {
         VStack(spacing: 28) {
             Spacer(minLength: 8)
 
-            // At most one. Both answer "why am I unpaired?", and a partner ending the
-            // pairing is the more recent answer if somehow both apply.
-            if appState.partnerEndedPairing {
+            // At most one. All three answer "why am I unpaired?", most specific first:
+            // this account's own action beats the partner's, which beats the upgrade —
+            // each is the more recent explanation if somehow more than one applies.
+            if appState.pairingEndedOnAnotherDevice {
+                unpairedElsewhereNotice
+            } else if appState.partnerEndedPairing {
                 partnerUnpairedNotice
             } else if appState.needsRepairAfterCutover {
                 cutoverNotice
@@ -726,5 +712,41 @@ private struct CameraBlockedView: View {
         }
         .padding(.horizontal, 32)
         .padding(.top, 32)
+    }
+}
+
+/// The chrome every "why are you seeing the pairing screen?" card shares.
+///
+/// Three of them now, identical but for four strings. Three hand-maintained copies of
+/// the same rounded block is the kind of thing that drifts silently, and these appear
+/// one at a time so nobody would ever see two together to notice.
+private struct PairingNotice: View {
+    let title: String
+    let systemImage: String
+    let explanation: String
+    let reassurance: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
+            Text(explanation)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Text(reassurance)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.orange.opacity(0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+        )
+        .padding(.horizontal, 20)
     }
 }

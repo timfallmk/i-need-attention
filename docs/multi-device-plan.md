@@ -131,10 +131,22 @@ it: stored name, no such zone, local `PairState` present → clear the pairing a
 in the same shape as `PartnerUnpairedNotice` and for the same reason. "Why am I suddenly
 unpaired?" needs an answer on the pairing screen or the app looks broken.
 
-One ordering detail to get right while implementing: `unpair()` tears the zone down (which
-rotates) and only then calls `PairState.clear()`. A discovery running between those two lines
-would see a missing zone and a live `PairState` and fire the notice on the device doing the
-unpairing. Clearing before the teardown, or gating discovery for the duration, closes it.
+Two details to get right while implementing, both found in the writing:
+
+- `unpair()` tears the zone down (which rotates) and only then calls `PairState.clear()`. A
+  discovery running between those two lines would see a missing zone and a live `PairState`
+  and fire the notice on the device doing the unpairing. Clearing before the teardown, or
+  gating discovery for the duration, closes it.
+- A vanished zone must **not** fall through to adoption. If the person unpaired and then
+  paired with someone else, the zone sitting there belongs to the new pairing, and adopting
+  it would leave a `PairState` naming the old partner attached to the new partner's zone.
+  Ending the pairing first and adopting on a later pass keeps the two apart.
+
+One imprecision this leaves, in the explanation rather than the action: signing the device
+into a *different* Apple Account also makes the zone unfindable, and the notice then blames
+another device when the pairing was really left behind with the old account. Ending it is
+still the right action — that pairing cannot work from this account — but the wording is
+wrong until `PairState` carries the account's own record ID, which is step 3.
 
 This is the behaviour the UX section below commits to: pairing or unpairing from any device
 does it for the person, not for the device.

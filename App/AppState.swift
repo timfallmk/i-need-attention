@@ -79,6 +79,7 @@ final class AppState {
     /// itself before the flag existed and nothing told it to draw again.
     var needsRepairAfterCutover: Bool
     var partnerEndedPairing: Bool
+    var pairingEndedOnAnotherDevice: Bool
 
     init() {
         // First thing, before any view can render and before anything can re-pair. It is
@@ -89,6 +90,7 @@ final class AppState {
         InboxZone.resetPairingPredatingPerPairingZones()
         self.needsRepairAfterCutover = CutoverNotice.needsRepair
         self.partnerEndedPairing = PartnerUnpairedNotice.happened
+        self.pairingEndedOnAnotherDevice = UnpairedElsewhereNotice.happened
 
         self.settings = UserSettings()
         self.pair = PairState.load()
@@ -112,6 +114,11 @@ final class AppState {
             try? await CloudKitService.shared.registerSubscriptions()
             refreshSubscriptionDiagnostics()
         }
+        // Before anything reads the pairing as live: another device on this Apple ID may
+        // have ended it while this one was gone, and the zone it deleted is the one this
+        // device reads. Runs ahead of the adopt below so a person who unpaired and then
+        // paired with someone else lands on the new pairing in a single pass.
+        await endPairingIfOurZoneIsGone()
         if pair == nil {
             // A pending remote invite may have been accepted while this app was gone —
             // the silent push never reaches a force-quit app, so reconcile on launch.
@@ -509,6 +516,8 @@ final class AppState {
         needsRepairAfterCutover = false
         PartnerUnpairedNotice.happened = false
         partnerEndedPairing = false
+        UnpairedElsewhereNotice.happened = false
+        pairingEndedOnAnotherDevice = false
         // Completing a pair consumes any pending invite (the service layer clears the
         // persisted copy); re-sync the observable mirror.
         self.pendingInvite = PendingInvite.load()
@@ -555,6 +564,45 @@ final class AppState {
         await unpair()
         Haptics.warning()
         return true
+    }
+
+    /// Ends the pairing when the zone *we* own is gone, which is what another device
+    /// signed into this Apple ID leaves behind when it unpairs or erases: the private
+    /// database is per account, so its `unpair()` deleted the zone every device on the
+    /// account was reading.
+    ///
+    /// Same standard of proof as the partner-side check, for the same reason — the cost
+    /// of getting it wrong is unpairing somebody who is fine. `resolveInboxZone` only
+    /// says `.vanished` after a zone listing that *succeeded* and did not contain our
+    /// name; every failure throws instead, and a throw is "can't tell", which does
+    /// nothing. The iCloud guard is the same rule one step earlier: a signed-out or
+    /// not-yet-determined account is not evidence of anything.
+    ///
+    /// Clears the stored zone name rather than rotating it, because there is no zone to
+    /// tear down and a name held here is what would stop `adoptPairingFromThisAccount`
+    /// picking up whatever pairing this account has next.
+    ///
+    /// One known imprecision, in the explanation rather than the action: signing the
+    /// device into a *different* Apple Account also makes our zone unfindable, and this
+    /// then says the pairing was ended elsewhere when really it was left behind. Ending
+    /// it is still right — that pairing cannot work from this account — but the wording
+    /// is wrong, and it stays wrong until `PairState` carries the account's own record
+    /// ID and the two causes can be told apart. Tracked with the rest of #72.
+    func endPairingIfOurZoneIsGone() async {
+        guard pair != nil, iCloudStatus == .available else { return }
+        guard case .vanished = ((try? await CloudKitService.shared.resolveInboxZone()) ?? .absent) else {
+            return
+        }
+
+        log.notice("Our own inbox zone is gone; the pairing was ended from another device")
+        UnpairedElsewhereNotice.happened = true
+        pairingEndedOnAnotherDevice = true
+        // Archives first, as every unpair does. The received half went with the zone,
+        // but the alerts we *sent* are in the partner's zone and still readable until
+        // the teardown drops the share, so the sweep is not pointless.
+        await unpair()
+        InboxZone.clear()
+        Haptics.warning()
     }
 
     func unpair() async {
@@ -617,6 +665,7 @@ final class AppState {
         snooze = nil
         needsRepairAfterCutover = false
         partnerEndedPairing = false
+        pairingEndedOnAnotherDevice = false
         cooldownEnds = nil
         bannerMessage = nil
         outgoingAckSubscriptionUnavailable = false

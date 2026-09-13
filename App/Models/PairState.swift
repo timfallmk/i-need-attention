@@ -129,6 +129,28 @@ enum PartnerUnpairedNotice {
     }
 }
 
+/// Records that a pairing ended because *another device signed into this Apple ID*
+/// ended it, so the pairing screen can explain why this device is suddenly asking to
+/// pair again.
+///
+/// A third flavour of the same user question, and it needs its own flag rather than
+/// reusing `PartnerUnpairedNotice` because the answer is different and the difference
+/// matters: nobody left, and there is nothing to talk to the partner about. The pairing
+/// is simply over for this person, on every device they own, which is what unpairing
+/// from any one of them now means.
+///
+/// The signal is the inbox zone: it lives in the private database, which is per Apple ID
+/// rather than per install, so a device that unpairs deletes the zone every device on
+/// that account was reading. See `InboxZoneResolution.vanished`.
+enum UnpairedElsewhereNotice {
+    static let storageKey = "attention.unpairedElsewhere.v1"
+
+    static var happened: Bool {
+        get { UserDefaults.standard.bool(forKey: storageKey) }
+        set { UserDefaults.standard.set(newValue, forKey: storageKey) }
+    }
+}
+
 /// Record name of the most recently user-dismissed acknowledged alert, so
 /// `reconcileLatestAlert` doesn't re-surface it after a background/relaunch.
 enum DismissedOutgoing {
