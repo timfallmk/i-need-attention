@@ -286,6 +286,26 @@ Documentation** needs no upload. Apple asks for it only for proprietary or non-s
 algorithms, or for standard algorithms used instead of or in addition to the encryption in
 Apple's OS. Everything here is CryptoKit, which *is* that encryption — see §7a.
 
+### 7b. Which devices the app is offered to
+
+One binary covers all of it. `TARGETED_DEVICE_FAMILY: "1,2"` in `project.yml` builds for iPhone
+and iPad, and the Apple Silicon Mac and Apple Vision Pro options run *that same iPad build* in
+compatibility mode — there is no separate macOS or visionOS target to make, which is why all
+three are checkboxes rather than work.
+
+- [ ] **App Store Connect → your app → Pricing and Availability**, and tick the destinations you
+      want: **Apple Silicon Mac** and **Apple Vision Pro** are separate checkboxes there
+- [ ] **Screenshots: iPad is its own required set.** Submission blocks on an empty iPad tab even
+      though the binary is ready, and the phone screenshots do not carry over
+
+**Push on Mac and Vision Pro is unverified.** The app has never been confirmed to actually ring
+on either — see #72, which names the specific risk: a Mac that says "paired" and never rings is
+worse than a Mac that cannot pair. Both checkboxes are reversible without a new build, so the
+safe order is to ship iPhone and iPad, verify delivery on a real Mac, and tick that box after.
+
+Orientation is split by idiom rather than shared: iPhone stays portrait-locked, iPad rotates and
+multitasks. `UISupportedInterfaceOrientations~ipad` in `project.yml` is where that lives.
+
 ## 8. Install on the phones
 
 - [ ] Both phones: install **TestFlight** from the App Store (free)
