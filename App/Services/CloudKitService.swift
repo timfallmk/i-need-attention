@@ -44,6 +44,18 @@ final class CloudKitService: @unchecked Sendable {
         self.publicDB = container.publicCloudDatabase
         self.privateDB = container.privateCloudDatabase
         self.sharedDB = container.sharedCloudDatabase
+
+        // The account identity is cached for the life of the process on the grounds that
+        // it cannot change while the app is running — which is true of *switching* Apple
+        // Accounts, and false of signing out and back in, where the process survives. A
+        // stale identity there would be written into every new alert and profile while
+        // the keychain and pairing belonged to somebody else. The box is captured rather
+        // than `self`, so this observer holds nothing that keeps the service alive.
+        NotificationCenter.default.addObserver(
+            forName: .CKAccountChanged, object: nil, queue: nil
+        ) { [cachedUserID] _ in
+            cachedUserID.clear()
+        }
     }
 
     // MARK: - Account
@@ -755,9 +767,11 @@ final class CloudKitService: @unchecked Sendable {
     }
 }
 
-/// Lock-guarded box for this account's CloudKit user record name. Write-once in
-/// practice — the value cannot change while the process lives, since switching Apple
-/// Accounts relaunches the app — so there is nothing to invalidate.
+/// Lock-guarded box for this account's CloudKit user record name.
+///
+/// Not write-once: signing out of iCloud and back into a different account changes it
+/// without relaunching the app, so `CloudKitService` clears this on `CKAccountChanged`
+/// and the next read fetches afresh.
 final class CachedUserID: @unchecked Sendable {
     private var name: String?
     private let lock = NSLock()
@@ -770,6 +784,11 @@ final class CachedUserID: @unchecked Sendable {
     func set(_ newValue: String) {
         lock.lock(); defer { lock.unlock() }
         name = newValue
+    }
+
+    func clear() {
+        lock.lock(); defer { lock.unlock() }
+        name = nil
     }
 }
 

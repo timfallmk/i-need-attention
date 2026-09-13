@@ -164,6 +164,21 @@ struct PairState: Codable, Equatable {
         UserDefaults.standard.data(forKey: storageKey) != nil
     }
 
+    /// Whether the stored blob is bound to the key it was saved with.
+    ///
+    /// A blob written before the fingerprint existed is not, and `load()` therefore
+    /// trusts it against whatever key is present — which is right for an ordinary
+    /// upgrade and wrong if the account has re-paired since. Anything about to do
+    /// something *account-wide* on the strength of a loaded pairing has to know the
+    /// difference: an unbound blob might describe a pairing that is already over.
+    static var hasKeyFingerprint: Bool {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let stored = try? JSONDecoder().decode(Stored.self, from: data) else {
+            return false
+        }
+        return stored.pairKeyFingerprint != nil
+    }
+
     /// Drops this install's record of the pairing **without touching the pair key**.
     ///
     /// For the one case where `clear()` would do real damage: a device finding out that

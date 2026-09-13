@@ -16,6 +16,7 @@ enum SharedSettings {
         static let timeSensitiveEnabled = "shared.timeSensitiveEnabled"
         static let outgoingAckUnavailable = "shared.outgoingAckUnavailable"
         static let outgoingAckFailureReason = "shared.outgoingAckFailureReason"
+        static let inboxZoneName = "shared.inboxZoneName"
     }
 
     /// Receiver-side master switch. If false, even alerts marked critical by the sender
@@ -38,6 +39,23 @@ enum SharedSettings {
     static var partnerName: String? {
         get { suite.string(forKey: Keys.partnerName) }
         set { suite.set(newValue, forKey: Keys.partnerName) }
+    }
+
+    /// The inbox zone this account is currently using, so the extension can reject a
+    /// push naming any other one *before* it fetches and renders it.
+    ///
+    /// The app checks this too, but too late to matter for what the user sees: the NSE
+    /// builds the lock-screen content and hands it back long before
+    /// `handleRemoteNotification` runs. Subscription IDs are account-wide and a pre-2.2
+    /// account can still hold a second inbox zone, so without this a stale or queued
+    /// subscription could render a previous pairing's alert on the lock screen.
+    ///
+    /// Nil means the app has not resolved a zone yet; the extension treats that as "no
+    /// opinion" and carries on, because refusing to render on missing local state would
+    /// turn a first-launch race into a missed alert.
+    static var inboxZoneName: String? {
+        get { suite.string(forKey: Keys.inboxZoneName) }
+        set { suite.set(newValue, forKey: Keys.inboxZoneName) }
     }
 
     /// Sender-side: if false, the NSE downgrades the outgoing-ack banner to
@@ -88,7 +106,8 @@ enum SharedSettings {
         for key in [
             Keys.acceptCriticalAlerts, Keys.customSoundEnabled, Keys.partnerName,
             Keys.ackBannersEnabled, Keys.timeSensitiveEnabled,
-            Keys.outgoingAckUnavailable, Keys.outgoingAckFailureReason
+            Keys.outgoingAckUnavailable, Keys.outgoingAckFailureReason,
+            Keys.inboxZoneName
         ] {
             suite.removeObject(forKey: key)
         }
