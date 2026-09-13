@@ -53,8 +53,14 @@ final class CloudKitService: @unchecked Sendable {
         // than `self`, so this observer holds nothing that keeps the service alive.
         NotificationCenter.default.addObserver(
             forName: .CKAccountChanged, object: nil, queue: nil
-        ) { [cachedUserID] _ in
+        ) { [cachedUserID, ensuredZones] _ in
             cachedUserID.clear()
+            // Account-scoped for the same reason the identity is: the zones it remembers
+            // live in one account's private database. Signing into a different one in the
+            // same process would otherwise let `resolveInboxZone` answer `.resolved` from
+            // the previous account's cache without listing anything, and every write and
+            // subscription that followed would name a zone this account does not own.
+            ensuredZones.forgetAll()
         }
     }
 
@@ -825,6 +831,14 @@ final class EnsuredZones: @unchecked Sendable {
     func forget(_ name: String) {
         lock.lock(); defer { lock.unlock() }
         names.remove(name)
+    }
+
+    /// Everything this cache holds is scoped to one Apple Account's private database, so
+    /// a sign-out and sign-in to a different account in the same process invalidates all
+    /// of it at once — the names are no longer even addressable.
+    func forgetAll() {
+        lock.lock(); defer { lock.unlock() }
+        names.removeAll()
     }
 }
 
