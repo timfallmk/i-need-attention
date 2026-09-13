@@ -663,28 +663,54 @@ final class AppState {
         log.notice("Our own inbox zone is gone; ending the pairing (same account: \(sameAccount))")
         UnpairedElsewhereNotice.happened = sameAccount
         pairingEndedOnAnotherDevice = sameAccount
-        // Archives first, as every unpair does. The received half went with the zone,
-        // but the alerts we *sent* are in the partner's zone and still readable until
-        // the teardown drops the share, so the sweep is not pointless.
-        await unpair()
-        InboxZone.clear()
+        await endPairingAfterItEndedElsewhere()
         Haptics.warning()
     }
 
     func unpair() async {
-        // The last read that will ever succeed against the partner's zone. Half of this
-        // pairing's history lives there — the alerts we sent — and leaving the share is
-        // what makes it unreachable, so the sweep has to come before the teardown.
-        if let pair {
-            let pairingID = InboxZone.currentName
-            if let live = try? await CloudKitService.shared.fetchRecentAlerts(
-                pair: pair, limit: PairingArchive.sweepLimit
-            ) {
-                PairingArchive.absorb(live, pairingID: pairingID, partnerName: pair.partnerName)
-            }
-            PairingArchive.close(pairingID: pairingID)
-        }
+        await archiveCurrentPairing()
         await PairingService.shared.unpair()
+        forgetPairingLocally()
+    }
+
+    /// Ends a pairing that is already over, touching nothing the account shares.
+    ///
+    /// The difference from `unpair()` is the whole point, and getting it wrong destroys
+    /// a working pairing. By the time this runs the person may have paired again from
+    /// another device, and two of the things `unpair()` does are account-wide rather
+    /// than local: `PairState.clear()` deletes the synchronizable pair key — which by
+    /// then is the *new* pairing's, and the deletion propagates — and the teardown's
+    /// `removeAllSubscriptions()` deletes every subscription in the private database,
+    /// including the ones the new pairing just registered.
+    ///
+    /// So this archives, forgets locally, and stops. There is nothing remote left to
+    /// tear down anyway: the zone this device owned is what went missing.
+    private func endPairingAfterItEndedElsewhere() async {
+        await archiveCurrentPairing()
+        PairState.forgetLocally()
+        PendingInvite.clear()
+        // Cleared rather than rotated: a name held here is what would stop
+        // `adoptPairingFromThisAccount` picking up whatever this account pairs with next.
+        InboxZone.clear()
+        forgetPairingLocally()
+    }
+
+    /// The last read that will ever succeed against the partner's zone. Half of this
+    /// pairing's history lives there — the alerts we sent — and leaving the share is
+    /// what makes it unreachable, so the sweep has to come before any teardown.
+    private func archiveCurrentPairing() async {
+        guard let pair else { return }
+        let pairingID = InboxZone.currentName
+        if let live = try? await CloudKitService.shared.fetchRecentAlerts(
+            pair: pair, limit: PairingArchive.sweepLimit
+        ) {
+            PairingArchive.absorb(live, pairingID: pairingID, partnerName: pair.partnerName)
+        }
+        PairingArchive.close(pairingID: pairingID)
+    }
+
+    /// The observable half, shared by every way a pairing can end.
+    private func forgetPairingLocally() {
         pair = nil
         pendingOutgoing = nil
         lastIncoming = nil
@@ -944,6 +970,19 @@ final class AppState {
         // alternative states, and a foreground during a walkthrough must not quietly
         // turn it into a real pairing underneath the person trying the app out.
         guard pair == nil, pendingInvite == nil, !isDemo else { return }
+
+        // Before looking for somebody else's pairing, check whether our own has simply
+        // become readable. `AppState.pair` is loaded once in `init`, and `PairState.load`
+        // returns nil without the keychain — an `AfterFirstUnlock` item that a launch
+        // before the first unlock, or a restore whose iCloud Keychain has not caught up,
+        // will beat. Without this the blob loads fine from the next call onward and
+        // nothing ever assigns it, so the device sits on the pairing screen with a
+        // perfectly good pairing on disk until it is relaunched.
+        if let restored = PairState.load() {
+            applyPair(restored)
+            return
+        }
+
         guard let adopted = await PairingService.shared.adoptExistingPairing() else { return }
 
         applyPair(adopted)

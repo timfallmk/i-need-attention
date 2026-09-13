@@ -376,8 +376,16 @@ final class PairingService {
     /// it cannot clobber the name or the share URL already there.
     @discardableResult
     func publishAccountIdentity(_ state: PairState) async -> Bool {
-        guard !AccountIdentityPublished.done, state.myUserID != nil,
-              let zone = state.outgoingZone else { return false }
+        guard !AccountIdentityPublished.done, let zone = state.outgoingZone else { return false }
+
+        // Resolve it here rather than trusting `state.myUserID`, and refuse to record a
+        // publish we cannot make. `writeProfile` looks the identity up itself and omits
+        // the field when that fails, so a persisted `myUserID` plus a failed lookup would
+        // write a profile without it and still retire the one-time publish — leaving the
+        // partner permanently unable to learn this account. `currentUserID` caches for
+        // the life of the process, so once it answers here it answers there too.
+        guard await cloud.currentUserID() != nil else { return false }
+
         do {
             try await cloud.writeProfile(into: zone.zoneID,
                                          deviceID: state.myDeviceID,
