@@ -1,12 +1,19 @@
 name: CI
 
 # A macOS runner bills at 10x the Linux rate and the Xcode job takes ~5 minutes, so a
-# change that cannot possibly affect the build result is worth not running. Three paths
-# qualify: Markdown, LICENSE, and site/. Nothing compiles any of them — the one Markdown
-# file that ships (App/Resources/SOUND_PLACEHOLDER.md, bundled because XcodeGen takes
-# App/Resources wholesale) is inert cargo the build never reads, and site/ is the GitHub
-# Pages site, which has a workflow of its own. This file is deliberately not among them:
-# a change to it must run under itself.
+# change that cannot possibly affect the build result is worth not running. Four paths
+# qualify: Markdown, plain text, LICENSE, and site/. Nothing compiles any of them — the
+# one Markdown file that ships (App/Resources/SOUND_PLACEHOLDER.md, bundled because
+# XcodeGen takes App/Resources wholesale) is inert cargo the build never reads, and
+# site/ is the GitHub Pages site, which has a workflow of its own. This file is
+# deliberately not among them: a change to it must run under itself.
+#
+# .txt is here because TestFlight/WhatToTest.en-US.txt is a tracked file that Xcode
+# Cloud reads at archive time, so tester notes get reviewed in a PR — and every such
+# PR was paying five macOS minutes to compile nothing. The repo's only other .txt,
+# Tools/data/emoji-test.txt, feeds a dev-time generator rather than the build. A .txt
+# dropped into App/Resources would be bundled and still exempt, on the same reasoning
+# as SOUND_PLACEHOLDER.md: it changes what is in the bundle, not whether it builds.
 #
 # That saving used to live in `paths-ignore` at the trigger, which had a trap the comment
 # here warned about and branch protection walked into anyway: a PR touching only those
@@ -85,13 +92,14 @@ jobs:
             exit 0
           fi
 
-          # Anything that is not Markdown, LICENSE, or under site/ counts as buildable.
-          if grep -qvE '(\.md$|^LICENSE$|^site/)' <<<"$files"; then
+          # Anything that is not Markdown, plain text, LICENSE, or under site/ counts
+          # as buildable.
+          if grep -qvE '(\.md$|\.txt$|^LICENSE$|^site/)' <<<"$files"; then
             code=true
             verdict='Buildable changes found — the Xcode job will run.'
           else
             code=false
-            verdict='Only Markdown, LICENSE or `site/` changed — the Xcode job will be skipped.'
+            verdict='Only Markdown, text, LICENSE or `site/` changed — the Xcode job will be skipped.'
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
