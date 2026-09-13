@@ -207,11 +207,11 @@ final class PairingService {
     /// zone-wide share hands over the *whole* zone, so in all three the next partner
     /// receives what the last occupant left.
     ///
-    /// The cost is an orphaned zone whenever a pairing start replaces one that was
-    /// already created — abandoned, empty of anything the next partner could see, and no
-    /// longer shared with anybody, since the callers revoke first. `ownedInboxZoneCount`
-    /// counts usable zones rather than prefixed ones precisely so these do not read as
-    /// the #68 collision.
+    /// The cost would have been an orphaned zone whenever a pairing start replaced one
+    /// already created, but `cancelInvite` now deletes the zone it abandons, so the only
+    /// orphans left are the ones a failed CloudKit delete leaves behind.
+    /// `inboxZoneCensus` counts usable zones rather than prefixed ones precisely so
+    /// those do not read as the #68 collision.
     private func startingFreshPairing() {
         InboxZone.clear()
     }
@@ -239,10 +239,28 @@ final class PairingService {
         throw AttentionError.pairNotFound
     }
 
-    /// Abandon a pending invite, revoking its share so the bearer link it published
-    /// stops working. Ordering matters: the persisted invite is the retry handle, so it
-    /// only clears once the revoke has actually happened. Returns false when cleanup
-    /// failed and the invite was kept for another try.
+    /// Abandon a pending invite: revoke its share so the bearer link stops working, and
+    /// delete the zone that invite was offering.
+    ///
+    /// The zone goes because somebody may already be *in* it. A joiner who scanned the
+    /// code before this device reconciled has accepted the share, written their profile,
+    /// and saved a `PairState` pointing at this zone — with `canSend` true, so
+    /// `MainView` gives them a working button. Leaving the zone behind after abandoning
+    /// the invite would let them press it into a zone nobody reads: a "sent, waiting"
+    /// pill that never resolves, which is the silent-delivery failure this whole change
+    /// exists to remove. Deleting it makes their next write fail with `zoneNotFound`,
+    /// which `endPairingIfPartnerZoneIsGone` already turns into "your partner unpaired"
+    /// and a trip back to the pairing screen. A wrong explanation they can act on beats
+    /// a dead button.
+    ///
+    /// It also stops the orphans. Pairing starts mint unconditionally now (see
+    /// `startingFreshPairing`), so without this every abandoned invite would leave an
+    /// empty zone behind for `inboxZoneCensus` to report.
+    ///
+    /// Ordering matters: the persisted invite is the retry handle, so it only clears
+    /// once the revoke has actually happened. Returns false when *that* failed and the
+    /// invite was kept for another try — a failed zone delete does not, because by then
+    /// the code is already dead and an orphan is untidy rather than dangerous.
     @discardableResult
     func cancelInvite(_ pending: PendingInvite) async -> Bool {
         do {
@@ -252,6 +270,18 @@ final class PairingService {
             return false
         }
         PendingInvite.clear()
+
+        // Guarded on a stored name: `deleteInboxZone` resolves through `currentName`,
+        // which mints one when nothing is stored — and minting a name in order to delete
+        // a zone that was never created is both pointless and a write to the App Group.
+        if InboxZone.storedName != nil {
+            do {
+                try await cloud.deleteInboxZone()
+            } catch {
+                log.error("invite zone delete failed: \(error.localizedDescription)")
+            }
+            InboxZone.clear()
+        }
         return true
     }
 
