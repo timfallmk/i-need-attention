@@ -37,7 +37,10 @@ enum InboxZone {
     static var currentName: String {
         lock.lock()
         defer { lock.unlock() }
-        if let stored = UserDefaults.standard.string(forKey: storageKey) { return stored }
+        if let stored = UserDefaults.standard.string(forKey: storageKey) {
+            mirrorLocked(stored)
+            return stored
+        }
         return mintLocked()
     }
 
@@ -48,7 +51,26 @@ enum InboxZone {
     static var storedName: String? {
         lock.lock()
         defer { lock.unlock() }
-        return UserDefaults.standard.string(forKey: storageKey)
+        let stored = UserDefaults.standard.string(forKey: storageKey)
+        if let stored { mirrorLocked(stored) }
+        return stored
+    }
+
+    /// Keeps the App Group copy level with the one in this process's `UserDefaults`.
+    ///
+    /// Mirrored on *read* as well as on write, which is not belt-and-braces. The only
+    /// writers are minting, adopting and clearing, none of which an ordinary upgrade
+    /// runs — so every install paired before 2.2.0 has a name here and nothing in the
+    /// App Group, and the NSE's zone filter would simply never engage for any of them.
+    /// It fails open (a name it cannot read means "deliver anyway", because a push this
+    /// app cannot classify must never become silence), so the gap is invisible.
+    ///
+    /// Only a name is mirrored, never the absence of one: clearing stays the explicit
+    /// job of `clear()`, and a read path that could blank the extension's copy would be
+    /// a new way to lose the filter rather than a way to keep it.
+    private static func mirrorLocked(_ name: String) {
+        guard SharedSettings.inboxZoneName != name else { return }
+        SharedSettings.inboxZoneName = name
     }
 
     /// Takes over a zone this Apple ID already owns, found by discovery rather than

@@ -213,11 +213,10 @@ therefore one pairing. Three consequences the code exists to serve:
   by discovery (`InboxZoneResolution.vanished`) and say so; `UnpairedElsewhereNotice` is the
   third answer to "why am I on the pairing screen?".
 
-Two things deliberately not built, both in `docs/multi-device-plan.md`:
-
-- **A count of devices on the account.** CloudKit exposes no such list, and producing one
-  needs a new record type.
-- **A device count.** As above.
+Not built: **a count of devices on the account.** CloudKit exposes no such list, and
+producing one needs a new record type, a second schema deploy and a queryable index — a
+lot of new surface for a number, and a share-visible one at that. See
+`docs/multi-device-plan.md`.
 
 `AppState.endPairingIfStoredOneIsNotOurs` is what repairs a pairing already in the #68 state,
 and it got there sideways: the guard that stops a pre-key-binding `PairState` blob driving
