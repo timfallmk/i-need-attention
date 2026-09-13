@@ -481,15 +481,24 @@ final class CloudKitService: @unchecked Sendable {
     /// public database refused, so if a private database ever refuses it too, the
     /// Settings → Diagnostics row says so rather than the banner just never arriving.
     /// Throws only when nothing saved at all.
-    func registerSubscriptions() async throws {
+    /// Returns whether every subscription this account needs is now live. A `false` is
+    /// not an error and is not thrown: a partial save leaves the ones that stuck in
+    /// place, and throwing would discard that. It does mean the caller must come back —
+    /// see `AppState.subscriptionsNeedRetry`, which is what turns this into a retry on
+    /// the next foreground rather than a gap until the next cold launch.
+    @discardableResult
+    func registerSubscriptions() async throws -> Bool {
         // Resolve rather than ensure: this runs at every launch, and a device that has
         // no zone to resolve — a second device whose pair key has not synced yet — must
         // not answer that by creating one. See `resolveInboxZone`. There is nothing to
         // subscribe to either way, so returning is the whole handling; the next
         // foreground tries again.
         guard case .resolved(let zoneID) = try await resolveInboxZone() else {
+            // Nothing subscribed, so this has to read as "come back" rather than as
+            // done. The zone arrives for a second device when iCloud Keychain delivers
+            // the pair key, which is on nobody's schedule.
             log.notice("no inbox zone to subscribe to yet")
-            return
+            return false
         }
         let existing = try await privateDB.allSubscriptions()
 
@@ -539,7 +548,7 @@ final class CloudKitService: @unchecked Sendable {
         if !live.contains(Constants.SubscriptionID.incomingAnswered) {
             toSave.append(makeIncomingAnsweredSubscription(zoneID: zoneID))
         }
-        guard !toSave.isEmpty else { return }
+        guard !toSave.isEmpty else { return true }
 
         // Retiring the stale ones is its own operation, and has to be. A stale
         // subscription is by definition also one we are about to recreate under the same
@@ -557,7 +566,7 @@ final class CloudKitService: @unchecked Sendable {
         let log = self.log
         let attemptedIDs = toSave.map(\.subscriptionID).joined(separator: ", ")
         let results = SubscriptionSaveResults()
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Bool, Error>) in
             op.perSubscriptionSaveBlock = { id, result in
                 switch result {
                 case .success:
@@ -584,13 +593,17 @@ final class CloudKitService: @unchecked Sendable {
                 switch result {
                 case .success:
                     log.info("subscriptions saved: \(attemptedIDs, privacy: .public)")
-                    cont.resume()
+                    cont.resume(returning: true)
                 case .failure(let error):
                     if results.savedCount > 0 {
-                        // Partial failure: the saved ones stuck. Per-subscription failures
-                        // are already logged above; don't poison the call site.
+                        // Partial failure: the saved ones stuck, so this does not throw —
+                        // that would discard them. It returns false instead, which is the
+                        // caller's cue to retry. Reporting success here was a real gap:
+                        // the retry flag was cleared while, say, `incoming-answered-v1`
+                        // was still missing, so cross-device banner cleanup stayed broken
+                        // until the next cold launch and nothing said so.
                         log.error("subscriptions partial failure — saved [\(results.savedJoined, privacy: .public)] failed [\(results.failedJoined, privacy: .public)]: \(String(describing: error), privacy: .public)")
-                        cont.resume()
+                        cont.resume(returning: false)
                     } else {
                         log.error("modifySubscriptions failed [\(attemptedIDs, privacy: .public)]: \(String(describing: error), privacy: .public)")
                         // Nothing saved means perSubscriptionSaveBlock never fired, so the
