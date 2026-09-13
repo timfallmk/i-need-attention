@@ -4,7 +4,7 @@ Guide for Claude (or any contributor) working on this codebase.
 
 ## What this is
 
-A two-phone iOS app with a watchOS companion. Tap the big red button on one phone, the partner's phone gets a push that says "needs attention." Personal-use only, paired in person via QR scan, no backend besides CloudKit + APNs.
+A two-person iOS app with a watchOS companion. Tap the big red button on one phone, the partner's phone gets a push that says "needs attention." Personal-use only, paired in person via QR scan, no backend besides CloudKit + APNs.
 
 ## Build & verify
 
