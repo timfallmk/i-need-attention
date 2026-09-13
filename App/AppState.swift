@@ -1085,6 +1085,26 @@ final class AppState {
         // nothing ever assigns it, so the device sits on the pairing screen with a
         // perfectly good pairing on disk until it is relaunched.
         if let restored = PairState.load() {
+            // Settled before it is applied, not after. `bootstrap` runs
+            // `endPairingIfStoredOneIsNotOurs` while `pair` is still nil on this device,
+            // so that pass returned without asking anything — and an unfingerprinted blob
+            // is trusted against whatever key the keychain now holds. Applying it here
+            // without asking would register the account-wide subscription IDs against the
+            // zone of a pairing the account may have left, which is the #68 failure with
+            // a different cause.
+            //
+            // A false answer means the blob is proved stale, so it is torn down here
+            // rather than merely left unapplied: `forgetPairingLocally` alone would leave
+            // it on disk to be loaded again on the next foreground, which is a loop, not
+            // a repair. Clearing the stored zone name is also what lets adoption pick up
+            // the pairing this account really has, on the pass after this one.
+            guard await PairingService.shared.settleLegacyPairing() else {
+                log.notice("Restored pairing belongs to a different key; ending it here")
+                UnpairedElsewhereNotice.happened = true
+                pairingEndedOnAnotherDevice = true
+                await endPairingAfterItEndedElsewhere()
+                return
+            }
             applyPair(restored)
             // Bootstrap skipped registration because `pair` was nil at the time, and from
             // here on every foreground skips adoption because it is not — so without this
@@ -1143,21 +1163,34 @@ final class AppState {
     func refreshPartnerProfile() async {
         guard var pair else { return }
 
-        // Ours costs nothing after the first call — `currentUserID` caches for the life
-        // of the process — and a pairing made before per-account identity has to pick it
-        // up from somewhere.
+        // Every write below is guarded on the pairing still being this one. `pair` is a
+        // value type, so what is held here is a *copy* taken before the first await, and
+        // `save()` writes the whole blob — pair key included — back to the keychain and
+        // `UserDefaults`. An unpair completing while this is suspended would otherwise be
+        // undone by a backfill that had no idea it had happened, resurrecting a pairing
+        // the user ended and the partner's zone no longer accepts.
         if pair.myUserID == nil, let mine = await CloudKitService.shared.currentUserID() {
+            guard stillPaired(as: pair) else { return }
             pair.myUserID = mine
             if pair.save() { self.pair = pair }
         }
         await PairingService.shared.publishAccountIdentity(pair)
 
-        guard let updated = await PairingService.shared.refreshFromPartnerProfile(pair) else {
+        guard let updated = await PairingService.shared.refreshFromPartnerProfile(pair),
+              stillPaired(as: updated) else {
             return
         }
         self.pair = updated
         SharedSettings.partnerName = updated.partnerName
         pushWatchSnapshot()
+    }
+
+    /// Whether the pairing a suspended task started with is still the one this device
+    /// holds. The pair key is the identity: it is minted per pairing, so a different one
+    /// — or none — means the pairing ended or was replaced while the caller was awaiting,
+    /// and whatever it is about to write describes something that no longer exists.
+    private func stillPaired(as captured: PairState) -> Bool {
+        !unpairInProgress && pair?.pairKey == captured.pairKey
     }
 
 }

@@ -46,10 +46,19 @@ final class PairingService {
     /// no safe point to stop at, and it is short. The invite waits for it, then starts
     /// fresh from whatever it settled on.
     ///
-    /// Deliberately not reentrant, and deliberately not taken by `cancelInvite`, which
-    /// `startInviting` and `completePairing` both call while holding it. Adoption and
-    /// cancellation cannot overlap for a different reason: adoption refuses to start
-    /// while a `PendingInvite` exists, and cancellation has nothing to do without one.
+    /// Every method that moves the pairing between states takes it: `startInviting`,
+    /// `completePairing`, `completeInviterPairing`, `cancelInvite` and
+    /// `adoptExistingPairing`. An earlier version left the last two out on the reasoning
+    /// that `@MainActor` and their own preconditions were enough, and that was wrong in
+    /// the same way this gate exists to fix. The inviter's poll calls
+    /// `completeInviterPairing`, which awaits a profile fetch and a share acceptance
+    /// before it saves; a Cancel tap landing in that window deletes the zone and clears
+    /// the invite, and the poll then resumes and saves a `PairState` for the pairing the
+    /// user just abandoned, naming a zone that no longer exists.
+    ///
+    /// Not reentrant, which is why `cancelInviteLocked` exists: `startInviting` and
+    /// `completePairing` cancel an outstanding invite of our own while already holding
+    /// the gate, and calling the public entry point there would deadlock them.
     private var pairingChangeInProgress = false
     private var waitingForPairingChange: [CheckedContinuation<Void, Never>] = []
 
@@ -80,7 +89,7 @@ final class PairingService {
         defer { endPairingChange() }
 
         if let previous = PendingInvite.load() {
-            guard await cancelInvite(previous) else {
+            guard await cancelInviteLocked(previous) else {
                 throw AttentionError.inviteCleanupFailed
             }
         }
@@ -129,6 +138,12 @@ final class PairingService {
     /// why `partnerCanReach` is set without a separate check.
     @discardableResult
     func completeInviterPairing() async throws -> PairState? {
+        await beginPairingChange()
+        defer { endPairingChange() }
+
+        // Re-read rather than trusting a load from before the gate: a cancel that was
+        // waiting on it has now finished, and this poll must see that the invite is gone
+        // rather than completing a pairing the user just abandoned.
         guard let pending = PendingInvite.load() else { return nil }
 
         try await cloud.ensureInboxZone()
@@ -350,6 +365,19 @@ final class PairingService {
     /// the code is already dead and an orphan is untidy rather than dangerous.
     @discardableResult
     func cancelInvite(_ pending: PendingInvite) async -> Bool {
+        await beginPairingChange()
+        defer { endPairingChange() }
+
+        return await cancelInviteLocked(pending)
+    }
+
+    /// The body of `cancelInvite`, for callers that already hold the gate.
+    ///
+    /// The gate is not reentrant, and `startInviting` and `completePairing` both cancel
+    /// an outstanding invite of our own as their first act while holding it. Taking it
+    /// again here would deadlock them, so the split is the whole reason this exists —
+    /// not a convenience.
+    private func cancelInviteLocked(_ pending: PendingInvite) async -> Bool {
         do {
             try await cloud.revokeInboxShare()
         } catch {
@@ -389,7 +417,7 @@ final class PairingService {
         // Joining someone else's pair abandons any invite we were offering ourselves —
         // and revokes its share, so a code we handed out earlier can't still be used.
         if let ownPending = PendingInvite.load() {
-            guard await cancelInvite(ownPending) else {
+            guard await cancelInviteLocked(ownPending) else {
                 throw AttentionError.inviteCleanupFailed
             }
         }

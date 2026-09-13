@@ -42,11 +42,20 @@ final class NotificationService: UNNotificationServiceExtension {
             return
         }
 
-        // Before anything is fetched or rendered. Every subscription this app owns is on
+        // Before anything is fetched or decrypted. Every subscription this app owns is on
         // the zone this account uses, so a push naming a different one is from a stale or
         // queued subscription — a previous pairing's, or a rival zone on a pre-2.2
-        // account. Rendering it would put a foreign alert on the lock screen; the app's
-        // own zone check runs far too late to prevent that.
+        // account.
+        //
+        // **This suppresses the contents, not the notification.** A service extension has
+        // to call `contentHandler`, and whatever it passes is what displays; there is no
+        // way to drop an alert push from here. So a foreign-zone push still shows the
+        // subscription's static placeholder body. What it cannot do is name the other
+        // pairing's partner or carry their message, because returning here is what stops
+        // the record ever being fetched or opened — and the pair key would not open it
+        // anyway. A generic banner from a pairing that has ended is untidy; the partner's
+        // name and words on the lock screen would be the actual leak, and that is the one
+        // this closes.
         //
         // A nil setting is "no opinion" rather than "no zone": refusing on missing local
         // state would turn a first-launch race into a missed alert, which is the one
