@@ -35,6 +35,7 @@ enum DiagnosticsGatherer {
                 pairKey: pair?.pairKey
             ),
             subscriptions: await CloudKitService.shared.subscriptionStates(),
+            ownedInboxZones: await CloudKitService.shared.ownedInboxZoneCount(),
             events: await recentEvents(pair: pair)
         )
     }

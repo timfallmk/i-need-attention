@@ -235,4 +235,29 @@ final class DiagnosticsReportTests: XCTestCase {
         XCTAssertTrue(text.contains("[Subscriptions]"))
         XCTAssertFalse(text.contains("STALE ZONE"))
     }
+
+    // MARK: - Inbox zone count
+
+    /// The one line that makes an already-broken #68 pairing visible. It has to be loud
+    /// and it has to distinguish "none found" from "could not look": a failed listing
+    /// reading as zero would accuse a healthy install.
+    func testInboxZoneCountRendersUnknownWhenTheListingFailed() {
+        var report = makeReport()
+        report.ownedInboxZones = nil
+        XCTAssertTrue(report.render().contains("Inbox zones owned: unknown"))
+    }
+
+    func testInboxZoneCountIsQuietWhenThereIsExactlyOne() {
+        var report = makeReport()
+        report.ownedInboxZones = 1
+        let text = report.render()
+        XCTAssertTrue(text.contains("Inbox zones owned: 1"))
+        XCTAssertFalse(text.contains("RE-PAIR"))
+    }
+
+    func testInboxZoneCountShoutsWhenTheAccountOwnsMoreThanOne() {
+        var report = makeReport()
+        report.ownedInboxZones = 2
+        XCTAssertTrue(report.render().contains("Inbox zones owned: 2 — EXPECTED 1, RE-PAIR TO FIX"))
+    }
 }
