@@ -8,6 +8,7 @@ final class AlertRecordTests: XCTestCase {
     private func makeRecord(
         pairKey: String? = "PK",
         senderDeviceID: String? = "SENDER",
+        senderUserID: String? = nil,
         senderName: String? = "Sam",
         message: String? = "needs coffee",
         state: String? = "sent",
@@ -19,6 +20,7 @@ final class AlertRecordTests: XCTestCase {
         let r = CKRecord(recordType: Constants.RecordType.alert)
         if let pairKey { r[Constants.AlertField.pairKey] = pairKey as CKRecordValue }
         if let senderDeviceID { r[Constants.AlertField.senderDeviceID] = senderDeviceID as CKRecordValue }
+        if let senderUserID { r[Constants.AlertField.senderUserID] = senderUserID as CKRecordValue }
         if let senderName { r[Constants.AlertField.senderName] = senderName as CKRecordValue }
         if let message { r[Constants.AlertField.message] = message as CKRecordValue }
         if let state { r[Constants.AlertField.state] = state as CKRecordValue }
@@ -27,6 +29,38 @@ final class AlertRecordTests: XCTestCase {
         if let acknowledgedAt { r[Constants.AlertField.acknowledgedAt] = acknowledgedAt as CKRecordValue }
         if let ackEmoji { r[Constants.AlertField.ackEmoji] = ackEmoji as CKRecordValue }
         return r
+    }
+
+    // MARK: - Account identity
+
+    /// The field the whole of #68 turns on. If the parser stopped reading it, every
+    /// alert would quietly fall back to the per-install device ID and multi-device
+    /// classification would regress without a single test going red.
+    func testParsesSenderUserID() {
+        let model = AlertRecord(record: makeRecord(senderUserID: "_account"), pairKey: nil)
+        XCTAssertEqual(model?.senderUserID, "_account")
+    }
+
+    /// Absent on every record written before per-account identity, and it has to arrive
+    /// as nil rather than "" — `SenderIdentity` falls back only on nil, and an empty
+    /// string would compare equal to another empty string and match the wrong person.
+    func testSenderUserIDIsNilWhenTheRecordHasNone() {
+        let model = AlertRecord(record: makeRecord(), pairKey: nil)
+        XCTAssertNil(model?.senderUserID)
+    }
+
+    /// Archiving is what history reads back, so an identity dropped on the way in or out
+    /// would show every row on the wrong side of the sheet.
+    func testSenderUserIDSurvivesTheArchiveRoundTrip() {
+        guard let model = AlertRecord(record: makeRecord(senderUserID: "_account"), pairKey: nil) else {
+            return XCTFail("record should parse")
+        }
+        XCTAssertEqual(AlertRecord(archived: ArchivedAlert(model)).senderUserID, "_account")
+
+        guard let legacy = AlertRecord(record: makeRecord(), pairKey: nil) else {
+            return XCTFail("record should parse")
+        }
+        XCTAssertNil(AlertRecord(archived: ArchivedAlert(legacy)).senderUserID)
     }
 
     // MARK: - Happy path

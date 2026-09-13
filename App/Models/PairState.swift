@@ -145,6 +145,22 @@ struct PairState: Codable, Equatable {
         UserDefaults.standard.data(forKey: storageKey) != nil
     }
 
+    /// Drops this install's record of the pairing **without touching the pair key**.
+    ///
+    /// For the one case where `clear()` would do real damage: a device finding out that
+    /// its pairing ended elsewhere. The keychain item is synchronizable and therefore
+    /// account-wide, so if the person has since paired again, the key sitting there is
+    /// the *new* pairing's — and deleting it from a device still holding the old
+    /// pairing's `UserDefaults` blob would propagate and break the new pairing on every
+    /// device that is using it.
+    ///
+    /// Leaving a key behind is safe in the other direction: if nobody re-paired, the
+    /// unpair that started this already deleted it account-wide.
+    static func forgetLocally() {
+        UserDefaults.standard.removeObject(forKey: storageKey)
+        UserDefaults.standard.removeObject(forKey: AccountIdentityPublished.storageKey)
+    }
+
     static func clear() {
         PairSecrets.store.removeSecret(for: Constants.Keychain.pairKeyAccount)
         UserDefaults.standard.removeObject(forKey: storageKey)
