@@ -58,6 +58,33 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         preview?.frame = view.bounds
+        applyPreviewRotation()
+    }
+
+    /// The preview layer's frame follows the view; the video inside it does not follow the
+    /// device. Without this the feed keeps the orientation it was configured in and renders
+    /// rotated and cropped the moment the device turns — the camera still reads codes, but
+    /// the user is aiming at a sideways picture.
+    ///
+    /// Latent until now: the app was portrait-locked on every device, so there was no
+    /// rotation to miss. Allowing landscape on iPad is what makes it reachable.
+    ///
+    /// `videoRotationAngle` is measured counterclockwise from the sensor's native
+    /// landscape-right, which is why portrait is 90 rather than 0. Asked rather than
+    /// assumed via `isVideoRotationAngleSupported`, since a capture device is entitled to
+    /// refuse an angle.
+    private func applyPreviewRotation() {
+        guard let connection = preview?.connection else { return }
+        let orientation = view.window?.windowScene?.interfaceOrientation ?? .portrait
+        let angle: CGFloat
+        switch orientation {
+        case .landscapeLeft: angle = 180
+        case .landscapeRight: angle = 0
+        case .portraitUpsideDown: angle = 270
+        default: angle = 90
+        }
+        guard connection.isVideoRotationAngleSupported(angle) else { return }
+        connection.videoRotationAngle = angle
     }
 
     override func viewWillAppear(_ animated: Bool) {
