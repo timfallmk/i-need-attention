@@ -54,7 +54,9 @@ policy</a> applies to that layer.</p>
 <p>Before anything is written to iCloud, the human-readable parts are encrypted on your
 device with ChaCha20-Poly1305, under a key derived (HKDF-SHA256) from a secret created
 when you paired. That secret exists only on the paired devices. It travels once, in
-the QR code you scan in person, and is never sent to any server.</p>
+the QR code you scan in person, and is never sent to a server of ours. (If you use
+iCloud Keychain, Apple syncs it between your own devices, end-to-end encrypted, so
+it stays unreadable to Apple as well.)</p>
 
 <div class="tablewrap">
 <table>

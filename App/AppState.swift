@@ -548,6 +548,7 @@ final class AppState {
             Haptics.success()
             pendingInvite = nil
             applyPair(state)
+            await registerSubscriptions()
         } catch {
             log.error("pending invite reconcile: \(error.localizedDescription)")
         }
@@ -596,13 +597,11 @@ final class AppState {
         partnerEndedPairing = false
         UnpairedElsewhereNotice.happened = false
         pairingEndedOnAnotherDevice = false
-        // Optimistic, and cleared by the first successful registration. Every caller
-        // should register straight after this — the QR paths now do, which is why this
-        // is a backstop rather than the mechanism it once was. It still earns its place
-        // for the callers that don't: a restore or an adoption reaches here and relies
-        // on the next foreground, and a transient failure they never observed would
-        // otherwise leave a device that looks paired and receives nothing. Costs one
-        // subscription listing, which finds them live and saves nothing.
+        // Optimistic, and cleared by the first successful registration. Every caller now
+        // registers immediately after this, and that call sets the flag correctly either
+        // way — so this is belt-and-braces: it covers the window before that call
+        // returns, and a future caller who forgets. Costs one subscription listing on the
+        // next foreground, which finds them live and saves nothing.
         subscriptionsNeedRetry = true
         // Completing a pair consumes any pending invite (the service layer clears the
         // persisted copy); re-sync the observable mirror.
@@ -1081,6 +1080,7 @@ final class AppState {
 
         if !pair.canSend, let completed = try? await PairingService.shared.completeInviterPairing() {
             applyPair(completed)
+            await registerSubscriptions()
             Haptics.success()
             return
         }

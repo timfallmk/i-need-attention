@@ -527,6 +527,10 @@ private struct ShowCodeView: View {
                     Haptics.success()
                     appState.applyPair(state)
                 }
+                // The inviter's half of the same rule the scan path follows: register
+                // where the result can reach the retry flag. Outside the MainActor.run
+                // because that closure is synchronous; the call hops there itself.
+                await appState.registerSubscriptions()
             } catch is CancellationError {
                 // expected on view dismissal
             } catch {

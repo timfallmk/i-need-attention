@@ -222,7 +222,7 @@ struct SettingsView: View {
                          + "unlocks any of it, and — if you're online and signed in to "
                          + "iCloud — the alerts stored in your iCloud account. Nothing is "
                          + "kept and nothing can be restored.\n\nWhat your partner keeps "
-                         + "holds is theirs to erase — but everything you sent them is "
+                         + "is theirs to erase — but everything you sent them is "
                          + "locked with the key that goes here, so after this neither of "
                          + "you can read it.")
                 }

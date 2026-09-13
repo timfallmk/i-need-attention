@@ -868,17 +868,17 @@ enum AttentionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .pairAlreadyJoined: return "That pairing code is already in use by another device."
-        case .pairNotFound:      return "Couldn't find that pairing code. Ask the other phone to show it again."
+        case .pairNotFound:      return "Couldn't find that pairing code. Ask them to show it again."
         case .malformedRecord:   return "Got an unexpected response from iCloud."
-        case .noPair:            return "This phone isn't paired yet."
+        case .noPair:            return "This device isn't paired yet."
         case .iCloudUnavailable: return "Sign in to iCloud in Settings to use Attention."
         case .inviteCleanupFailed: return "Couldn't clean up the previous invite. Check your connection and try again."
-        case .shareUnavailable:  return "That pairing link is no longer valid. Ask the other phone to show a new one."
-        case .shareNotAccepted:  return "Couldn't finish connecting to the other phone. Check your connection and try again."
-        case .pairIncomplete:    return "Still finishing setup with the other phone. Try again in a moment."
-        case .inviteNotSaved:    return "Couldn't save the new invite on this phone. Try again."
+        case .shareUnavailable:  return "That pairing link is no longer valid. Ask them to show a new one."
+        case .shareNotAccepted:  return "Couldn't finish connecting to your partner. Check your connection and try again."
+        case .pairIncomplete:    return "Still finishing setup with your partner. Try again in a moment."
+        case .inviteNotSaved:    return "Couldn't save the new invite on this device. Try again."
         case .partnerIdentityUnavailable:
-            return "Couldn't identify the other phone's iCloud account. Ask them to show a fresh code and try again."
+            return "Couldn't identify your partner's iCloud account. Ask them to show a fresh code and try again."
         }
     }
 }
