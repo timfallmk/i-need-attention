@@ -479,9 +479,12 @@ final class PairingService {
         )
         guard state.save() else { throw AttentionError.shareNotAccepted }
         await stampLegacyCaptureIfSettled(zoneID: inviterZoneID)
-        // Idempotent by subscription ID, and needed now rather than at next launch:
-        // without it the first alert the inviter sends would arrive silently.
-        try? await cloud.registerSubscriptions()
+        // Registration is the caller's, immediately after `applyPair`. It used to happen
+        // here as `try? await cloud.registerSubscriptions()`, which was right until that
+        // method gained a `Bool` meaning "partially saved, ask again" — `try?` then threw
+        // away the error *and* the answer, so a partial save was invisible. Nothing here
+        // can reach `AppState.subscriptionsNeedRetry` to record it, and doing it one hop
+        // later costs nothing: same moment, same idempotent call, observable result.
         return state
     }
 

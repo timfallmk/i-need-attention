@@ -30,7 +30,7 @@ struct PairingFlowView: View {
                     ScanCodeView(displayName: trimmedName) { mode = .chooser }
                 }
             }
-            .navigationTitle("Pair your phones")
+            .navigationTitle("Pair with your partner")
             .navigationBarTitleDisplayMode(.inline)
             // Settings used to be reachable only from the main screen, which needs a
             // pair — so an unpaired device had no way in at all. That is backwards for
@@ -74,7 +74,7 @@ struct PairingFlowView: View {
             title: "Your partner unpaired",
             systemImage: "person.badge.minus",
             explanation: "They ended the pairing from one of their devices, so this one is unpaired too. Nothing went wrong here.",
-            reassurance: "Your history is still on this phone, under Settings."
+            reassurance: "Your history is still on this device, under Settings."
         )
     }
 
@@ -87,7 +87,7 @@ struct PairingFlowView: View {
             title: "Unpaired on your other device",
             systemImage: "ipad.and.iphone",
             explanation: "This pairing was ended from another device signed in to your Apple Account, so it's ended here too. Nothing went wrong here.",
-            reassurance: "Your history is still on this phone, under Settings."
+            reassurance: "Your history is still on this device, under Settings."
         )
     }
 
@@ -111,7 +111,7 @@ struct PairingFlowView: View {
                 .foregroundStyle(.red)
 
             VStack(spacing: 8) {
-                Text("Two phones, one button")
+                Text("Two people, one button")
                     .font(.title2.weight(.semibold))
                 Text("One of you taps Show Code; the other taps Scan Code. After that, either of you can press the button.")
                     .multilineTextAlignment(.center)
@@ -163,7 +163,7 @@ struct PairingFlowView: View {
                 PasteInviteButton(beforePaste: { DeviceIdentity.name = trimmedName })
                     .padding(.top, 2)
 
-                // Pairing needs two phones and a person willing to install something, so
+                // Pairing needs a second device and a person willing to install something, so
                 // this screen is where someone evaluating the app alone stops. It is also
                 // the wall an App Review tester hits, but it is not a review carve-out:
                 // a demo only Apple can find would be a hidden feature, and a visible one
@@ -445,11 +445,11 @@ private struct ShowCodeView: View {
                 if phase == .waiting {
                     ProgressView().controlSize(.small)
                 }
-                Text(phase == .waiting ? "Waiting for the other phone…" : "Setting up…")
+                Text(phase == .waiting ? "Waiting for them…" : "Setting up…")
                     .font(.footnote.weight(.medium))
             }
             .foregroundStyle(.secondary)
-            Text("Open the app on the other phone and tap Scan Code.")
+            Text("Have them open the app and tap Scan Code.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
@@ -654,7 +654,7 @@ private struct ScanCodeView: View {
                 }
                 .padding(.horizontal, 24)
             } else {
-                Text("Point the camera at the other phone's code.")
+                Text("Point the camera at their code.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -671,6 +671,11 @@ private struct ScanCodeView: View {
             let state = try await PairingService.shared.completePairing(payload: payload, myName: displayName)
             Haptics.success()
             appState.applyPair(state)
+            // Here rather than inside `completePairing`, so a partial save reaches the
+            // retry flag. Without it the only recovery is the next foreground, which a
+            // user who pairs and stays in the app never reaches — and that is precisely
+            // when their partner sends the first alert to see whether it worked.
+            await appState.registerSubscriptions()
         } catch {
             Haptics.warning()
             self.error = error.localizedDescription
