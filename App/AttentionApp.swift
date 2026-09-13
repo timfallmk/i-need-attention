@@ -73,6 +73,7 @@ struct AttentionApp: App {
                     await appState.refreshICloudStatus()
                     await appState.refreshNotificationStatus()
                     await appState.reconcilePendingInvite()
+                    await appState.adoptPairingFromThisAccount()
                     await appState.reconcileHalfFormedPair()
                     await appState.refreshPartnerName()
                     await appState.reconcileLatestAlert()

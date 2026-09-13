@@ -114,6 +114,62 @@ final class PairingService {
         return state
     }
 
+    // MARK: - Joining a pairing this Apple ID already has
+
+    /// Brings a fresh install into the pairing another device on the same Apple ID has
+    /// already made, with no QR scan and nothing for the user to confirm.
+    ///
+    /// There is nothing to confirm because nothing is being granted: Apple authenticated
+    /// the account, iCloud Keychain moved the pair key, and the first device's share
+    /// acceptance is recorded per account rather than per install. Everything this needs
+    /// is already in front of it — it is reading state, not creating any.
+    ///
+    /// Returns nil, quietly, for every reason it might not apply: already paired, an
+    /// invite of our own outstanding, no key synced yet, no zone to adopt, a pairing
+    /// still mid-handshake. None is an error and all of them are retried on the next
+    /// foreground, which is what makes a key that arrives late a non-event.
+    ///
+    /// Deliberately does not adopt while a pending invite of our own exists. That invite
+    /// has a live share with a bearer URL in someone's hands; silently replacing it with
+    /// a different pairing would leave that code pointing at a zone this device no
+    /// longer thinks is its own.
+    func adoptExistingPairing() async -> PairState? {
+        guard PairState.load() == nil, PendingInvite.load() == nil else { return nil }
+        guard let pairKey = PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) else {
+            return nil
+        }
+
+        // Resolution is what adopts the zone, and it refuses to create one — so a launch
+        // that beats the key sync comes back empty here rather than minting a rival. A
+        // throw and a nil both mean "not now", which is the same handling.
+        guard (try? await cloud.resolveInboxZone()) != nil else { return nil }
+
+        guard let theirs = await cloud.fetchPartnerProfile(pairKey: pairKey),
+              let ours = await cloud.adoptableOutgoingZone(pairKey: pairKey) else { return nil }
+
+        let state = PairState(
+            pairKey: pairKey,
+            // Theirs, from the profile a previous device wrote into their zone: this
+            // account presents one identity to the partner, whichever device is holding
+            // it. See the note on `adoptableOutgoingZone`.
+            myDeviceID: ours.myDeviceID,
+            myName: ours.myName,
+            partnerDeviceID: theirs.deviceID,
+            partnerName: theirs.name,
+            outgoingZone: ZoneRef(ours.zoneID),
+            // Asked rather than assumed. The share's participants are the source of
+            // truth, and a pairing can legitimately be adopted mid-handshake.
+            partnerCanReach: await cloud.partnerHasAcceptedInboxShare()
+        )
+        guard state.save() else { return nil }
+
+        log.notice("adopted a pairing already made by another device on this account")
+        // Idempotent by subscription ID, and needed now rather than at next launch:
+        // without it the first alert the partner sends would arrive silently.
+        try? await cloud.registerSubscriptions()
+        return state
+    }
+
     /// Poll for the joiner while the invite screen is up. The reconcile path covers the
     /// case where the user leaves it.
     func waitForJoiner(timeout: TimeInterval = 120) async throws -> PairState {
