@@ -133,15 +133,9 @@ extension CloudKitService {
             .sorted()
 
         for name in candidates {
-            let recordID = CKRecord.ID(recordName: Constants.Profile.recordName,
-                                       zoneID: Self.zoneID(named: name))
-            guard let record = try? await privateDB.record(for: recordID),
-                  PairCrypto.opened(record[Constants.Profile.nameSealed] as? Data,
-                                    pairKey: pairKey,
-                                    field: Constants.Profile.nameSealed) != nil else {
-                continue
+            if await inboxZoneBelongs(toKey: pairKey, zoneNamed: name) == true {
+                return name
             }
-            return name
         }
         return nil
     }
@@ -200,25 +194,35 @@ extension CloudKitService {
         let owned = zones.map(\.zoneID.zoneName).filter { $0.hasPrefix(InboxZone.namePrefix) }
         var usable = 0
         for name in owned {
-            let recordID = CKRecord.ID(recordName: Constants.Profile.recordName,
-                                       zoneID: Self.zoneID(named: name))
-            guard let record = try? await privateDB.record(for: recordID),
-                  PairCrypto.opened(record[Constants.Profile.nameSealed] as? Data,
-                                    pairKey: pairKey,
-                                    field: Constants.Profile.nameSealed) != nil else {
-                continue
+            if await inboxZoneBelongs(toKey: pairKey, zoneNamed: name) == true {
+                usable += 1
             }
-            usable += 1
         }
         return (owned.count, usable)
     }
 
-    /// Whether the `PairProfile` in one of this account's own zones opens under the
-    /// given key — the same test adoption uses, pointed at a zone we already claim.
+    /// The single test for "does this zone belong to the pairing this key describes",
+    /// and the one every caller that asks the question goes through.
     ///
-    /// Nil is "cannot tell", and covers two different things on purpose: no profile yet
-    /// (a pairing still mid-handshake writes one only when the joiner arrives) and no
-    /// network. Neither is evidence of anything, and the caller must not act on them.
+    /// Written once because it is load-bearing in three places that must never disagree:
+    /// adoption, which hands a zone to a freshly built `PairState`; the census, which
+    /// decides whether Diagnostics accuses; and `settleLegacyPairing`, which decides
+    /// whether a blob written before key binding still describes this account's pairing.
+    /// Three copies of a rule this consequential is a change that fixes one and forgets
+    /// the others.
+    ///
+    /// Cryptographic rather than a prefix match, deliberately: `tearDownInboxZone`
+    /// rotates the stored name whether or not the delete succeeded, so a failed teardown
+    /// leaves an orphaned `attention-inbox-*` zone behind, and taking one by prefix would
+    /// hand the previous partner's records to the next partner's share. Only the partner
+    /// writes this record, and only under the key of the pairing it belongs to.
+    ///
+    /// **Nil is "cannot tell", not "no"**, and covers two different things on purpose: a
+    /// pairing still mid-handshake has no profile yet (the joiner writes it), and
+    /// CloudKit can simply be out of reach. Each caller decides what that is worth.
+    /// Adoption and the census read it as "not this one"; `settleLegacyPairing` refuses
+    /// to act on it at all, because unpairing somebody whose network was down is the
+    /// worse error.
     func inboxZoneBelongs(toKey pairKey: String, zoneNamed name: String) async -> Bool? {
         let recordID = CKRecord.ID(recordName: Constants.Profile.recordName,
                                    zoneID: Self.zoneID(named: name))
