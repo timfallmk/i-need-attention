@@ -395,6 +395,14 @@ So it stands, with two things blunting it: `Settings → Diagnostics` reports "I
 owned", and re-pairing resolves it. Worth revisiting with two devices in hand, where the
 size of the window can actually be measured rather than guessed at.
 
+One half of it *is* closed. The window above is "the key has not arrived", where nothing
+can tell the two cases apart; the narrower window where adoption is **already running** was
+a plain race, and `PairingService` now serializes adoption against both pairing-start paths
+(`beginPairingChange`). That matters because adoption takes the zone before it has either
+profile and then awaits three more round trips: a tap landing inside that stretch used to
+mint a rival zone and revoke the share the adoption in flight was about to name. The
+remaining residual is only the case where there is nothing in flight to wait for.
+
 ## Out of scope here
 
 - **Other platforms** (iPad as a first-class target, macOS, Vision) — the rest of #72. This

@@ -27,6 +27,48 @@ final class PairingService {
     private let cloud = CloudKitService.shared
     private init() {}
 
+    // MARK: - One pairing change at a time
+
+    /// Adoption and the two pairing-start paths all rewrite the same two pieces of
+    /// account-wide state — the stored inbox zone name and the pairing blob — with
+    /// CloudKit awaits in between, and `@MainActor` does not stop them interleaving
+    /// across those awaits. It only stops them interleaving *within* a synchronous run.
+    ///
+    /// The damage is specific. `adoptExistingPairing` takes the zone before it has
+    /// either profile, then awaits three more round trips; a `Show Code` tap landing in
+    /// that window runs `startingFreshPairing`, mints a rival zone and revokes the share
+    /// the adopted pairing is using, after which adoption saves a `PairState` naming a
+    /// zone that is no longer this device's — or, on its failure path, restores a name
+    /// the invite has since replaced. Either way the account ends up with two zones and
+    /// one set of subscriptions, which is #68 arriving by the back door.
+    ///
+    /// A gate rather than a cancellation: adoption that has already taken the zone has
+    /// no safe point to stop at, and it is short. The invite waits for it, then starts
+    /// fresh from whatever it settled on.
+    ///
+    /// Deliberately not reentrant, and deliberately not taken by `cancelInvite`, which
+    /// `startInviting` and `completePairing` both call while holding it. Adoption and
+    /// cancellation cannot overlap for a different reason: adoption refuses to start
+    /// while a `PendingInvite` exists, and cancellation has nothing to do without one.
+    private var pairingChangeInProgress = false
+    private var waitingForPairingChange: [CheckedContinuation<Void, Never>] = []
+
+    private func beginPairingChange() async {
+        while pairingChangeInProgress {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                waitingForPairingChange.append(continuation)
+            }
+        }
+        pairingChangeInProgress = true
+    }
+
+    private func endPairingChange() {
+        pairingChangeInProgress = false
+        let waiting = waitingForPairingChange
+        waitingForPairingChange.removeAll()
+        for continuation in waiting { continuation.resume() }
+    }
+
     // MARK: - Inviter
 
     /// Step 1. Mints a fresh secret and a fresh bearer link to this device's inbox zone,
@@ -34,6 +76,9 @@ final class PairingService {
     /// is cancelled first — which revokes its share — so "renew" is just a new invite,
     /// and the old QR code stops working rather than lingering as a live credential.
     func startInviting(myName: String) async throws -> PairingInvite {
+        await beginPairingChange()
+        defer { endPairingChange() }
+
         if let previous = PendingInvite.load() {
             guard await cancelInvite(previous) else {
                 throw AttentionError.inviteCleanupFailed
@@ -141,6 +186,9 @@ final class PairingService {
     /// a different pairing would leave that code pointing at a zone this device no
     /// longer thinks is its own.
     func adoptExistingPairing() async -> PairState? {
+        await beginPairingChange()
+        defer { endPairingChange() }
+
         guard PairState.load() == nil, PendingInvite.load() == nil else { return nil }
         guard let pairKey = PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) else {
             return nil
@@ -330,9 +378,14 @@ final class PairingService {
     /// format, same untrusted-input parser), accepts the inviter's share, then puts a
     /// share of our own zone back through the channel that just opened.
     func completePairing(payload: String, myName: String) async throws -> PairState {
+        // Parsed before the gate: a malformed code is the scanner's answer to give back
+        // immediately, not something to queue behind an adoption round trip.
         guard let invite = PairingInvite.from(qrPayload: payload) else {
             throw AttentionError.pairNotFound
         }
+        await beginPairingChange()
+        defer { endPairingChange() }
+
         // Joining someone else's pair abandons any invite we were offering ourselves —
         // and revokes its share, so a code we handed out earlier can't still be used.
         if let ownPending = PendingInvite.load() {
