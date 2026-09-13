@@ -24,7 +24,7 @@ struct DiagnosticsReport: Equatable {
 
     /// One alert reduced to its timing and lifecycle. Deliberately carries no content:
     /// `hadEmoji` records that an emoji was chosen, never which one.
-    /// One of the app's four subscriptions, and whether it is any use.
+    /// One of the app's subscriptions, and whether it is any use.
     ///
     /// `staleZone` is the state worth having a name for: the subscription IDs are
     /// constants while the inbox zone is per-pairing, so one left over from a previous

@@ -36,7 +36,7 @@ is exactly right for re-pairing, which is what it was written for — the IDs ar
 the zone name rotates, so ID-matching alone would leave a pairing that looks healthy and never
 pushes.
 
-It is exactly wrong across two devices. Install #2 comes up, finds four subscriptions naming
+It is exactly wrong across two devices. Install #2 comes up, finds the subscriptions naming
 install #1's zone, and repoints all four at its own. Install #1 keeps a `PairState` that still
 names the partner and still names a zone it owns, and simply stops being pushed to. Nothing
 tells it. `Settings → Diagnostics` would say `staleZone`, but only if someone looked.
@@ -265,9 +265,23 @@ that honest rather than incidental, and the confirmation copy should say it.
 iPhones and one watch has the watch bound to one of them, which is Apple's constraint, not
 ours.
 
-**The only new pixels** are one line in `Settings → You`, under the existing "Paired with"
-row: *signed in on 2 devices*. It exists so the count is checkable when something looks wrong,
-and it is the whole visible surface of the feature.
+**The only new pixels** are in `Settings → You`, and they say less than planned. The line
+was meant to read *signed in on 2 devices*, and **the count is not available**: CloudKit
+exposes no list of devices on an account, so producing one means each device writing a marker
+record into the zone it owns — a new record type, a second schema deploy, a queryable index
+(`PairProfile.___recordID` is not indexed, so its records cannot be enumerated), and a
+share-visible record telling the partner how many devices you own. That is a lot of new
+surface for a number, so it is not built.
+
+What ships instead is the sentence the count was a proxy for, which is the half that actually
+needed saying: *this pairing is shared by every device signed in to your Apple Account.
+Pairing or unpairing on any of them does it on all of them.* One of those is destructive and
+neither is guessable — somebody unpairing on their iPad to "start fresh" has just ended the
+pairing on their phone. The unpair confirmation says the same thing at the moment it matters,
+and the button is no longer called "Unpair this phone", because it isn't.
+
+A device count remains worth having for diagnosing "why is nothing arriving", and a `Device`
+record type is the way to get one. Separate piece of work.
 
 ## Order of work
 
@@ -297,8 +311,14 @@ safest.
    than by adding a second identity to the same match — only a share participant can write
    into the zone we own, so anything there that is not ours is theirs, whether or not
    either side has an account identity yet.
-4. **The fifth subscription.** Code only — `Alert.state` is already indexed.
-5. **The Settings line.**
+4. **The fifth subscription.** Code only — `Alert.state` is already indexed. It reuses
+   `LocalNotifications.removeDelivered(matchingRecordName:)`, which already existed for
+   snooze and does exactly the required thing (the CloudKit banner's identifier is
+   APNs-assigned, so it can only be matched through `userInfo`). Paired with the same sweep
+   in `reconcileLatestAlert`, because a silent push never wakes a force-quit app — so a
+   device that was closed when the alert was answered elsewhere still has the banner when
+   it next opens, and only the foreground pass can clear that one.
+5. **The Settings line**, minus the device count. See above.
 
 ## What must be verified before shipping
 

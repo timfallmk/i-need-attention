@@ -19,7 +19,7 @@ enum LocalNotifications {
         content.title = title
         content.body = body
         content.categoryIdentifier = Constants.NotificationAction.category
-        content.userInfo = ["recordName": recordName]
+        content.userInfo = [Constants.NotificationUserInfo.recordName: recordName]
         content.badge = 1
         // Mirror NotificationService.applyPriority (the critical path is disabled — Apple
         // denied the entitlement — so only the time-sensitive branch is relevant here).
@@ -49,12 +49,16 @@ enum LocalNotifications {
 
     /// Clears any delivered notification for an alert, matched by its `recordName` in
     /// userInfo — the CloudKit-push banner's identifier is APNs-assigned, not the recordName,
-    /// so it can't be removed by a known id. Used when snoozing dismisses the current banner.
+    /// so it can't be removed by a known id.
+    ///
+    /// Two callers: snoozing, which dismisses the banner it replaces, and an alert
+    /// answered on another of this person's devices, which is the only way that device
+    /// can reach this one's notification centre.
     static func removeDelivered(matchingRecordName recordName: String) async {
         let center = UNUserNotificationCenter.current()
         let delivered = await center.deliveredNotifications()
         let ids = delivered
-            .filter { ($0.request.content.userInfo["recordName"] as? String) == recordName }
+            .filter { ($0.request.content.userInfo[Constants.NotificationUserInfo.recordName] as? String) == recordName }
             .map(\.request.identifier)
         guard !ids.isEmpty else { return }
         center.removeDeliveredNotifications(withIdentifiers: ids)

@@ -40,6 +40,18 @@ enum SubscriptionPredicates {
         )
     }
 
+    /// Incoming answered: an Alert in our own zone that has reached `acknowledged`.
+    ///
+    /// The same field and value as `outgoingAck` but on the other record type, which is
+    /// the difference between "they answered something I sent" and "something sent to me
+    /// has been answered, by one of my devices". Only the second can clear a banner.
+    static func incomingAnswered() -> NSPredicate {
+        NSPredicate(
+            format: "%K == %@",
+            Constants.AlertField.state, Constants.AlertState.acknowledged.rawValue
+        )
+    }
+
     /// Pair profile: the partner introducing themselves or renaming themselves. One per
     /// zone, so again the zone is the filter.
     static func pairProfile() -> NSPredicate {

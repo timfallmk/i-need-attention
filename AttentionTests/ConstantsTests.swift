@@ -96,6 +96,7 @@ final class ConstantsTests: XCTestCase {
         XCTAssertFalse(Constants.SubscriptionID.outgoingStatus.isEmpty)
         XCTAssertFalse(Constants.SubscriptionID.outgoingAck.isEmpty)
         XCTAssertFalse(Constants.SubscriptionID.pairProfile.isEmpty)
+        XCTAssertFalse(Constants.SubscriptionID.incomingAnswered.isEmpty)
     }
 
     /// `registerSubscriptions` retires subscriptions in this set that point at a stale
@@ -106,9 +107,10 @@ final class ConstantsTests: XCTestCase {
             Constants.SubscriptionID.incomingAlerts,
             Constants.SubscriptionID.outgoingStatus,
             Constants.SubscriptionID.outgoingAck,
-            Constants.SubscriptionID.pairProfile
+            Constants.SubscriptionID.pairProfile,
+            Constants.SubscriptionID.incomingAnswered
         ])
-        XCTAssertEqual(Constants.SubscriptionID.all.count, 4)
+        XCTAssertEqual(Constants.SubscriptionID.all.count, 5)
     }
 
     func testSubscriptionIDsAreUnique() {
@@ -117,8 +119,9 @@ final class ConstantsTests: XCTestCase {
             Constants.SubscriptionID.outgoingStatus,
             Constants.SubscriptionID.outgoingAck,
             Constants.SubscriptionID.pairProfile,
+            Constants.SubscriptionID.incomingAnswered,
         ]
-        XCTAssertEqual(ids.count, 4)
+        XCTAssertEqual(ids.count, 5)
     }
 
     // MARK: - Notification categories

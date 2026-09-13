@@ -63,7 +63,8 @@ The zone is **per pairing, not per install** — `InboxZone` mints a fresh name 
 ```
 ── in the zone you own (private database) ──
 Alert           one per "I need attention" press the partner sent you
-  senderDeviceID        (queryable)
+  senderDeviceID        (queryable) — per install
+  senderUserID          per account; what "mine or theirs?" actually means
   state                 "sent" | "seen" | "acknowledged"
   seenAt, acknowledgedAt
   critical              0 or 1 — sender's per-press flag (long-press menu)
@@ -73,6 +74,7 @@ Alert           one per "I need attention" press the partner sent you
 
 PairProfile     one, record name "profile" — who your partner is
   deviceID
+  userID                per account; how each side learns the other's
   nameSealed            ciphertext
   shareURLSealed        ciphertext; set only on the joiner's first write
 
@@ -118,6 +120,11 @@ CloudKitService.acknowledgeAlert:
 A's outgoing-status-v2 subscription fires (silent) → in-app pill flips
 A's outgoing-ack-v3 subscription fires (visible, predicate state == "acknowledged")
    → NSE renders "PartnerName: Got back to you ❤️", even if A force-quit the app
+   ↓
+B's other devices: incoming-answered-v1 fires (silent, on B's own zone, Alert
+   update, predicate state == "acknowledged") → each clears the banner it is still
+   showing. `removeDeliveredNotifications` only reaches its own process, so nothing
+   else can take those down.
 ```
 
 ### Testing push on a simulator
@@ -185,6 +192,29 @@ By step 3 the devices already have a channel, so the second share travels over i
 Step 2 makes B→A live before A→B, so the pair is genuinely one-directional in between. `PairState` tracks the directions separately (`canSend`, `partnerCanReach`) and the UI never offers a button that would reach nobody — see `FinishingSetupView`. `AppState.reconcileHalfFormedPair` closes the gap on launch and every foreground.
 
 The pair key lives in the keychain (`PairSecrets.store`); the rest of `PairState` is JSON in `UserDefaults`. A scanned share URL is untrusted input in a way the old payload's fields were not — accepting one means joining whatever zone it names — so `URL.isCloudKitShare` bounds it to https and an `icloud.com` host before CloudKit ever sees it. See `App/Models/PairState.swift` for the wire format and `App/Services/PairingService.swift` for the handshake.
+
+### Several devices, one person
+
+The private database is per **Apple Account**, not per install, so every device a person
+signs in on shares one database, one pair key (the keychain item is synchronizable) and
+therefore one pairing. Three consequences the code exists to serve:
+
+- **The inbox zone is discovered, not minted.** `CloudKitService.resolveInboxZone` lists the
+  account's zones and takes the one already there; a second device that minted its own would
+  have `registerSubscriptions` retire the first device's as stale and repoint them, leaving
+  it paired-looking and never pushed to. Adoption is gated on the zone's `PairProfile`
+  opening under the pair key the account currently holds — a prefix match would take an
+  orphan left by a failed teardown and hand the previous partner's records to the next one.
+- **A second install adopts rather than pairs.** `PairingService.adoptExistingPairing` reads
+  the partner's zone out of the shared database (share acceptance is per account, so it is
+  already there) and builds a `PairState`, taking `myDeviceID` from the profile a previous
+  device wrote so the account keeps presenting one identity.
+- **Unpairing is account-wide**, because the zone it deletes is. The other devices find out
+  by discovery (`InboxZoneResolution.vanished`) and say so; `UnpairedElsewhereNotice` is the
+  third answer to "why am I on the pairing screen?".
+
+Not built: a count of devices on the account. CloudKit exposes no such list, and producing
+one needs a new record type — see `docs/multi-device-plan.md`.
 
 ### Watch
 
@@ -266,11 +296,13 @@ Each site file carries a local comment naming its own items, pointing back at th
 
 - **`aps-environment` is `$(APS_ENVIRONMENT)`, not a literal**: the entitlement has to match the CloudKit environment the build talks to, and the two are chosen by different mechanisms — build configuration picks the container, the entitlement picks the APNs environment. A mismatched token is not rejected; it is simply never delivered to, so push dies silently while every foreground read keeps working. `project.yml` sets `development` for Debug and `production` for Release. Before this the file held a literal, and the repo flipped it by hand twice — once to test Development subscriptions, once to ship — which is a manual step that breaks whichever half of the project isn't in front of you.
 
+- **Records carry two sender identities and both are load-bearing**: `senderDeviceID` is per install, `senderUserID` per account. Everything that asks "was this mine or theirs?" wants the second — a person can hold several devices on one Apple Account, and with only the first, an alert sent from your iPad reads as *incoming* on your iPhone. The first stays because records written before the second exist, so `SenderIdentity` holds the one copy of the fallback: the account identity wins only when **both** ends have one, since a present value compared against an absent one answers "not mine" for every alert that person ever sent. `handleIncomingChange` deliberately does not use it to decide "theirs" — it decides from the zone, because only a share participant can write into the zone you own, which is true whether or not either side has an account identity yet.
+
 - **Cooldown is in-memory only**: `AppState.cooldownEnds` is not persisted across launches. The cooldown is a UI guard against fat-finger double-taps, not a rate limit. Killing and relaunching the app intentionally bypasses it.
 - **The watch press sends no noun**: `sendAttention(noun:)` is called with no argument, so the body is the default "needs attention". The watch UI has no long-press affordance; only the phone can choose a noun.
 - **`SharedSettings.acceptCriticalAlerts` defaults to `false`**: opt-in is the right default for an alert that pierces silent mode.
 - **`needs-attention.caf` may not exist in the bundle**: that's fine. iOS silently falls back to no-sound. Settings → Custom sound off uses the system default; on uses the bundled file (or nothing if missing). See `App/Resources/SOUND_PLACEHOLDER.md`.
-- **`incoming-alerts-v2` subscription uses `alertBody` + `shouldSendMutableContent`, not `shouldSendContentAvailable`**: CloudKit requires a non-empty `alertBody` to classify a push as an alert push (vs. silent). The NSE only runs on alert pushes — a silent push goes directly to the app's background handler. The static body ("Attention") is immediately overwritten by the NSE with the real sender name and message. The other two silent subscriptions (`outgoing-status-v2`, `pair-profile-v1`) use `shouldSendContentAvailable = true` only. The fourth, `outgoing-ack-v3`, is visible for the same reason as this one.
+- **`incoming-alerts-v2` subscription uses `alertBody` + `shouldSendMutableContent`, not `shouldSendContentAvailable`**: CloudKit requires a non-empty `alertBody` to classify a push as an alert push (vs. silent). The NSE only runs on alert pushes — a silent push goes directly to the app's background handler. The static body ("Attention") is immediately overwritten by the NSE with the real sender name and message. The three silent subscriptions (`outgoing-status-v2`, `pair-profile-v1`, `incoming-answered-v1`) use `shouldSendContentAvailable = true` only. The remaining one, `outgoing-ack-v3`, is visible for the same reason as this one.
 - **The sender's ack banner rides on a second write, and that is not the redundancy it looks like**: an alert you send lives in your partner's zone, so their acknowledgement updates a record you reach through the *shared* database — and the shared database accepts only `CKDatabaseSubscription`, whose notification names a database rather than a record. Nothing could turn that into a banner without a full change-token fetch inside the extension's 30-second budget. So the receiver also writes an `AlertStatus` record into the *sender's* own zone, where an ordinary private-database query subscription reaches it. The `Alert` record stays canonical — history and reconciliation read it — and the notice exists purely to be pushed, so a failed notice costs the banner and not the state. Pre-2.0 there was an `Ack` record for the same reason with a different cause: the *public* database rejected a visible push on `firesOnRecordUpdate`.
 
 - **The pair key's keychain item is synchronizable, not `ThisDeviceOnly`**: these are two independent knobs and it is easy to conflate them. `kSecAttrSynchronizable` decides iCloud Keychain sync (off unless you ask for it); `...ThisDeviceOnly` decides whether the item can restore onto a *different* device. The exposure being closed is the pre-2.0 `attention.pair.v1` blob in the app container's `UserDefaults` plist, which an unencrypted backup hands over in the clear — any keychain storage closes that, so `ThisDeviceOnly` would only have added protection against someone holding an encrypted backup *and* its password. Against that it costs a great deal: from 2.0 the pair key is the HKDF input that decrypts every payload, so a device without it cannot read history that is still sitting in CloudKit, and re-pairing is not a solo recovery — it needs the partner and a fresh scan. `DeviceIdentity.id` and the rest of `PairState` live in `UserDefaults` and do restore, so a device-only key would have restored everything except the one value that makes it usable. Two consequences in the code: `kSecAttrSynchronizable` must appear in **every** query, not just the insert (omitting it means "non-synchronizable only", which silently finds nothing), and the insert path first deletes any non-synchronizable twin with `kSecAttrSynchronizableAny`. `AfterFirstUnlock` rather than `WhenUnlocked` because the NSE decrypts pushes that arrive against a locked screen. `PairState.migrateLegacy` only deletes the v1 blob once the key reads back out of the store, so a keychain that refuses the write leaves the device paired and retries on the next launch instead of unpairing it permanently.
@@ -283,7 +315,7 @@ Each site file carries a local comment naming its own items, pointing back at th
 
 ## Out of scope (for this codebase)
 
-- ~~More than 2 devices per pair~~ — still true of the shipping app, but now **tracked** in #72 rather than refused outright. It depends on #68, and on separating person identity from `DeviceIdentity.id`.
+- ~~More than 2 devices per pair~~ — several devices *per person* is built (see "Several devices, one person"); several **people** per pairing is still out of scope and still tracked in #72, along with the other platforms it would take.
 - Server-side rate limiting (out-of-band, requires actual backend)
 - ~~Encrypted alert payloads~~ — **done in 2.0.** This entry once read "the `pairKey` is the trust boundary, not the wire format", which was false: the pairKey was a plaintext field on a record every authenticated iCloud client could read, so it bounded nothing. Contents are now sealed with `PairCrypto` under a key derived from it, in zones only the pair can reach. What that does *not* buy: protection against a compromised device. The key is on both phones — the right place for the boundary in a two-person app, but a boundary.
 

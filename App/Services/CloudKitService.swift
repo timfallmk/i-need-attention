@@ -439,7 +439,7 @@ final class CloudKitService: @unchecked Sendable {
 
     // MARK: - Subscriptions
 
-    /// Registers (idempotently) the four query subscriptions this app needs, all of them
+    /// Registers (idempotently) the five query subscriptions this app needs, all of them
     /// on the inbox zone this *account* owns, in the private database:
     ///  - Incoming alerts: visible alert push when the partner sends.
     ///  - Outgoing status: silent push when the partner leaves a status notice.
@@ -447,6 +447,8 @@ final class CloudKitService: @unchecked Sendable {
     ///    so the sender sees a banner with the app force-quit.
     ///  - Pair profile: silent push when the partner introduces or renames themselves,
     ///    which is also what closes the last step of the pairing handshake.
+    ///  - Incoming answered: silent push when an alert *we received* is acknowledged, so
+    ///    this person's other devices can clear the banner they are still showing.
     ///
     /// Nothing subscribes to the partner's zone. The shared database accepts only
     /// `CKDatabaseSubscription`, and those notifications name a database rather than a
@@ -471,7 +473,7 @@ final class CloudKitService: @unchecked Sendable {
         }
         let existing = try await privateDB.allSubscriptions()
 
-        // Existing is not the same as usable. The four subscription IDs are constants
+        // Existing is not the same as usable. The five subscription IDs are constants
         // while the zone name is per-pairing, so after a re-pair every one of these
         // still names the zone the *previous* pairing used — a zone `unpair` deleted.
         // Matching on ID alone would find them all present, save nothing, and leave a
@@ -513,6 +515,9 @@ final class CloudKitService: @unchecked Sendable {
         }
         if !live.contains(Constants.SubscriptionID.pairProfile) {
             toSave.append(makePairProfileSubscription(zoneID: zoneID))
+        }
+        if !live.contains(Constants.SubscriptionID.incomingAnswered) {
+            toSave.append(makeIncomingAnsweredSubscription(zoneID: zoneID))
         }
         guard !toSave.isEmpty else { return }
 
@@ -699,6 +704,28 @@ final class CloudKitService: @unchecked Sendable {
         let info = CKSubscription.NotificationInfo()
         info.alertBody = "Attention"
         info.shouldSendMutableContent = true
+        sub.notificationInfo = info
+        return sub
+    }
+
+    /// An alert we received reaching `acknowledged`. Silent: there is nothing to show,
+    /// the entire job is to take something *away* — the banner this device is still
+    /// displaying for an alert answered on another one.
+    ///
+    /// Fires for this device's own acknowledgements too, since a predicate cannot filter
+    /// on who wrote the change without indexing the sender, and adding an index to save
+    /// a push nobody sees would be the wrong trade. The handler is idempotent: removing
+    /// a notification that is already gone does nothing.
+    private func makeIncomingAnsweredSubscription(zoneID: CKRecordZone.ID) -> CKQuerySubscription {
+        let sub = CKQuerySubscription(
+            recordType: Constants.RecordType.alert,
+            predicate: SubscriptionPredicates.incomingAnswered(),
+            subscriptionID: Constants.SubscriptionID.incomingAnswered,
+            options: [.firesOnRecordUpdate]
+        )
+        sub.zoneID = zoneID
+        let info = CKSubscription.NotificationInfo()
+        info.shouldSendContentAvailable = true
         sub.notificationInfo = info
         return sub
     }
