@@ -30,6 +30,13 @@ enum DataErasure {
         AccountIdentityPublished.done = false
         DismissedOutgoing.clear()
 
+        // The zone name is pairing-scoped like everything above it, and was the one store
+        // the erase did not name. `tearDownInboxZone` rotates rather than removes —
+        // deliberately, since the old name is what a later pairing would otherwise reuse —
+        // so without this a full erase left a freshly minted name on disk and the next
+        // launch still saw a stored zone after the user asked for all local data to go.
+        InboxZone.clear()
+
         LegacyPairing.clear()
         LegacyHistoryCaptureState.clear()
         PairSecrets.store.removeSecret(for: Constants.Keychain.legacyHistoryKeyAccount)

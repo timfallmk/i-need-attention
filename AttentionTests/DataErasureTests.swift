@@ -24,7 +24,6 @@ final class DataErasureTests: XCTestCase {
 
     private func wipe() {
         DataErasure.eraseLocalData(settings: UserSettings())
-        InboxZone.clear()
     }
 
     /// Writes something to every store `eraseLocalData` names.
@@ -66,6 +65,10 @@ final class DataErasureTests: XCTestCase {
         metrics.save()
 
         SharedSettings.partnerName = "Bob"
+
+        // Minted through the real accessor rather than written directly, so this covers
+        // whatever `InboxZone` actually persists rather than a key copied into the test.
+        _ = InboxZone.currentName
     }
 
     func testEraseClearsEveryLocalStore() {
@@ -89,6 +92,13 @@ final class DataErasureTests: XCTestCase {
         XCTAssertNil(SnoozeState.load())
         XCTAssertNil(MetricKitSummary.load())
         XCTAssertNil(SharedSettings.partnerName)
+
+        // The store this audit was defeated by: `wipe()` used to clear `InboxZone` itself,
+        // beside the erase rather than through it, so the one store `eraseLocalData` did
+        // not name was also the one the test could not see.
+        XCTAssertNil(InboxZone.storedName)
+        XCTAssertFalse(InboxZone.isMinted)
+        XCTAssertNil(SharedSettings.inboxZoneName)
     }
 
     /// Every key in the keychain, not just the live pairing's. The pre-2.0 key is stashed
