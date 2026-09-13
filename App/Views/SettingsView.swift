@@ -38,7 +38,16 @@ struct SettingsView: View {
                     Text("You")
                 } footer: {
                     if appState.pair != nil {
-                        Text("Your partner sees this name on every alert and in their settings. Changes sync automatically.")
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Your partner sees this name on every alert and in their settings. Changes sync automatically.")
+                            // The only visible surface of multi-device support, and the
+                            // only place either half of it is discoverable. Both halves
+                            // are surprising the first time and one of them destroys
+                            // something: a person who unpairs on their iPad to "start
+                            // fresh" has ended the pairing on their phone too, and
+                            // nothing else in the app would have told them beforehand.
+                            Text("This pairing is shared by every device signed in to your Apple Account. Pairing or unpairing on any of them does it on all of them.")
+                        }
                     } else {
                         Text("Your partner will see this name on every alert.")
                     }
@@ -184,7 +193,10 @@ struct SettingsView: View {
                             Haptics.warning()
                             confirmingUnpair = true
                         } label: {
-                            Label("Unpair this phone", systemImage: "xmark.circle")
+                            // Not "this phone" any more. The zone it deletes lives in
+                            // the private database, which is per Apple Account, so the
+                            // pairing ends on every device signed in to it.
+                            Label("Unpair", systemImage: "xmark.circle")
                         }
                     } footer: {
                         Text("You'll need to scan a fresh code to pair again.")
@@ -238,7 +250,8 @@ struct SettingsView: View {
                     dismiss()
                 }
             } message: {
-                Text("Both phones need to unpair separately for the pairing to be fully reset.")
+                Text("This ends the pairing on every device signed in to your Apple Account. "
+                     + "Your partner unpairs separately.")
             }
             .alert("Erase all my data?", isPresented: $confirmingErase) {
                 Button("Cancel", role: .cancel) {}
@@ -249,7 +262,8 @@ struct SettingsView: View {
             } message: {
                 Text("This can't be undone. Your alert history, your pairing and your "
                      + "settings are deleted from this phone, and from your iCloud account "
-                     + "if it can be reached — you'll be told if it can't.")
+                     + "if it can be reached — you'll be told if it can't. The pairing "
+                     + "ends on your other devices too.")
             }
         }
     }
