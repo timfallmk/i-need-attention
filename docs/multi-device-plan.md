@@ -363,6 +363,25 @@ cost:
 - **Testing this needs an Apple ID that is on no TestFlight install of this app**, for the
   keychain reason above. That rule predates this work and this work does not relax it.
 
+## Known residual: Invite can still out-race the key
+
+`adoptExistingPairing` needs the pair key, which arrives by iCloud Keychain sync on its
+own schedule. Until it does, a second device shows the pairing screen — and if the person
+taps **Show Code** rather than waiting, `startInviting` finds nothing stored, mints a fresh
+zone, and registers the account-wide subscription IDs against it. That is #68 again,
+arrived at by impatience instead of by design.
+
+Closing it properly means the pairing-start path distinguishing "this account has a live
+pairing whose key has not reached me" from "this account has an orphan zone from a failed
+teardown", and the only honest discriminator — does a zone's `PairProfile` open under the
+current key — is exactly the thing that cannot answer while the key is missing. Refusing on
+the weaker signal (the account owns *any* prefixed zone) would block pairing outright for
+anyone carrying an orphan, which is a worse failure than the one it prevents.
+
+So it stands, with two things blunting it: `Settings → Diagnostics` reports "Inbox zones
+owned", and re-pairing resolves it. Worth revisiting with two devices in hand, where the
+size of the window can actually be measured rather than guessed at.
+
 ## Out of scope here
 
 - **Other platforms** (iPad as a first-class target, macOS, Vision) — the rest of #72. This

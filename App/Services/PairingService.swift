@@ -191,9 +191,9 @@ final class PairingService {
         }
 
         log.notice("adopted a pairing already made by another device on this account")
-        // Idempotent by subscription ID, and needed now rather than at next launch:
-        // without it the first alert the partner sends would arrive silently.
-        try? await cloud.registerSubscriptions()
+        // Subscriptions are the caller's to register: `AppState` tracks a failure and
+        // retries it on the next foreground, where a swallowed `try?` here would leave an
+        // apparently-paired device receiving nothing until it was relaunched.
         return state
     }
 
@@ -211,7 +211,16 @@ final class PairingService {
     /// So the pairing-start paths ask first, and mint fresh when the answer is no.
     private func ownsStoredInboxZone() -> Bool {
         guard InboxZone.storedName != nil else { return false }
-        return PairState.load() != nil || PendingInvite.load() != nil
+        if PairState.load() != nil || PendingInvite.load() != nil { return true }
+
+        // Nothing loaded — but "no pairing" and "cannot read the pairing yet" are
+        // different answers and only one of them means the zone is an orphan. Before the
+        // first unlock after a reboot the keychain is unavailable, the blob stays put,
+        // and minting a rival zone on the strength of a locked keychain would abandon a
+        // perfectly good pairing. A key that *is* readable and still does not open the
+        // blob is the orphan case, and falls through to false.
+        return PairState.hasStoredBlob
+            && PairSecrets.store.secret(for: Constants.Keychain.pairKeyAccount) == nil
     }
 
     /// Puts the zone name back when an adoption could not be finished, so a half-adopted
