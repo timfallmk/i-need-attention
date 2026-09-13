@@ -185,7 +185,7 @@ final class InboxZoneTests: XCTestCase {
         let first = InboxZone.currentName
 
         XCTAssertTrue(InboxZone.isMinted)
-        XCTAssertTrue(first.hasPrefix("attention-inbox-"))
+        XCTAssertTrue(first.hasPrefix(InboxZone.namePrefix))
         XCTAssertEqual(InboxZone.currentName, first)
     }
 
@@ -195,7 +195,7 @@ final class InboxZoneTests: XCTestCase {
 
         XCTAssertNotEqual(minted, before)
         XCTAssertEqual(InboxZone.currentName, minted)
-        XCTAssertTrue(minted.hasPrefix("attention-inbox-"))
+        XCTAssertTrue(minted.hasPrefix(InboxZone.namePrefix))
     }
 
     /// Successive pairings must never collide: a reused name is a reused zone, which is
@@ -206,6 +206,52 @@ final class InboxZoneTests: XCTestCase {
 
         XCTAssertNotEqual(first, second)
         XCTAssertEqual(InboxZone.currentName, second)
+    }
+
+    // MARK: - Discovery: asking without minting, and taking over what is found
+
+    /// `storedName` exists so a device can ask "do I own a zone?" without the asking
+    /// making it true. A device whose pair key has not synced yet must get "no" here
+    /// rather than silently becoming the owner of a second zone — which is #68.
+    func testStoredNameDoesNotMint() {
+        XCTAssertNil(InboxZone.storedName)
+        XCTAssertNil(InboxZone.storedName)
+        XCTAssertFalse(InboxZone.isMinted)
+    }
+
+    func testStoredNameReportsWhatCurrentNameMinted() {
+        let minted = InboxZone.currentName
+        XCTAssertEqual(InboxZone.storedName, minted)
+    }
+
+    /// Adoption is how a second device on one Apple Account stops minting a rival: the
+    /// name comes from a zone the account already owns rather than from here.
+    func testAdoptPersistsAndIsWhatEverythingElseReads() {
+        let discovered = InboxZone.namePrefix + "11111111-2222-3333-4444-555555555555"
+        InboxZone.adopt(discovered)
+
+        XCTAssertEqual(InboxZone.storedName, discovered)
+        XCTAssertEqual(InboxZone.currentName, discovered)
+        XCTAssertTrue(InboxZone.isMinted)
+    }
+
+    /// A name minted before the pair key arrived is replaced wholesale, not kept
+    /// alongside: its zone was never created, so there is nothing to lose.
+    func testAdoptReplacesAPreviouslyMintedName() {
+        let minted = InboxZone.currentName
+        let discovered = InboxZone.namePrefix + "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        InboxZone.adopt(discovered)
+
+        XCTAssertNotEqual(discovered, minted)
+        XCTAssertEqual(InboxZone.storedName, discovered)
+    }
+
+    /// Discovery filters an account's zones by this prefix, so every name this app can
+    /// put into `UserDefaults` has to carry it — a rotated one as much as a first mint.
+    func testEveryNameThisAppMintsIsDiscoverable() {
+        for _ in 0..<8 {
+            XCTAssertTrue(InboxZone.rotate().hasPrefix(InboxZone.namePrefix))
+        }
     }
 
     // MARK: - Resetting a pairing that predates per-pairing zones
