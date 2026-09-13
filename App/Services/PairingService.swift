@@ -385,8 +385,8 @@ final class PairingService {
         guard sameParty else { return nil }
 
         var updated = state
-        // Backfill: a pairing made before per-account identity learns the partner's the
-        // first time they write a profile under a build that carries one. No migration
+        // Backfill: a pairing made before per-account identity learns the partner's
+        // identity the first time they write a profile under a build that carries one. No migration
         // step and no version check — just a field that starts arriving.
         if updated.partnerUserID == nil, let writer = profile.userID {
             updated.partnerUserID = writer

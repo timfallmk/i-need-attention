@@ -687,6 +687,11 @@ final class AppState {
         guard iCloudStatus == .available else { return }
         guard pair != nil || PairState.hasStoredBlob else { return }
         guard await CloudKitService.shared.ownedInboxZoneIsGone() else { return }
+        // Re-checked after the listing, because the user's own Unpair can land inside
+        // that await: the teardown deletes the zone, this task resumes, finds it
+        // missing exactly as expected, and blames another device for what the person
+        // just did here. Both preconditions gone means the pairing ended locally.
+        guard pair != nil || PairState.hasStoredBlob else { return }
 
         // Which of the two causes this is. Signing into a different Apple Account makes
         // our zone unfindable too, and blaming another device for that would be a plain
@@ -1021,6 +1026,11 @@ final class AppState {
         // perfectly good pairing on disk until it is relaunched.
         if let restored = PairState.load() {
             applyPair(restored)
+            // Bootstrap skipped registration because `pair` was nil at the time, and from
+            // here on every foreground skips adoption because it is not — so without this
+            // the recovered device is paired, reads and writes fine, and receives nothing
+            // until it is relaunched.
+            await registerSubscriptions()
             return
         }
 

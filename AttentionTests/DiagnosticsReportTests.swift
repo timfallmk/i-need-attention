@@ -247,6 +247,17 @@ final class DiagnosticsReportTests: XCTestCase {
         XCTAssertTrue(report.render().contains("Inbox zones owned: unknown"))
     }
 
+    /// Zero is the ordinary state before a first pairing and after an unpair. Shouting
+    /// at every unpaired user would make the row noise, and noise is how a real one gets
+    /// ignored.
+    func testInboxZoneCountIsQuietWhenThereAreNone() {
+        var report = makeReport()
+        report.ownedInboxZones = 0
+        let text = report.render()
+        XCTAssertTrue(text.contains("Inbox zones owned: 0"))
+        XCTAssertFalse(text.contains("RE-PAIR"))
+    }
+
     func testInboxZoneCountIsQuietWhenThereIsExactlyOne() {
         var report = makeReport()
         report.ownedInboxZones = 1

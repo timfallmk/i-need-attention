@@ -150,8 +150,10 @@ struct DiagnosticsReport: Equatable {
         switch ownedInboxZones {
         case .none:
             out.append("Inbox zones owned: unknown")
-        case .some(1):
-            out.append("Inbox zones owned: 1")
+        case .some(let count) where count <= 1:
+            // Zero is the ordinary state before a first pairing and after an unpair, so
+            // it reads plainly. Only a second zone is the collision worth shouting about.
+            out.append("Inbox zones owned: \(count)")
         case .some(let count):
             // Loud on purpose: this is the one line that identifies a pairing already in
             // the state #68 describes, and it reads as healthy from everywhere else.
