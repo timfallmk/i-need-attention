@@ -183,8 +183,12 @@ both zones and must keep rendering:
 
 Sites to change: `AlertRecord`, `ArchivedAlert`, `AppState.handleIncomingChange`,
 `HistoryView` (row direction and the partner-name heuristic), `DiagnosticsGatherer`. The
-`Alert` field also needs adding in the CloudKit Dashboard — as a String, and **not** indexed:
-zone membership is the filter, nothing queries the sender. `Tools/AttentionCLI` writes
+`Alert` field is the one real schema change in this plan — a String, **not** indexed (zone
+membership is the filter, nothing queries the sender), added to `cloudkit-schema.ckdb` in the
+same commit and deployed Development → Production. Additive, so records written by older
+builds simply lack it and the fallback covers them; it changes nothing about who can read
+`Alert`, which still carries its pre-2.0 `_icloud` grants for the public-database records that
+have not been purged yet. `Tools/AttentionCLI` writes
 `senderDeviceID` and can keep doing so; the fallback covers it.
 
 `DeviceIdentity.id` does not go away. It stays as what it has always been — the identifier of
@@ -208,9 +212,9 @@ on the iPad. Without this subscription, every device you own accumulates banners
 have already answered — which, in an app whose entire premise is one urgent notification,
 is the failure that would make a second device feel worse than no second device.
 
-One dashboard prerequisite: the predicate needs `Alert.state` to be QUERYABLE. `AlertStatus.state`
-already is; `Alert.state` is not indexed today, so this is a Dashboard change in both
-environments and a `SETUP.md` §4 entry, not just code.
+No schema change: the predicate needs `Alert.state` to be QUERYABLE and it already is —
+`cloudkit-schema.ckdb` line 91, `state STRING QUERYABLE`, indexed since the pre-2.0 design
+queried on it. So this step is code only.
 
 ## Expected UX
 
@@ -263,7 +267,7 @@ safest.
 2. **Unpaired-elsewhere notice.** Small, and discovery case (2) is meaningless without it.
 3. **Person identity.** The additive `senderUserID` migration. Fixes the dropped-alert bug in
    `handleIncomingChange` that already exists.
-4. **The fifth subscription.** Needs the Dashboard index first, in both environments.
+4. **The fifth subscription.** Code only — `Alert.state` is already indexed.
 5. **The Settings line.**
 
 ## What must be verified before shipping
@@ -281,8 +285,8 @@ cost:
   race above is the one way this change could make #68 worse rather than better.
 - **`userRecordID` is stable across devices on one account** and is what the share metadata
   reports for the partner, so the two sides of the comparison are the same namespace.
-- **A `CKQuerySubscription` on `Alert` with `firesOnRecordUpdate` and a `state` predicate is
-  accepted** once the field is indexed, and its silent push arrives.
+- **A second `CKQuerySubscription` on `Alert` in the same zone is accepted** alongside
+  `incoming-alerts-v2`, differing only in options and predicate, and its silent push arrives.
 - **The second device's `registerSubscriptions` really does save nothing** once discovery
   agrees — verifiable straight from `Settings → Diagnostics`, which already reports
   per-subscription zone match.
