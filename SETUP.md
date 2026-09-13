@@ -11,8 +11,11 @@ destinations are offered.
 - [ ] Mac with **Xcode 15+** installed
 - [ ] **Apple Developer Program** membership ($99/yr) — required for CloudKit, push, App Groups, TestFlight
 - [ ] Both target devices on **iOS 17+ / iPadOS 17+**, signed in to their own Apple IDs — two
-      iPhones, or an iPhone and an iPad; several devices on *one* Apple Account pair once and
-      are then all paired, so the two here means two people, not two pieces of hardware
+      iPhones, or an iPhone and an iPad. An Apple Silicon Mac or Vision Pro counts as well:
+      both run that same iPad build and need nothing extra here, but push delivery on them is
+      unverified, so read §7b before either is somebody's only device. Several devices on
+      *one* Apple Account pair once and are then all paired, so "both" here means two people
+      rather than two pieces of hardware
 - [ ] Both Apple IDs (or just yours, if you're inviting your partner as an external tester) accessible to add as TestFlight testers
 - [ ] Optional: Apple Watch on watchOS 10+ paired to phone A and/or B. Genuinely phone-only —
       a watch pairs to an iPhone, and the app degrades quietly on a device that has none
