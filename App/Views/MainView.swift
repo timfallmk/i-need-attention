@@ -19,66 +19,18 @@ struct MainView: View {
         ZStack {
             backdrop.ignoresSafeArea()
 
-            VStack(spacing: 24) {
-                topBar
-
-                if appState.isDemo {
-                    DemoBanner { appState.endDemo() }
-                        .padding(.horizontal, 16)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
-                if appState.notificationsDenied {
-                    NotificationsDeniedBanner()
-                        .padding(.horizontal, 16)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
-                // We can send but they can't reach us yet — the joiner's side of the
-                // half-formed state. Sending works, so the button stays; saying nothing
-                // would leave them wondering why nothing ever comes back.
-                if let pair = appState.pair, pair.canSend, !pair.partnerCanReach {
-                    OneWayBanner(partnerName: pair.partnerName)
-                        .padding(.horizontal, 16)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
-                StatusIndicatorView(
-                    outgoing: appState.pendingOutgoing,
-                    incoming: appState.lastIncoming,
-                    isOnCooldown: appState.isOnCooldown,
-                    snoozedUntil: appState.incomingIsSnoozed ? appState.snooze?.until : nil,
-                    onClear: { appState.clearOutgoing() }
-                )
-                .padding(.top, 8)
-
-                Spacer(minLength: 0)
-
-                AttentionButton(
-                    isCoolingDown: appState.isOnCooldown,
-                    cooldownRemaining: cooldownRemaining,
-                    cooldownTotal: TimeInterval(appState.settings.cooldownSeconds),
-                    isSending: appState.pendingOutgoing?.state == .sent,
-                    onPress: { await appState.sendAttention() },
-                    onLongPress: { showNounPicker = true }
-                )
-
-                Text("Long-press to choose")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-
-                Spacer(minLength: 0)
-
-                if let incoming = appState.lastIncoming, shouldShowAckButton(for: incoming) {
-                    incomingActions
-                        .padding(.bottom, 24)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
-                partnerBadge
-                    .padding(.bottom, 16)
+            // Once an incoming alert adds its pill and its action row, the stack is
+            // taller than a short window — and a VStack that overflows does so
+            // symmetrically, pushing the top bar up past the safe area and under the
+            // macOS title bar. Scrolling is the honest answer.
+            //
+            // The unscrolled variant stays first so Spacers keep distributing on a tall
+            // screen, which is every phone and most of the time: inside a ScrollView they
+            // collapse to nothing and the content would bunch at the top.
+            ViewThatFits(in: .vertical) {
+                mainStack
+                ScrollView { mainStack }
             }
-            .padding(.top, 8)
             .readableWidth()
         }
         // Self-guards and returns immediately once both directions are live, so this is
@@ -162,6 +114,69 @@ struct MainView: View {
                 }
             }
         }
+    }
+
+    private var mainStack: some View {
+        VStack(spacing: 24) {
+            topBar
+
+            if appState.isDemo {
+                DemoBanner { appState.endDemo() }
+                    .padding(.horizontal, 16)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            if appState.notificationsDenied {
+                NotificationsDeniedBanner()
+                    .padding(.horizontal, 16)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            // We can send but they can't reach us yet — the joiner's side of the
+            // half-formed state. Sending works, so the button stays; saying nothing
+            // would leave them wondering why nothing ever comes back.
+            if let pair = appState.pair, pair.canSend, !pair.partnerCanReach {
+                OneWayBanner(partnerName: pair.partnerName)
+                    .padding(.horizontal, 16)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            StatusIndicatorView(
+                outgoing: appState.pendingOutgoing,
+                incoming: appState.lastIncoming,
+                isOnCooldown: appState.isOnCooldown,
+                snoozedUntil: appState.incomingIsSnoozed ? appState.snooze?.until : nil,
+                onClear: { appState.clearOutgoing() }
+            )
+            .padding(.top, 8)
+
+            Spacer(minLength: 0)
+
+            AttentionButton(
+                isCoolingDown: appState.isOnCooldown,
+                cooldownRemaining: cooldownRemaining,
+                cooldownTotal: TimeInterval(appState.settings.cooldownSeconds),
+                isSending: appState.pendingOutgoing?.state == .sent,
+                onPress: { await appState.sendAttention() },
+                onLongPress: { showNounPicker = true }
+            )
+
+            Text("Long-press to choose")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+
+            Spacer(minLength: 0)
+
+            if let incoming = appState.lastIncoming, shouldShowAckButton(for: incoming) {
+                incomingActions
+                    .padding(.bottom, 24)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            partnerBadge
+                .padding(.bottom, 16)
+        }
+        .padding(.top, 8)
     }
 
     private var topBar: some View {
