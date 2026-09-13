@@ -108,7 +108,7 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        NSCameraUsageDescription: "Used once during pairing so you can scan the other phone's QR code."
+        NSCameraUsageDescription: "Used once during pairing so you can scan your partner's QR code."
         CFBundleURLTypes:
           - CFBundleURLName: com.timfallmk.attention.pair
             CFBundleURLSchemes:
