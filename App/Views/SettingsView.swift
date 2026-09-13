@@ -221,10 +221,9 @@ struct SettingsView: View {
                     Text("Deletes your history on this device, your settings, the key that "
                          + "unlocks any of it, and — if you're online and signed in to "
                          + "iCloud — the alerts stored in your iCloud account. Nothing is "
-                         + "kept and nothing can be restored.\n\nWhat your partner keeps "
-                         + "is theirs to erase — but everything you sent them is "
-                         + "locked with the key that goes here, so after this neither of "
-                         + "you can read it.")
+                         + "kept and nothing can be restored.\n\nThis erases your side "
+                         + "only. What you sent your partner stays with them and stays "
+                         + "readable for them — only they can erase their copy.")
                 }
             }
             .navigationTitle("Settings")
