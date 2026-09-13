@@ -368,7 +368,17 @@ final class PairingService {
         await beginPairingChange()
         defer { endPairingChange() }
 
-        return await cancelInviteLocked(pending)
+        // Re-read inside the gate. The caller captured this invite before waiting, and
+        // what it waited on may have been `completeInviterPairing` — which saves the
+        // finished `PairState` and clears `PendingInvite`. Cancelling the captured copy
+        // then revokes the share and deletes the zone of the pairing that just succeeded.
+        // Nothing to cancel is success: the invite is gone, which is what was asked for.
+        guard let live = PendingInvite.load() else { return true }
+        guard live.pairKey == pending.pairKey else {
+            log.notice("Invite changed while waiting to cancel; leaving the current one alone")
+            return true
+        }
+        return await cancelInviteLocked(live)
     }
 
     /// The body of `cancelInvite`, for callers that already hold the gate.
@@ -535,8 +545,27 @@ final class PairingService {
         }
         if !profile.name.isEmpty { updated.partnerName = profile.name }
 
+        // Revalidated here rather than by the caller. `AppState.refreshPartnerProfile`
+        // checks `stillPaired(as:)` on the way back, which is too late for this line: the
+        // save has already happened, and what it writes is the whole blob — pair key
+        // included. An unpair landing during the fetch above would be undone from inside
+        // the service, below the guard meant to prevent exactly that.
+        guard stillDescribesTheCurrentPairing(state) else {
+            log.notice("Partner profile refresh finished after the pairing changed; dropping it")
+            return nil
+        }
         guard updated != state, updated.save() else { return nil }
         return updated
+    }
+
+    /// Whether the pairing a suspended method started with is still the one on disk.
+    ///
+    /// The pair key is the identity — minted once per pairing — so a different one, or
+    /// none, means this pairing ended or was replaced while the caller was awaiting.
+    /// `PairState.load()` returns nil for a fingerprinted blob whose key has since been
+    /// replaced, which is the case this exists to catch.
+    private func stillDescribesTheCurrentPairing(_ captured: PairState) -> Bool {
+        PairState.load()?.pairKey == captured.pairKey
     }
 
     /// Writes our own profile into the partner's zone for no reason but to publish this
@@ -597,6 +626,9 @@ final class PairingService {
     /// is the partner's remote copy of what they sent us; their own archive is the answer
     /// to that, and it is a smaller harm than leaking a past relationship to a new one.
     func unpair() async {
+        await beginPairingChange()
+        defer { endPairingChange() }
+
         await tearDownInboxZone()
         PairState.clear()
     }
@@ -611,7 +643,10 @@ final class PairingService {
     /// tells the user their iCloud records are gone, and that is a promise this method is
     /// the only one in a position to break.
     func eraseRemoteData() async -> Bool {
-        await tearDownInboxZone()
+        await beginPairingChange()
+        defer { endPairingChange() }
+
+        return await tearDownInboxZone()
     }
 
     /// Rotates the zone name whether or not the teardown succeeded, and that is
