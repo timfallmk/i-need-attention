@@ -72,6 +72,15 @@ the name can be *found* rather than invented:
 
 1. A stored name whose zone exists → use it. **This is every install that exists today**, so
    the migration is a no-op for them.
+
+   **Corrected while building:** a no-op for every install taken one at a time, which is not
+   the same as a no-op for every *pairing*. Two installs that had each already minted a zone
+   — the pre-2.2 state #68 describes — both land in this branch, both resolve as fine, and go
+   on retiring each other's subscriptions. Discovery prevents the state from arising; it does
+   not repair one already there. Repairing means deciding which of the two zones is real and
+   moving a live pairing onto it, which is not worth doing untested, so 2.2.0 reports the
+   condition in `Settings → Diagnostics` ("Inbox zones owned") and an affected pair re-pairs
+   once. The repair itself is a follow-up.
 2. A stored name whose zone does not exist → either a name minted a moment ago and not yet
    created, or a pairing ended from another device. `PairState` tells them apart: no local
    pairing means the former, a local pairing means the latter. See "Unpairing is account-wide".

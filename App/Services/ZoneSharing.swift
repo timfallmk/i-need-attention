@@ -169,6 +169,22 @@ extension CloudKitService {
         return await zoneIsMissing(Self.zoneID(named: stored))
     }
 
+    /// How many inbox zones this Apple Account owns. One is healthy; more than one is
+    /// #68 in its original form, and until now nothing anywhere could see it.
+    ///
+    /// Two installs that each minted a zone *before* 2.2.0 both come up with a stored
+    /// name whose zone exists, so both resolve as fine and go on retiring each other's
+    /// subscriptions — discovery prevents the state, it does not repair it. Repairing it
+    /// means deciding which zone is the real one and moving a live pairing onto it, which
+    /// is not something to do untested on a hunch, so this only reports. The fix for an
+    /// affected pair is to pair again once; `SETUP.md` says so.
+    ///
+    /// Nil rather than zero when the listing fails: "can't tell" must not read as "none".
+    func ownedInboxZoneCount() async -> Int? {
+        guard let owned = try? await privateDB.allRecordZones() else { return nil }
+        return owned.filter { $0.zoneID.zoneName.hasPrefix(InboxZone.namePrefix) }.count
+    }
+
     static func zoneID(named name: String) -> CKRecordZone.ID {
         CKRecordZone.ID(zoneName: name, ownerName: CKCurrentUserDefaultName)
     }

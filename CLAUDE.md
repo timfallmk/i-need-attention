@@ -213,8 +213,14 @@ therefore one pairing. Three consequences the code exists to serve:
   by discovery (`InboxZoneResolution.vanished`) and say so; `UnpairedElsewhereNotice` is the
   third answer to "why am I on the pairing screen?".
 
-Not built: a count of devices on the account. CloudKit exposes no such list, and producing
-one needs a new record type — see `docs/multi-device-plan.md`.
+Two things deliberately not built, both in `docs/multi-device-plan.md`:
+
+- **A count of devices on the account.** CloudKit exposes no such list, and producing one
+  needs a new record type.
+- **A repair for a pairing already in the #68 state.** Discovery prevents two installs from
+  minting rival zones; it does not fix two that already did, because both have a stored name
+  whose zone exists and so both resolve as healthy. `Settings → Diagnostics` reports
+  "Inbox zones owned" so the state is visible at all, and the fix is to pair again once.
 
 ### Watch
 

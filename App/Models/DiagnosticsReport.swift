@@ -80,6 +80,12 @@ struct DiagnosticsReport: Equatable {
     /// CloudKit round trip; the gatherer always fills it.
     var subscriptions: [SubscriptionState] = []
 
+    /// How many inbox zones this Apple Account owns. More than one means two installs
+    /// each minted their own before 2.2.0 and are still retiring each other's
+    /// subscriptions — #68, which until this row nothing could see. Nil means the
+    /// listing failed, which is not the same as none.
+    var ownedInboxZones: Int?
+
     var events: [Event]
 
     /// Eight characters of the same SHA-256 that `PairCrypto.lookupHash` produces, so a
@@ -140,6 +146,16 @@ struct DiagnosticsReport: Equatable {
         out.append("[Subscriptions]")
         for subscription in subscriptions {
             out.append("\(subscription.id): \(subscription.status.rawValue)")
+        }
+        switch ownedInboxZones {
+        case .none:
+            out.append("Inbox zones owned: unknown")
+        case .some(1):
+            out.append("Inbox zones owned: 1")
+        case .some(let count):
+            // Loud on purpose: this is the one line that identifies a pairing already in
+            // the state #68 describes, and it reads as healthy from everywhere else.
+            out.append("Inbox zones owned: \(count) — EXPECTED 1, RE-PAIR TO FIX")
         }
         out.append("Ack subscription: \(ackSubscriptionUnavailable ? "UNAVAILABLE" : "ok")")
         if let reason = ackSubscriptionFailureReason {
