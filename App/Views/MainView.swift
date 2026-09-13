@@ -186,8 +186,8 @@ struct MainView: View {
             }
             .accessibilityLabel("Settings")
         }
-        .padding(.leading, 24 + Layout.windowControlsInset)
-        .padding(.trailing, 24)
+        .padding(.horizontal, 24)
+        .windowControlsInset()
     }
 
     private var partnerBadge: some View {
