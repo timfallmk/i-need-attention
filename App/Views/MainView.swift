@@ -79,6 +79,7 @@ struct MainView: View {
                     .padding(.bottom, 16)
             }
             .padding(.top, 8)
+            .readableWidth()
         }
         // Self-guards and returns immediately once both directions are live, so this is
         // a no-op for every launch but the one right after pairing.

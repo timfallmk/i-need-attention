@@ -62,6 +62,7 @@ struct FinishingSetupView: View {
             .padding(.horizontal, 28)
             .padding(.bottom, 32)
         }
+        .readableWidth()
         .task { await appState.reconcileHalfFormedPair() }
     }
 
