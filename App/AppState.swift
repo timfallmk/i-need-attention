@@ -629,8 +629,13 @@ final class AppState {
     func registerSubscriptions() async {
         guard pair != nil || pendingInvite != nil else { return }
         do {
-            try await CloudKitService.shared.registerSubscriptions()
-            subscriptionsNeedRetry = false
+            // The return value, not merely the absence of a throw. A partial save leaves
+            // the subscriptions that stuck in place and does not throw, so treating "no
+            // error" as "done" cleared this flag while one was still missing — and the
+            // retry below only runs while it is set, so the gap lasted until the next
+            // cold launch with nothing to show for it.
+            let allLive = try await CloudKitService.shared.registerSubscriptions()
+            subscriptionsNeedRetry = !allLive
         } catch {
             subscriptionsNeedRetry = true
             log.error("registerSubscriptions: \(error.localizedDescription)")
