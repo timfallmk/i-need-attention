@@ -9,6 +9,7 @@ struct MainView: View {
     @State private var showNounPicker = false
     @State private var showSnoozeOptions = false
     @State private var now = Date()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let snoozeMinuteOptions = [5, 15, 30]
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -54,8 +55,18 @@ struct MainView: View {
         }
         .onReceive(timer) { now = $0 }
         .banner($bindable.bannerMessage, tone: .error)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appState.notificationsDenied)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appState.isDemo)
+        .animation(bannerSlide, value: appState.notificationsDenied)
+        .animation(bannerSlide, value: appState.isDemo)
+    }
+
+    private var bannerSlide: Animation? {
+        reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8)
+    }
+
+    // A banner under Reduce Motion still appears and still occupies the same space; it
+    // just does not travel to get there.
+    private func bannerTransition(from edge: Edge) -> AnyTransition {
+        reduceMotion ? .identity : .move(edge: edge).combined(with: .opacity)
     }
 
     @ViewBuilder
@@ -113,13 +124,13 @@ struct MainView: View {
             if appState.isDemo {
                 DemoBanner { appState.endDemo() }
                     .padding(.horizontal, 16)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(bannerTransition(from: .top))
             }
 
             if appState.notificationsDenied {
                 NotificationsDeniedBanner()
                     .padding(.horizontal, 16)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(bannerTransition(from: .top))
             }
 
             // We can send but they can't reach us yet — the joiner's side of the
@@ -128,7 +139,7 @@ struct MainView: View {
             if let pair = appState.pair, pair.canSend, !pair.partnerCanReach {
                 OneWayBanner(partnerName: pair.partnerName)
                     .padding(.horizontal, 16)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(bannerTransition(from: .top))
             }
 
             StatusIndicatorView(
@@ -160,7 +171,7 @@ struct MainView: View {
             if let incoming = appState.lastIncoming, shouldShowAckButton(for: incoming) {
                 incomingActions
                     .padding(.bottom, 24)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(bannerTransition(from: .bottom))
             }
 
             partnerBadge

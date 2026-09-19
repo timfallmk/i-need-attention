@@ -7,6 +7,7 @@ struct WatchContentView: View {
     @State private var showAckSheet = false
     @State private var showSnoozeSheet = false
     @State private var now = Date()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -25,7 +26,7 @@ struct WatchContentView: View {
                 Button {
                     guard !isCoolingDown else { return }
                     session.sendPress()
-                    pulse.toggle()
+                    if !reduceMotion { pulse.toggle() }
                 } label: {
                     ZStack {
                         Circle()
@@ -45,7 +46,7 @@ struct WatchContentView: View {
                 .buttonStyle(.plain)
                 .disabled(isCoolingDown)
                 .scaleEffect(pulse ? 0.94 : 1.0)
-                .animation(.spring(response: 0.25, dampingFraction: 0.55), value: pulse)
+                .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.55), value: pulse)
 
                 if showsSnoozed {
                     Button {

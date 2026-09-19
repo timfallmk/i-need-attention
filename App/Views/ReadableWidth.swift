@@ -86,6 +86,7 @@ extension View {
 
 private struct WindowControlsInset: ViewModifier {
     @Environment(\.horizontalSizeClass) private var widthClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         let inset = Layout.windowControlsInset(widthClass)
@@ -94,6 +95,6 @@ private struct WindowControlsInset: ViewModifier {
         // that into a slide, which is only ever visible mid-resize.
         content
             .padding(.leading, inset)
-            .animation(.easeInOut(duration: 0.2), value: inset)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: inset)
     }
 }
