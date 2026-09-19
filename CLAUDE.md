@@ -47,6 +47,8 @@ Shared/                  Swift sources compiled into iOS, NSE, watchOS, widget
   PairSecretStore.swift  Keychain store for the pair key, shared with the NSE
   PairCrypto.swift       HKDF + ChaChaPoly sealing for record contents
 project.yml              XcodeGen project spec (single source of truth for targets)
+AppStore/                App Store release notes, pasted by hand (see Releasing)
+TestFlight/              Tester notes; Xcode Cloud uploads these automatically
 SETUP.md                 Step-by-step user-facing setup checklist
 Tools/generate_icons.py  Pillow-based 1024×1024 icon generator
 Tools/AttentionCLI/      macOS dev tool impersonating the second pair device for solo testing
@@ -148,7 +150,7 @@ kSecAttrSynchronizable: true
 
 One item per Apple ID, synced. So pairing in a Debug build overwrites the key a Production build on the same account is using, while `PairState` — `UserDefaults`, per install — keeps naming the right partner and zone. The developer's data is isolated; the developer's *key* is not, and the failure is silent in exactly the direction that hurts: the production pairing keeps looking healthy and stops decrypting. See #68 §1.
 
-Practical rule: **test with an Apple ID that isn't on any TestFlight install of this app**, and don't run Erase All My Data on a device sharing an Apple ID with a real pairing — the erase deletes that same synchronizable item, and a synchronizable deletion propagates (#68 §1a).
+Practical rule: **test with an Apple ID that isn't on any TestFlight or App Store install of this app**, and don't run Erase All My Data on a device sharing an Apple ID with a real pairing — the erase deletes that same synchronizable item, and a synchronizable deletion propagates (#68 §1a).
 
 ### Concurrency model
 
@@ -268,12 +270,17 @@ When opening a PR:
 
 ## Releasing
 
-**2.1.1 was submitted to the App Store on 9 Sep 2026** and is awaiting review, set to release manually. The app shipped TestFlight-only from 1.0.0 until then, so anything still describing it as TestFlight-forever is stale. None of the mechanics below change: an App Store release is an App Store Connect concern layered on the same Xcode Cloud archive that already feeds TestFlight.
+**2.1.1 passed review and is live on the App Store as of 19 Sep 2026.** The app shipped TestFlight-only from 1.0.0 until then, so anything still describing it as TestFlight-forever is stale. None of the mechanics below change: an App Store release is an App Store Connect concern layered on the same Xcode Cloud archive that already feeds TestFlight.
+
+Two consequences that are easy to miss because nothing in the repo changed when it happened. **Production CloudKit now holds strangers' data**, so the rule about testing with an Apple ID that isn't on a TestFlight install now reads "or an App Store install", and the #68 keychain hazard is reachable by a real user with two devices rather than only by the developer. And **the product page is public**, which is what moves #73 from neutral to visible: the App Accessibility card reading "Support Not Yet Indicated" is something people see while deciding whether to install.
+
+**A tag is not a submission.** Pushing a tag gets Xcode Cloud to archive and deliver to TestFlight, and that is where it stops — promoting a build to the App Store is a separate App Store Connect gesture that no workflow performs for you. See SETUP.md §7e, which also records why automating it was declined.
 
 **Releases are automated through Xcode Cloud and have been since 1.0.0.** Shipping is a tag push, not a manual Xcode Archive. `SETUP.md` §10–11 is the canonical reference; `docs/xcode-cloud-build-plan.md` has the rationale and the App Store Connect workflow config. The essentials, so we don't relearn them every time:
 
 - **To ship:** merge to `main`, bump `MARKETING_VERSION` in `project.yml` if user-visible, then `gh release create <version> --generate-notes`. Creating the GitHub Release (or any tag) fires the **Release** workflow in App Store Connect → Xcode Cloud, which archives and distributes to TestFlight. The trigger is **Any Tags**; keep tags semver.
 - **Release notes are auto-generated.** Use `--generate-notes` — it produces the "What's Changed" PR list that every release since 1.0.0 has used; no hand-written notes required. Pass `--notes "…"` instead only when you want a custom one-liner. Xcode Cloud ignores the notes entirely (it triggers on the tag); they're just the GitHub changelog. TestFlight's "What to Test" is a **tracked file**, `TestFlight/WhatToTest.en-US.txt` at the project root, which Xcode Cloud picks up automatically — so tester notes get reviewed in a PR like anything else. The App Store Connect field still exists and still works by hand.
+- **Three sets of notes exist and none of them is the others.** The GitHub changelog is auto-generated and for us; `TestFlight/WhatToTest.en-US.txt` is for testers and asks them to go break things; `AppStore/WhatsNew.en-US.txt` is for the public. The last is tracked for the same reason as the tester notes — so the copy gets reviewed in a PR — but **Xcode Cloud does not upload it**, so a human pastes it into App Store Connect at submission. Write it for someone who has the app installed and is deciding whether to care about the update.
 - **Build number is auto-managed.** Xcode Cloud assigns `CFBundleVersion` at archive time. **Never bump `CURRENT_PROJECT_VERSION` manually** — it's been `1` since 1.1.0 and the value in `project.yml` is ignored at distribution. (Past confusion came from an empty local tag list — run `git fetch --tags` before concluding anything about release history.)
 - **No local `xcodegen generate` needed for a release.** `ci_scripts/ci_post_clone.sh` regenerates the project on the build runner from `project.yml` (`*.xcodeproj/` is gitignored). Local `xcodegen` is only for building in Xcode yourself.
 - **Manual fallback only if Xcode Cloud is down:** `SETUP.md` §7 (Archive → Distribute → Upload), where you *do* bump the build number by hand.

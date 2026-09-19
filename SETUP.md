@@ -1,9 +1,9 @@
 # Setup Checklist
 
-Exact step-by-step from zero to two paired devices running the app via TestFlight. Do these in
+Exact step-by-step from zero to two paired devices running the app. Do these in
 order. The walkthrough says "phones" throughout because that is the ordinary case and the
 steps read better for it — but from 2.2.0 either end can be an iPad, or a Mac or Vision Pro
-running the iPad build, and nothing in the pairing steps changes. See §7b for which
+running the iPad build, and nothing in the pairing steps changes. See §7d for which
 destinations are offered.
 
 ## 0. Prerequisites
@@ -13,7 +13,7 @@ destinations are offered.
 - [ ] Both target devices on **iOS 17+ / iPadOS 17+**, signed in to their own Apple IDs — two
       iPhones, or an iPhone and an iPad. An Apple Silicon Mac or Vision Pro counts as well:
       both run that same iPad build and need nothing extra here, but push delivery on them is
-      unverified, so read §7b before either is somebody's only device. Several devices on
+      unverified, so read §7d before either is somebody's only device. Several devices on
       *one* Apple Account pair once and are then all paired, so "both" here means two people
       rather than two pieces of hardware
 - [ ] Both Apple IDs (or just yours, if you're inviting your partner as an external tester) accessible to add as TestFlight testers
@@ -163,7 +163,7 @@ If you hit "couldn't find provisioning profile" — go back to Signing & Capabil
 - [ ] On the watch: long-press the watch face → **Edit** → swipe to **Complications** (or pick a different face that supports them)
 - [ ] Tap a slot → scroll to **Attention** → done. Tapping the complication launches the watch app and immediately fires a press.
 
-## 7. Publish privately via TestFlight
+## 7. Upload a build (TestFlight)
 
 - [ ] Bump build number: in `project.yml` change `CURRENT_PROJECT_VERSION` (or edit in Xcode → target → General → Build), re-run `xcodegen generate` if you edited the YAML
 - [ ] Xcode device picker → **Any iOS Device (arm64)**
@@ -296,7 +296,7 @@ Documentation** needs no upload. Apple asks for it only for proprietary or non-s
 algorithms, or for standard algorithms used instead of or in addition to the encryption in
 Apple's OS. Everything here is CryptoKit, which *is* that encryption — see §7a.
 
-### 7b. Which devices the app is offered to
+## 7d. Which devices the app is offered to
 
 One binary covers all of it. `TARGETED_DEVICE_FAMILY: "1,2"` in `project.yml` builds for iPhone
 and iPad, and the Apple Silicon Mac and Apple Vision Pro options run *that same iPad build* in
@@ -315,6 +315,61 @@ safe order is to ship iPhone and iPad, verify delivery on a real Mac, and tick t
 
 Orientation is split by idiom rather than shared: iPhone stays portrait-locked, iPad rotates and
 multitasks. `UISupportedInterfaceOrientations~ipad` in `project.yml` is where that lives.
+
+## 7e. Submitting a build to the App Store
+
+**A tag is not a submission.** Pushing a tag fires the Xcode Cloud workflow, which archives and
+delivers to TestFlight — and stops. Getting that same build in front of App Review is a separate
+gesture in App Store Connect that no workflow performs for you. This section exists because the
+gap between those two things is invisible from the repo: `main` is green, the tag is pushed, the
+build is processed, and nothing says the release has not been submitted.
+
+The build you submit is the archive TestFlight already has. There is no second build and no
+second tag — *provided the tag you shipped is the commit you mean to release*. Check that first,
+because it is the easy mistake:
+
+```sh
+git fetch --tags
+git log --oneline <version>..origin/main    # must be empty
+```
+
+Anything listed there is in `main` and **not** in the build, so submitting ships without it.
+
+- [ ] **App Store Connect → your app → the version in the sidebar** (create it with **+** if this
+      version has no page yet — the version number must exceed the last released one)
+- [ ] **Build** section → **+** → pick the processed build
+- [ ] **What's New in This Version** → paste from `AppStore/WhatsNew.en-US.txt`. Unlike
+      TestFlight's tester notes, Xcode Cloud does **not** upload this — the file is tracked so the
+      copy gets reviewed in a PR, but a human still pastes it
+- [ ] Confirm the §7d destinations and that every required screenshot set is filled — **iPad is its
+      own set and submission blocks on an empty tab**
+- [ ] **Add for Review** → status becomes *Ready for Review*. This does not send anything
+- [ ] **Submit for Review** → status becomes *In Review*
+
+Set **Release version** before submitting, not after: *Automatically release this version* (and
+optionally *Phased Release*) removes the post-approval step entirely. 2.1.1 was set to manual
+release, which meant approval arrived and nothing shipped until someone noticed.
+
+### Why this is not automated
+
+It could be. Xcode Cloud cannot do it — its post-actions cover TestFlight distribution and Mac
+notarization, and the "App Store" export option only prepares the archive, landing it in exactly
+the place it already lands. But the [App Store Connect
+API](https://developer.apple.com/documentation/appstoreconnectapi/review-submissions) mirrors the
+two buttons above in three calls: `POST /v1/reviewSubmissions` opens a submission,
+`POST /v1/reviewSubmissionItems` puts the version in it, and `PATCH /v1/reviewSubmissions/{id}`
+with `submitted: true` hands it to Apple. That would run from `ci_scripts/ci_post_xcodebuild.sh`,
+which the runner picks up by the same convention as the post-clone hook.
+
+Declined, for three reasons in ascending order of weight. It needs an API key with release-level
+write stored as an Xcode Cloud secret, and that key can submit or release anything on the account.
+The script has to ES256-sign its own JWTs, which is real code to maintain for something that
+happens a few times a year. And submission is gated on metadata completeness, so automating the
+button press does not automate the blocker — for 2.2.0 the blocker was an empty iPad screenshot
+set, which no API call fixes.
+
+Revisit if releases ever become frequent enough that the manual step is the bottleneck. They are
+not close.
 
 ## 8. Install on the phones
 
