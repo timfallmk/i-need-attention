@@ -341,6 +341,9 @@ Anything listed there is in `main` and **not** in the build, so submitting ships
 - [ ] **What's New in This Version** → paste from `AppStore/WhatsNew.en-US.txt`. Unlike
       TestFlight's tester notes, Xcode Cloud does **not** upload this — the file is tracked so the
       copy gets reviewed in a PR, but a human still pastes it
+- [ ] **Promotional Text** → paste from `AppStore/PromotionalText.en-US.txt` (170 characters, sits
+      above the description on the product page). A new version starts this empty, which is the
+      only reason it appears here — see below for why it is otherwise the odd one out
 - [ ] Confirm the §7d destinations and that every required screenshot set is filled — **iPad is its
       own set and submission blocks on an empty tab**
 - [ ] **Add for Review** → status becomes *Ready for Review*. This does not send anything
@@ -349,6 +352,12 @@ Anything listed there is in `main` and **not** in the build, so submitting ships
 Set **Release version** before submitting, not after: *Automatically release this version* (and
 optionally *Phased Release*) removes the post-approval step entirely. 2.1.1 was set to manual
 release, which meant approval arrived and nothing shipped until someone noticed.
+
+**Promotional text is the one field you can change without any of this.** It is the only piece of
+App Store copy that needs neither a review nor a build: edit it in App Store Connect and it is
+live. So while the tracked file exists to keep the copy under review like everything else, it is
+not bound to a release — if a sentence there stops being true between versions, fix it that
+afternoon rather than waiting for the next submission.
 
 ### Why this is not automated
 
