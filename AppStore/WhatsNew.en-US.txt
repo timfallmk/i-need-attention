@@ -1,0 +1,17 @@
+Now on iPad
+
+The app runs on iPad in any orientation, and alongside other apps in Split View and Stage Manager. It is the same app, not a stretched-out phone layout.
+
+All your devices, one pairing
+
+Sign in on a second device and it comes up already paired — your partner's name, your history, no second QR code to scan. A pairing belongs to your Apple Account rather than to one phone, so adding a device is just signing in on it.
+
+Answering also got tidier. Reply to an alert on one of your devices and it clears itself from the others, instead of sitting there waiting to be swiped away.
+
+One word that changed meaning
+
+Unpairing has always ended the pairing on every device, because what it deletes belongs to your Apple Account. The button used to say "Unpair this phone", which was not true. It now says what it does, and so does the confirmation.
+
+Smaller things
+
+Clearer wording in Settings and through pairing, including an honest description of what erasing your data does and does not reach. Fixed a case where notifications could be slow to start arriving just after you paired.
