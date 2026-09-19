@@ -8,6 +8,7 @@ struct StatusIndicatorView: View {
     /// When set (and in the future), the incoming alert is snoozed until this time.
     var snoozedUntil: Date? = nil
     var onClear: (() -> Void)? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 10) {
@@ -34,7 +35,7 @@ struct StatusIndicatorView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear")
-                .transition(.opacity)
+                .transition(reduceMotion ? .identity : .opacity)
             }
         }
         .padding(.horizontal, 16)
@@ -46,7 +47,7 @@ struct StatusIndicatorView: View {
             Capsule().strokeBorder(tint.opacity(0.35), lineWidth: 1)
         )
         .padding(.horizontal, 28)
-        .animation(.easeInOut, value: title)
+        .animation(reduceMotion ? nil : .easeInOut, value: title)
     }
 
     // Decide which state to surface — incoming-unacked beats outgoing-pending beats idle.

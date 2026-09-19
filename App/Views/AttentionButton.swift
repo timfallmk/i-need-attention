@@ -17,6 +17,7 @@ struct AttentionButton: View {
     // setting without blowing out the fixed-diameter button (paired with minimumScaleFactor).
     @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 44
     @ScaledMetric(relativeTo: .title2) private var centerTextSize: CGFloat = 22
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var cooldownProgress: Double {
         guard cooldownTotal > 0, isCoolingDown else { return 0 }
@@ -37,12 +38,7 @@ struct AttentionButton: View {
                 )
                 .scaleEffect(pulse ? 1.10 : 1.0)
                 .opacity(pulse ? 0 : 0.9)
-                .animation(
-                    pulse
-                    ? .easeOut(duration: 1.2).repeatForever(autoreverses: false)
-                    : .default,
-                    value: pulse
-                )
+                .animation(haloAnimation, value: pulse)
 
             // Cooldown ring — drains from full to empty as the cooldown elapses.
             // Sits just outside the button (frame 280 → ring 296).
@@ -65,8 +61,8 @@ struct AttentionButton: View {
                     )
                     .rotationEffect(.degrees(-90))
                     .frame(width: 296, height: 296)
-                    .animation(.linear(duration: 1), value: cooldownProgress)
-                    .transition(.opacity)
+                    .animation(reduceMotion ? nil : .linear(duration: 1), value: cooldownProgress)
+                    .transition(reduceMotion ? .identity : .opacity)
             }
 
             // The button itself
@@ -111,7 +107,7 @@ struct AttentionButton: View {
             .buttonStyle(PressedButtonStyle(pressed: $pressed))
             .disabled(isCoolingDown)
             .scaleEffect(pressed ? 0.96 : 1.0)
-            .animation(.spring(response: 0.28, dampingFraction: 0.55), value: pressed)
+            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.55), value: pressed)
             // highPriorityGesture (rather than simultaneousGesture) ensures a
             // recognized long-press suppresses the Button's tap action — otherwise
             // a held-then-released touch could fire both the default send and open
@@ -136,8 +132,16 @@ struct AttentionButton: View {
         }
         .frame(width: 280, height: 280)
         .onChange(of: isSending) { _, sending in
-            pulse = sending
+            pulse = sending && !reduceMotion
         }
+    }
+
+    // The one animation the setting exists for, because it repeats forever. Under
+    // Reduce Motion the halo must not start rather than run slower — `pulse` stays false,
+    // so the ring holds the same resting appearance it already has when idle.
+    private var haloAnimation: Animation? {
+        guard !reduceMotion else { return nil }
+        return pulse ? .easeOut(duration: 1.2).repeatForever(autoreverses: false) : .default
     }
 
     private var centerText: LocalizedStringKey {

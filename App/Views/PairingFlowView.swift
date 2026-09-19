@@ -194,6 +194,7 @@ struct PairingFlowView: View {
 /// is why it is a view rather than a method on the chooser.
 private struct PasteInviteButton: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Runs before the pasteboard is read. The chooser uses it to commit the typed name.
     var beforePaste: () -> Void = {}
 
@@ -217,10 +218,10 @@ private struct PasteInviteButton: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .multilineTextAlignment(.center)
-                    .transition(.opacity)
+                    .transition(reduceMotion ? .identity : .opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: failed)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: failed)
     }
 
     /// Share sheets write a shared `URL` to the pasteboard as a `public.url` item, and

@@ -67,6 +67,7 @@ struct BannerModifier: ViewModifier {
     @Binding var message: String?
     var tone: BannerView.Tone = .error
     var duration: TimeInterval = 4
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content
@@ -75,7 +76,7 @@ struct BannerModifier: ViewModifier {
                     BannerView(tone: tone, message: message, action: nil, actionLabel: nil)
                         .padding(.top, 8)
                         .onTapGesture { self.message = nil }
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .transition(reduceMotion ? .identity : .move(edge: .top).combined(with: .opacity))
                         .task(id: message) {
                             // task(id:) cancels and restarts whenever message changes —
                             // gives every new error its own full duration.
@@ -86,7 +87,7 @@ struct BannerModifier: ViewModifier {
                         }
                 }
             }
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: message)
+            .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8), value: message)
     }
 }
 

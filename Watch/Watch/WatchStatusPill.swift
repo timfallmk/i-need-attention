@@ -5,6 +5,7 @@ import SwiftUI
 struct WatchStatusPill: View {
     let snapshot: WatchSnapshot?
     let now: Date
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 6) {
@@ -28,7 +29,7 @@ struct WatchStatusPill: View {
         .padding(.vertical, 5)
         .background(Capsule().fill(tint.opacity(0.22)))
         .overlay(Capsule().strokeBorder(tint.opacity(0.45), lineWidth: 1))
-        .animation(.easeInOut, value: title)
+        .animation(reduceMotion ? nil : .easeInOut, value: title)
     }
 
     // MARK: - Snapshot derivation (mirrors iOS StatusIndicatorView)

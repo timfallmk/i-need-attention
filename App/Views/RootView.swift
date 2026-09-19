@@ -4,6 +4,7 @@ import UIKit
 
 struct RootView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         @Bindable var bindable = appState
@@ -24,10 +25,10 @@ struct RootView: View {
                 MainView()
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: appState.pair?.pairKey)
-        .animation(.easeInOut(duration: 0.25), value: appState.pair?.canSend)
-        .animation(.easeInOut(duration: 0.25), value: appState.iCloudStatus)
-        .animation(.easeInOut(duration: 0.25), value: appState.isDemo)
+        .animation(crossFade, value: appState.pair?.pairKey)
+        .animation(crossFade, value: appState.pair?.canSend)
+        .animation(crossFade, value: appState.iCloudStatus)
+        .animation(crossFade, value: appState.isDemo)
         // Presented from the root, not from Settings: the erase tears that sheet down on
         // its way out, so an alert owned by it never survives long enough to be read.
         .alert("Erased, but not from iCloud", isPresented: $bindable.eraseLeftRemoteData) {
@@ -45,6 +46,10 @@ struct RootView: View {
         }
     }
 
+    // Which screen is showing is a state change, not a flourish: under Reduce Motion it
+    // still happens and still lands in the same place, it just arrives rather than fades.
+    private var crossFade: Animation? { reduceMotion ? nil : .easeInOut(duration: 0.25) }
+
     private var needsICloudGate: Bool {
         switch appState.iCloudStatus {
         case .noAccount, .restricted, .temporarilyUnavailable:
@@ -57,6 +62,7 @@ struct RootView: View {
 
 private struct ICloudGateView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var checking = false
 
     var body: some View {
@@ -65,7 +71,7 @@ private struct ICloudGateView: View {
             Image(systemName: "icloud.slash")
                 .font(.system(size: 72, weight: .light))
                 .foregroundStyle(.secondary)
-                .symbolEffect(.pulse, options: .repeating)
+                .symbolEffect(.pulse, options: .repeating, isActive: !reduceMotion)
 
             VStack(spacing: 8) {
                 Text(title)

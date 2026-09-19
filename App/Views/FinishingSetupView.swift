@@ -10,6 +10,7 @@ import SwiftUI
 /// press that goes nowhere, which is the one thing this app must never do.
 struct FinishingSetupView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var retrying = false
 
     var body: some View {
@@ -19,7 +20,7 @@ struct FinishingSetupView: View {
             Image(systemName: "link.badge.plus")
                 .font(.system(size: 64, weight: .light))
                 .foregroundStyle(.secondary)
-                .symbolEffect(.pulse, options: .repeating)
+                .symbolEffect(.pulse, options: .repeating, isActive: !reduceMotion)
 
             VStack(spacing: 8) {
                 Text("Finishing setup")
