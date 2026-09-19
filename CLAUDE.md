@@ -47,7 +47,7 @@ Shared/                  Swift sources compiled into iOS, NSE, watchOS, widget
   PairSecretStore.swift  Keychain store for the pair key, shared with the NSE
   PairCrypto.swift       HKDF + ChaChaPoly sealing for record contents
 project.yml              XcodeGen project spec (single source of truth for targets)
-AppStore/                App Store release notes, pasted by hand (see Releasing)
+AppStore/                App Store copy — What's New and Promotional Text, pasted by hand
 TestFlight/              Tester notes; Xcode Cloud uploads these automatically
 SETUP.md                 Step-by-step user-facing setup checklist
 Tools/generate_icons.py  Pillow-based 1024×1024 icon generator
