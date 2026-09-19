@@ -1,3 +1,5 @@
+This is the build going to the App Store, so anything wrong here is wrong in public. Over the previous TestFlight build it adds a fix for notifications being slow to start arriving just after pairing, and a pass over the wording in Settings and pairing — including the erase confirmation, which used to promise something it could not deliver. Nothing about how the app works changed.
+
 2.2 is about one thing: several devices belonging to the same person. Sign in on your iPad as well as your phone and both should work, with no second QR scan and no re-pairing. You do not need to re-pair for this build.
 
 One word changes meaning, and it is the destructive one. UNPAIRING IS NOW ACCOUNT-WIDE. It always was, underneath — the storage it deletes belongs to your Apple Account, not to one phone — but the button used to say "Unpair this phone", which was a lie. Unpair on any device and you are unpaired on all of them. The confirmation now says so.
