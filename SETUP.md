@@ -347,7 +347,10 @@ Anything listed there is in `main` and **not** in the build, so submitting ships
 - [ ] Confirm the §7d destinations and that every required screenshot set is filled — **iPad is its
       own set and submission blocks on an empty tab**
 - [ ] **Add for Review** → status becomes *Ready for Review*. This does not send anything
-- [ ] **Submit for Review** → status becomes *In Review*
+- [ ] **Submit for Review** → status becomes *Waiting for Review*. It flips to *In Review* only
+      when Apple actually picks it up, which can be hours or days later — so the first status is
+      what a successful submission looks like, not a stuck one. Apple's own help page skips
+      straight to *In Review*, which is where the wrong expectation comes from
 
 Set **Release version** before submitting, not after: *Automatically release this version* (and
 optionally *Phased Release*) removes the post-approval step entirely. 2.1.1 was set to manual
