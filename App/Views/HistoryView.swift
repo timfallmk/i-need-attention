@@ -229,6 +229,9 @@ private struct HistoryRow: View {
             Image(systemName: isMine ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
                 .font(.system(size: directionIconSize))
                 .foregroundStyle(isMine ? Color.blue : Color.red)
+                // Reinforces a direction the title already states ("You ·" / "Sam ·"),
+                // so it is decoration as far as VoiceOver is concerned.
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline.weight(.medium))
@@ -244,6 +247,7 @@ private struct HistoryRow: View {
             }
         }
         .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
     }
 
     private var title: String {

@@ -27,6 +27,8 @@
 "I need\nattention" = "I need\nattention";
 "wait %llds" = "wait %llds";
 "Cooling down" = "Cooling down";
+/* VoiceOver value on the main button while it cools down. %lld = whole seconds left. */
+"%lld seconds remaining" = "%lld seconds remaining";
 "I need attention" = "I need attention";
 "Sends an attention request to your partner" = "Sends an attention request to your partner";
 "Choose what you need" = "Choose what you need";
