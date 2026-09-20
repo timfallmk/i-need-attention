@@ -7,19 +7,23 @@ struct WatchStatusPill: View {
     let now: Date
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @ScaledMetric(relativeTo: .title3) private var emojiSize: CGFloat = 16
+    @ScaledMetric(relativeTo: .caption) private var titleSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .caption2) private var subtitleSize: CGFloat = 10
 
     var body: some View {
         HStack(spacing: 6) {
             Text(emoji)
-                .font(.system(size: 16))
+                .font(.system(size: emojiSize))
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 0) {
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(size: titleSize, weight: .semibold, design: .rounded))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 10))
+                        .font(.system(size: subtitleSize))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -31,6 +35,9 @@ struct WatchStatusPill: View {
         .background(Capsule().fill(tint.opacity(reduceTransparency ? 0.44 : 0.22)))
         .overlay(Capsule().strokeBorder(tint.opacity(reduceTransparency ? 0.80 : 0.45), lineWidth: 1))
         .animation(reduceMotion ? nil : .easeInOut, value: title)
+        // One statement rather than three fragments: the emoji is decorative and the
+        // subtitle only means anything attached to the title above it.
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Snapshot derivation (mirrors iOS StatusIndicatorView)

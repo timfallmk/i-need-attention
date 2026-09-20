@@ -6,21 +6,25 @@ struct WatchSnoozeSheet: View {
     let onPick: (Int) -> Void
     private let minuteOptions = [5, 15, 30]
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @ScaledMetric(relativeTo: .subheadline) private var headingSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .subheadline) private var optionSize: CGFloat = 15
+    @ScaledMetric(relativeTo: .subheadline) private var rowHeight: CGFloat = 40
 
     var body: some View {
         ScrollView {
             VStack(spacing: 8) {
                 Text("Remind me in…")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: headingSize, weight: .semibold))
                     .padding(.top, 4)
+                    .accessibilityAddTraits(.isHeader)
 
                 ForEach(minuteOptions, id: \.self) { minutes in
                     Button {
                         onPick(minutes)
                     } label: {
                         Text("\(minutes) minutes")
-                            .font(.system(size: 15, weight: .medium))
-                            .frame(maxWidth: .infinity, minHeight: 40)
+                            .font(.system(size: optionSize, weight: .medium))
+                            .frame(maxWidth: .infinity, minHeight: rowHeight)
                     }
                     .buttonStyle(.plain)
                     .background(.gray.opacity(reduceTransparency ? 0.36 : 0.18), in: RoundedRectangle(cornerRadius: 10))

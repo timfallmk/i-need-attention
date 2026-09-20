@@ -68,9 +68,14 @@ struct AttentionComplicationView: View {
                 .font(.system(size: 22, weight: .heavy))
                 .foregroundStyle(.white)
         }
+        .accessibilityElement()
+        .accessibilityLabel(Text("Attention"))
+        .accessibilityHint(Text("Sends an attention request to your partner"))
     }
 
     private var cornerBody: some View {
+        // Sizes here are fixed on purpose. A complication renders into a slot the face
+        // owns, which does not take Dynamic Type — growing the glyph would only clip it.
         Image(systemName: "exclamationmark.triangle.fill")
             .font(.system(size: 18, weight: .bold))
             .foregroundStyle(.red)
