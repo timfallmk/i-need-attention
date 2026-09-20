@@ -18,6 +18,7 @@ struct FinishingSetupView: View {
             Spacer()
 
             Image(systemName: "link.badge.plus")
+                // Decorative hero art, sized to the layout rather than to text — exempt.
                 .font(.system(size: 64, weight: .light))
                 .foregroundStyle(.secondary)
                 .symbolEffect(.pulse, options: .repeating, isActive: !reduceMotion)

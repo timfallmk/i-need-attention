@@ -107,6 +107,7 @@ struct PairingFlowView: View {
             }
 
             Image(systemName: "antenna.radiowaves.left.and.right")
+                // Decorative hero art, sized to the layout rather than to text — exempt.
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(.red)
 
@@ -462,6 +463,7 @@ private struct ShowCodeView: View {
     private func failurePanel(message: String) -> some View {
         VStack(spacing: 14) {
             Image(systemName: "exclamationmark.icloud")
+                // Decorative hero art, sized to the layout rather than to text — exempt.
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(.orange)
             Text("Couldn't start pairing")
@@ -707,6 +709,7 @@ private struct CameraBlockedView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "video.slash")
+                // Decorative hero art, sized to the layout rather than to text — exempt.
                 .font(.system(size: 44, weight: .light))
                 .foregroundStyle(.secondary)
 

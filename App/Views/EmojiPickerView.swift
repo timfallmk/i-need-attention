@@ -6,6 +6,8 @@ struct EmojiPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var query: String = ""
     @State private var toneSelection: ToneSelection?
+    @ScaledMetric(relativeTo: .title) private var emojiSize: CGFloat = 30
+    @ScaledMetric(relativeTo: .title) private var rowHeight: CGFloat = 44
 
     private let columns: [GridItem] = Array(
         repeating: GridItem(.flexible(), spacing: 4, alignment: .center),
@@ -84,8 +86,8 @@ struct EmojiPickerView: View {
     private func cell(for emoji: String) -> some View {
         let supportsTones = EmojiCatalog.fitzpatrickBase.contains(emoji)
         return Text(emoji)
-            .font(.system(size: 30))
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .font(.system(size: emojiSize))
+            .frame(maxWidth: .infinity, minHeight: rowHeight)
             .contentShape(Rectangle())
             .onTapGesture {
                 Haptics.select()

@@ -221,11 +221,13 @@ private struct HistorySectionHeader: View {
 private struct HistoryRow: View {
     let alert: AlertRecord
     let isMine: Bool
+    @ScaledMetric(relativeTo: .title2) private var directionIconSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .title3) private var ackEmojiSize: CGFloat = 20
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: isMine ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
-                .font(.system(size: 22))
+                .font(.system(size: directionIconSize))
                 .foregroundStyle(isMine ? Color.blue : Color.red)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -238,7 +240,7 @@ private struct HistoryRow: View {
             Spacer(minLength: 8)
             if alert.state == .acknowledged {
                 Text(alert.ackEmoji ?? "✅")
-                    .font(.system(size: 20))
+                    .font(.system(size: ackEmojiSize))
             }
         }
         .padding(.vertical, 4)

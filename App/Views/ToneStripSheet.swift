@@ -22,6 +22,8 @@ struct ToneAccessibilityAction: ViewModifier {
 }
 
 struct ToneStripSheet: View {
+    @ScaledMetric(relativeTo: .title) private var emojiSize: CGFloat = 30
+    @ScaledMetric(relativeTo: .title) private var tapTarget: CGFloat = 48
     let base: String
     let onPick: (String) -> Void
 
@@ -47,8 +49,8 @@ struct ToneStripSheet: View {
             onPick(emoji)
         } label: {
             Text(emoji)
-                .font(.system(size: 30))
-                .frame(width: 48, height: 48)
+                .font(.system(size: emojiSize))
+                .frame(width: tapTarget, height: tapTarget)
                 .background(.ultraThinMaterial, in: Circle())
         }
         .buttonStyle(.plain)

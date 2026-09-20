@@ -10,6 +10,11 @@ struct MainView: View {
     @State private var showSnoozeOptions = false
     @State private var now = Date()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .title3) private var appTitleSize: CGFloat = 20
+    @ScaledMetric(relativeTo: .title2) private var toolbarIconSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .title) private var emojiSize: CGFloat = 28
+    @ScaledMetric(relativeTo: .title) private var emojiTapTarget: CGFloat = 44
+    @ScaledMetric(relativeTo: .headline) private var moreIconSize: CGFloat = 18
 
     private let snoozeMinuteOptions = [5, 15, 30]
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -183,13 +188,13 @@ struct MainView: View {
     private var topBar: some View {
         HStack(spacing: 18) {
             Text("Attention")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .font(.system(size: appTitleSize, weight: .bold, design: .rounded))
             Spacer()
             Button {
                 showHistory = true
             } label: {
                 Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 22))
+                    .font(.system(size: toolbarIconSize))
                     .foregroundStyle(.secondary)
             }
             .accessibilityLabel("History")
@@ -197,7 +202,7 @@ struct MainView: View {
                 showSettings = true
             } label: {
                 Image(systemName: "gearshape.fill")
-                    .font(.system(size: 22))
+                    .font(.system(size: toolbarIconSize))
                     .foregroundStyle(.secondary)
             }
             .accessibilityLabel("Settings")
@@ -244,14 +249,17 @@ struct MainView: View {
 
 private struct NotificationsDeniedBanner: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @ScaledMetric(relativeTo: .headline) private var iconSize: CGFloat = 18
+    @ScaledMetric(relativeTo: .subheadline) private var noticeTitleSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .footnote) private var actionSize: CGFloat = 13
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "bell.slash.fill")
                 .foregroundStyle(.orange)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: iconSize, weight: .semibold))
             VStack(alignment: .leading, spacing: 1) {
                 Text("Notifications are off")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: noticeTitleSize, weight: .semibold))
                 Text("You won't see incoming alerts until you turn them on.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -265,7 +273,7 @@ private struct NotificationsDeniedBanner: View {
                     UIApplication.shared.open(url)
                 }
             }
-            .font(.system(size: 13, weight: .semibold))
+            .font(.system(size: actionSize, weight: .semibold))
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .tint(.orange)
@@ -333,8 +341,8 @@ private struct AckSheet: View {
     private func emojiButton(_ emoji: String) -> some View {
         let supportsTones = EmojiCatalog.fitzpatrickBase.contains(emoji)
         return Text(emoji)
-            .font(.system(size: 28))
-            .frame(width: 44, height: 44)
+            .font(.system(size: emojiSize))
+            .frame(width: emojiTapTarget, height: emojiTapTarget)
             .background(.ultraThinMaterial, in: Circle())
             .contentShape(Circle())
             .onTapGesture {
@@ -357,9 +365,9 @@ private struct AckSheet: View {
             showFullPicker = true
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: moreIconSize, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 44, height: 44)
+                .frame(width: emojiTapTarget, height: emojiTapTarget)
                 .background(.ultraThinMaterial, in: Circle())
         }
         .buttonStyle(.plain)
