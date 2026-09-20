@@ -7,13 +7,19 @@ struct WatchAckSheet: View {
     let onPick: (String?) -> Void
     private let emojis = ["❤️", "👍", "🤗", "🚨"]
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @ScaledMetric(relativeTo: .subheadline) private var headingSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .title2) private var emojiSize: CGFloat = 24
+    @ScaledMetric(relativeTo: .title2) private var emojiRowHeight: CGFloat = 40
+    @ScaledMetric(relativeTo: .caption) private var plainLabelSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .caption) private var plainRowHeight: CGFloat = 32
 
     var body: some View {
         ScrollView {
             VStack(spacing: 8) {
                 Text("Acknowledge")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: headingSize, weight: .semibold))
                     .padding(.top, 4)
+                    .accessibilityAddTraits(.isHeader)
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
                     ForEach(emojis, id: \.self) { emoji in
@@ -21,11 +27,12 @@ struct WatchAckSheet: View {
                             onPick(emoji)
                         } label: {
                             Text(emoji)
-                                .font(.system(size: 24))
-                                .frame(maxWidth: .infinity, minHeight: 40)
+                                .font(.system(size: emojiSize))
+                                .frame(maxWidth: .infinity, minHeight: emojiRowHeight)
                         }
                         .buttonStyle(.plain)
                         .background(.gray.opacity(reduceTransparency ? 0.36 : 0.18), in: RoundedRectangle(cornerRadius: 10))
+                        .accessibilityLabel(Text(emoji))
                     }
                 }
 
@@ -33,8 +40,8 @@ struct WatchAckSheet: View {
                     onPick(nil)
                 } label: {
                     Text("Just acknowledge")
-                        .font(.system(size: 12, weight: .medium))
-                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .font(.system(size: plainLabelSize, weight: .medium))
+                        .frame(maxWidth: .infinity, minHeight: plainRowHeight)
                 }
                 .buttonStyle(.plain)
                 .background(.gray.opacity(reduceTransparency ? 0.36 : 0.18), in: RoundedRectangle(cornerRadius: 10))

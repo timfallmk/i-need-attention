@@ -8,6 +8,8 @@ struct WatchContentView: View {
     @State private var showSnoozeSheet = false
     @State private var now = Date()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .title2) private var pressIconSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .caption) private var smallLabelSize: CGFloat = 12
 
     var body: some View {
         ZStack {
@@ -34,9 +36,9 @@ struct WatchContentView: View {
                             .shadow(color: .red.opacity(0.6), radius: 10)
                         VStack(spacing: 2) {
                             Image(systemName: "hand.raised.fill")
-                                .font(.system(size: 22, weight: .bold))
+                                .font(.system(size: pressIconSize, weight: .bold))
                             Text("Need\nattention")
-                                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                                .font(.system(size: smallLabelSize, weight: .heavy, design: .rounded))
                                 .multilineTextAlignment(.center)
                         }
                         .foregroundStyle(.white)
@@ -45,6 +47,8 @@ struct WatchContentView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isCoolingDown)
+                .accessibilityLabel(isCoolingDown ? Text("Cooling down") : Text("I need attention"))
+                .accessibilityHint(isCoolingDown ? Text("") : Text("Sends an attention request to your partner"))
                 .scaleEffect(pulse ? 0.94 : 1.0)
                 .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.55), value: pulse)
 
@@ -53,7 +57,7 @@ struct WatchContentView: View {
                         session.sendCancelSnooze()
                     } label: {
                         Label("Cancel snooze", systemImage: "clock.badge.xmark")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: smallLabelSize, weight: .semibold))
                             .padding(.vertical, 4)
                             .padding(.horizontal, 10)
                     }
@@ -65,18 +69,19 @@ struct WatchContentView: View {
                             showAckSheet = true
                         } label: {
                             Label("Ack", systemImage: "checkmark.circle.fill")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: smallLabelSize, weight: .semibold))
                                 .padding(.vertical, 4)
                                 .padding(.horizontal, 8)
                         }
                         .buttonStyle(.plain)
                         .background(.ultraThinMaterial, in: Capsule())
+                        .accessibilityLabel(Text("Acknowledge"))
 
                         Button {
                             showSnoozeSheet = true
                         } label: {
                             Label("Snooze", systemImage: "clock")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: smallLabelSize, weight: .semibold))
                                 .padding(.vertical, 4)
                                 .padding(.horizontal, 8)
                         }
@@ -90,7 +95,7 @@ struct WatchContentView: View {
                         session.sendClear()
                     } label: {
                         Label("Clear", systemImage: "xmark.circle.fill")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: smallLabelSize, weight: .semibold))
                             .padding(.vertical, 4)
                             .padding(.horizontal, 10)
                     }
