@@ -131,6 +131,10 @@ struct AttentionButton: View {
             // re-announce the button every second while it cools down.
             .accessibilityLabel(isCoolingDown ? Text("Cooling down") : Text("I need attention"))
             .accessibilityHint(isCoolingDown ? Text("") : Text("Sends an attention request to your partner"))
+            // The seconds live here rather than in the label above, which is what makes
+            // the label safe to keep stable: a value is read on focus rather than
+            // announced on every change.
+            .accessibilityValue(isCoolingDown ? Text("\(Int(cooldownRemaining)) seconds remaining") : Text(""))
             // Long-press has no VoiceOver equivalent, so expose the noun picker as a custom action.
             .accessibilityAction(named: Text("Choose what you need")) {
                 guard !isCoolingDown else { return }

@@ -49,6 +49,7 @@ struct WatchContentView: View {
                 .disabled(isCoolingDown)
                 .accessibilityLabel(isCoolingDown ? Text("Cooling down") : Text("I need attention"))
                 .accessibilityHint(isCoolingDown ? Text("") : Text("Sends an attention request to your partner"))
+                .accessibilityValue(isCoolingDown ? Text("\(cooldownSecondsRemaining) seconds remaining") : Text(""))
                 .scaleEffect(pulse ? 0.94 : 1.0)
                 .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.55), value: pulse)
 
@@ -158,6 +159,11 @@ struct WatchContentView: View {
     private var isCoolingDown: Bool {
         guard let end = session.snapshot?.cooldownEnds else { return false }
         return end > now
+    }
+
+    private var cooldownSecondsRemaining: Int {
+        guard let end = session.snapshot?.cooldownEnds else { return 0 }
+        return max(0, Int(end.timeIntervalSince(now).rounded(.up)))
     }
 
     private var showsAckButton: Bool {
