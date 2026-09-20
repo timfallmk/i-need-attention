@@ -307,14 +307,22 @@ struct NameField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // The field below carries this text as its own label, so announcing it
+            // here too would just be the same words twice.
             Label("Your name", systemImage: "person.crop.circle")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             TextField("How your partner sees you", text: $displayName)
                 .font(.title3)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
                 .submitLabel(.done)
+                // The title doubles as placeholder text, which SwiftUI drops as the
+                // label once the field has content — so a filled-in name field
+                // announced as an unlabelled text box, on the first screen there is.
+                .accessibilityLabel("Your name")
+                .accessibilityHint("How your partner sees you")
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .background(

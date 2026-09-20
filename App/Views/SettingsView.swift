@@ -28,6 +28,9 @@ struct SettingsView: View {
                         .textInputAutocapitalization(.words)
                         .autocorrectionDisabled()
                         .submitLabel(.done)
+                        // Same reason as NameField: the placeholder stops standing in
+                        // as the label the moment there is a name to show.
+                        .accessibilityLabel("Your name")
                         .onChange(of: settings.displayName) {
                             scheduleNameSync()
                         }
