@@ -6,6 +6,7 @@ import SwiftUI
 struct WatchAckSheet: View {
     let onPick: (String?) -> Void
     private let emojis = ["❤️", "👍", "🤗", "🚨"]
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         ScrollView {
@@ -24,7 +25,7 @@ struct WatchAckSheet: View {
                                 .frame(maxWidth: .infinity, minHeight: 40)
                         }
                         .buttonStyle(.plain)
-                        .background(.gray.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
+                        .background(.gray.opacity(reduceTransparency ? 0.36 : 0.18), in: RoundedRectangle(cornerRadius: 10))
                     }
                 }
 
@@ -36,7 +37,7 @@ struct WatchAckSheet: View {
                         .frame(maxWidth: .infinity, minHeight: 32)
                 }
                 .buttonStyle(.plain)
-                .background(.gray.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
+                .background(.gray.opacity(reduceTransparency ? 0.36 : 0.18), in: RoundedRectangle(cornerRadius: 10))
             }
             .padding(.horizontal, 4)
             .padding(.bottom, 8)

@@ -6,6 +6,7 @@ struct WatchStatusPill: View {
     let snapshot: WatchSnapshot?
     let now: Date
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         HStack(spacing: 6) {
@@ -27,8 +28,8 @@ struct WatchStatusPill: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background(Capsule().fill(tint.opacity(0.22)))
-        .overlay(Capsule().strokeBorder(tint.opacity(0.45), lineWidth: 1))
+        .background(Capsule().fill(tint.opacity(reduceTransparency ? 0.44 : 0.22)))
+        .overlay(Capsule().strokeBorder(tint.opacity(reduceTransparency ? 0.80 : 0.45), lineWidth: 1))
         .animation(reduceMotion ? nil : .easeInOut, value: title)
     }
 

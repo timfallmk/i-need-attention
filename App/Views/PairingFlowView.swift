@@ -243,6 +243,7 @@ private struct PasteInviteButton: View {
 
 private struct PendingInviteCard: View {
     let pending: PendingInvite
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     var onShow: () -> Void
     var onCancel: () -> Void
 
@@ -287,7 +288,7 @@ private struct PendingInviteCard: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder((pending.isExpired ? Color.orange : Color.red).opacity(0.25), lineWidth: 1)
+                .strokeBorder((pending.isExpired ? Color.orange : Color.red).opacity(reduceTransparency ? 0.55 : 0.25), lineWidth: 1)
         )
     }
 
@@ -741,6 +742,7 @@ private struct CameraBlockedView: View {
 /// one at a time so nobody would ever see two together to notice.
 private struct PairingNotice: View {
     let title: String
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let systemImage: String
     let explanation: String
     let reassurance: String
@@ -760,11 +762,11 @@ private struct PairingNotice: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.orange.opacity(0.12))
+                .fill(Color.orange.opacity(reduceTransparency ? 0.25 : 0.12))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+                .strokeBorder(Color.orange.opacity(reduceTransparency ? 0.55 : 0.25), lineWidth: 1)
         )
         .padding(.horizontal, 20)
     }
