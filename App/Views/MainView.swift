@@ -12,9 +12,6 @@ struct MainView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .title3) private var appTitleSize: CGFloat = 20
     @ScaledMetric(relativeTo: .title2) private var toolbarIconSize: CGFloat = 22
-    @ScaledMetric(relativeTo: .title) private var emojiSize: CGFloat = 28
-    @ScaledMetric(relativeTo: .title) private var emojiTapTarget: CGFloat = 44
-    @ScaledMetric(relativeTo: .headline) private var moreIconSize: CGFloat = 18
 
     private let snoozeMinuteOptions = [5, 15, 30]
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -294,6 +291,9 @@ private struct AckSheet: View {
 
     @State private var showFullPicker = false
     @State private var toneSelection: ToneSelection?
+    @ScaledMetric(relativeTo: .title) private var emojiSize: CGFloat = 28
+    @ScaledMetric(relativeTo: .title) private var emojiTapTarget: CGFloat = 44
+    @ScaledMetric(relativeTo: .headline) private var moreIconSize: CGFloat = 18
 
     var body: some View {
         VStack(spacing: 18) {
