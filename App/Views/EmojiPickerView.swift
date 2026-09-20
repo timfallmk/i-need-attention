@@ -87,6 +87,10 @@ struct EmojiPickerView: View {
         let supportsTones = EmojiCatalog.fitzpatrickBase.contains(emoji)
         return Text(emoji)
             .font(.system(size: emojiSize))
+            // The grid keeps seven columns at every size, so the glyph has to yield
+            // rather than overrun a neighbour once it scales.
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
             .frame(maxWidth: .infinity, minHeight: rowHeight)
             .contentShape(Rectangle())
             .onTapGesture {

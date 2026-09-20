@@ -106,6 +106,11 @@ struct WatchContentView: View {
             }
             .padding(.vertical, 4)
         }
+        // pulse here is a toggle rather than a mirror of some other state, so nothing
+        // would ever clear it: the button would sit at 0.94 for good.
+        .onChange(of: reduceMotion) { _, reduced in
+            if reduced { pulse = false }
+        }
         .task(id: tickDeadline) {
             // Tick only while something time-based is winding down — a cooldown or an
             // active snooze — until whichever ends later. Outside that window the 1Hz
