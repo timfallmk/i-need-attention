@@ -27,6 +27,7 @@ struct BannerView: View {
     let message: String
     let action: (() -> Void)?
     let actionLabel: String?
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         HStack(spacing: 10) {
@@ -54,7 +55,7 @@ struct BannerView: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(tone.tint.opacity(0.25), lineWidth: 1)
+                .strokeBorder(tone.tint.opacity(reduceTransparency ? 0.55 : 0.25), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
         .padding(.horizontal, 16)

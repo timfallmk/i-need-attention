@@ -9,6 +9,7 @@ struct StatusIndicatorView: View {
     var snoozedUntil: Date? = nil
     var onClear: (() -> Void)? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         HStack(spacing: 10) {
@@ -41,10 +42,10 @@ struct StatusIndicatorView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(
-            Capsule().fill(tint.opacity(0.16))
+            Capsule().fill(tint.opacity(reduceTransparency ? 0.32 : 0.16))
         )
         .overlay(
-            Capsule().strokeBorder(tint.opacity(0.35), lineWidth: 1)
+            Capsule().strokeBorder(tint.opacity(reduceTransparency ? 0.70 : 0.35), lineWidth: 1)
         )
         .padding(.horizontal, 28)
         .animation(reduceMotion ? nil : .easeInOut, value: title)

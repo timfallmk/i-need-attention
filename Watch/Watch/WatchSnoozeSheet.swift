@@ -5,6 +5,7 @@ import SwiftUI
 struct WatchSnoozeSheet: View {
     let onPick: (Int) -> Void
     private let minuteOptions = [5, 15, 30]
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         ScrollView {
@@ -22,7 +23,7 @@ struct WatchSnoozeSheet: View {
                             .frame(maxWidth: .infinity, minHeight: 40)
                     }
                     .buttonStyle(.plain)
-                    .background(.gray.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
+                    .background(.gray.opacity(reduceTransparency ? 0.36 : 0.18), in: RoundedRectangle(cornerRadius: 10))
                 }
             }
             .padding(.horizontal, 4)

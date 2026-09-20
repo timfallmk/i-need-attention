@@ -243,6 +243,7 @@ struct MainView: View {
 }
 
 private struct NotificationsDeniedBanner: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "bell.slash.fill")
@@ -274,7 +275,7 @@ private struct NotificationsDeniedBanner: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(.orange.opacity(0.3), lineWidth: 1)
+                .strokeBorder(.orange.opacity(reduceTransparency ? 0.60 : 0.3), lineWidth: 1)
         )
     }
 }
@@ -373,6 +374,7 @@ private struct AckSheet: View {
 /// this view for as long as it is up — so this explains rather than asks for anything.
 private struct OneWayBanner: View {
     let partnerName: String
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         HStack(spacing: 10) {
@@ -390,7 +392,7 @@ private struct OneWayBanner: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.orange.opacity(0.12))
+                .fill(Color.orange.opacity(reduceTransparency ? 0.25 : 0.12))
         )
     }
 
@@ -406,6 +408,7 @@ private struct OneWayBanner: View {
 /// misunderstanding this feature could actually cause.
 private struct DemoBanner: View {
     var onExit: () -> Void
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         HStack(spacing: 12) {
@@ -431,11 +434,11 @@ private struct DemoBanner: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.orange.opacity(0.12))
+                .fill(Color.orange.opacity(reduceTransparency ? 0.25 : 0.12))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+                .strokeBorder(Color.orange.opacity(reduceTransparency ? 0.55 : 0.25), lineWidth: 1)
         )
     }
 }
