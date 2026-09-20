@@ -87,6 +87,62 @@ final class UserSettingsTests: XCTestCase {
         XCTAssertFalse(SharedSettings.acceptCriticalAlerts)
     }
 
+    // MARK: - The retired second name key
+
+    // These four write raw key strings, unlike the rest of the file. A migration is a
+    // promise about what is literally on disk in an old install, so the key it reads has
+    // to be named rather than reached through the type that is retiring it.
+
+    private let nameKey = "attention.settings.name"
+    private let legacyKey = "attention.deviceName"
+
+    /// The pairing screen used to write its own key. An install that only ever paired has
+    /// a name there and nothing under the settings key.
+    func testLegacyDeviceNameIsAdoptedWhenTheSettingsKeyIsAbsent() {
+        let d = UserDefaults.standard
+        d.removeObject(forKey: nameKey)
+        d.set("Nora Nudge", forKey: legacyKey)
+
+        XCTAssertEqual(UserSettings().displayName, "Nora Nudge")
+        XCTAssertEqual(d.string(forKey: nameKey), "Nora Nudge")
+        XCTAssertNil(d.string(forKey: legacyKey))
+    }
+
+    /// Both present is the drifted state #83 describes: renamed in Settings after pairing.
+    /// The settings key is the one every outgoing record already used, so it wins.
+    func testSettingsKeyWinsWhenBothArePresent() {
+        let d = UserDefaults.standard
+        d.set("From Settings", forKey: nameKey)
+        d.set("From Pairing", forKey: legacyKey)
+
+        XCTAssertEqual(UserSettings().displayName, "From Settings")
+        XCTAssertNil(d.string(forKey: legacyKey))
+    }
+
+    /// Written-but-empty is someone who cleared their name on purpose. Adopting the legacy
+    /// value here would be the same bug as #83 pointing the other way.
+    func testAClearedNameIsNotResurrectedByTheLegacyKey() {
+        let d = UserDefaults.standard
+        d.set("", forKey: nameKey)
+        d.set("From Pairing", forKey: legacyKey)
+
+        XCTAssertEqual(UserSettings().displayName, "")
+        XCTAssertNil(d.string(forKey: legacyKey))
+    }
+
+    /// Retired on the first launch that reads it, so a later one cannot revive a name the
+    /// user has since changed.
+    func testTheLegacyKeyIsGoneAfterOneRead() {
+        let d = UserDefaults.standard
+        d.removeObject(forKey: nameKey)
+        d.set("Nora Nudge", forKey: legacyKey)
+        _ = UserSettings()
+
+        UserSettings().displayName = "Renamed"
+        XCTAssertEqual(UserSettings().displayName, "Renamed")
+        XCTAssertNil(d.string(forKey: legacyKey))
+    }
+
     /// `init()` re-syncs persisted values to the App Group (so the NSE sees them even if it
     /// runs before any toggle is touched). Diverge the shared copy, then a fresh instance
     /// should overwrite it from `UserDefaults.standard`.

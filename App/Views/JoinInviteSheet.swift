@@ -9,12 +9,19 @@ struct JoinInviteSheet: View {
 
     let invite: PairingInvite
 
-    @State private var displayName: String = DeviceIdentity.name
     @State private var working = false
     @State private var error: String?
 
+    // Same stored name the pairing screen and Settings edit — see `UserSettings.resolvedName`.
+    private var nameBinding: Binding<String> {
+        Binding(
+            get: { appState.settings.displayName },
+            set: { appState.settings.displayName = $0 }
+        )
+    }
+
     private var trimmedName: String {
-        displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        appState.settings.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var body: some View {
@@ -73,7 +80,7 @@ struct JoinInviteSheet: View {
                     .multilineTextAlignment(.center)
             }
 
-            NameField(displayName: $displayName)
+            NameField(displayName: nameBinding)
 
             if let error {
                 HStack(spacing: 8) {
@@ -123,7 +130,6 @@ struct JoinInviteSheet: View {
         working = true
         defer { working = false }
         error = nil
-        DeviceIdentity.name = trimmedName
         do {
             let state = try await PairingService.shared.completePairing(
                 payload: invite.qrPayload,
