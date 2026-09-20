@@ -10,6 +10,7 @@ struct StatusIndicatorView: View {
     var onClear: (() -> Void)? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @ScaledMetric(relativeTo: .title3) private var clearIconSize: CGFloat = 20
 
     var body: some View {
         HStack(spacing: 10) {
@@ -31,7 +32,7 @@ struct StatusIndicatorView: View {
             if case .outgoingAcked = snapshot, let onClear {
                 Button(action: onClear) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 20))
+                        .font(.system(size: clearIconSize))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)

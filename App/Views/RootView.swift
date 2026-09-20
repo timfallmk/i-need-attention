@@ -69,6 +69,7 @@ private struct ICloudGateView: View {
         VStack(spacing: 18) {
             Spacer()
             Image(systemName: "icloud.slash")
+                // Decorative hero art, sized to the layout rather than to text — exempt.
                 .font(.system(size: 72, weight: .light))
                 .foregroundStyle(.secondary)
                 .symbolEffect(.pulse, options: .repeating, isActive: !reduceMotion)

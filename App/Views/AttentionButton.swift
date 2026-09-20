@@ -13,11 +13,18 @@ struct AttentionButton: View {
 
     @State private var pressed = false
     @State private var pulse = false
-    // Scale with Dynamic Type but relative to a base, so the text respects the user's size
-    // setting without blowing out the fixed-diameter button (paired with minimumScaleFactor).
+    // Text and circle scale together, so the label keeps its proportions rather than being
+    // squeezed by minimumScaleFactor against a container that stayed put.
     @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 44
     @ScaledMetric(relativeTo: .title2) private var centerTextSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .largeTitle) private var scaledDiameter: CGFloat = 280
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // Capped because nothing else bounds the button horizontally — scrollsWhenTight only
+    // rescues vertical overflow, and at the largest accessibility size an uncapped 280
+    // lands near 440, wider than the narrowest phone this ships to.
+    private var diameter: CGFloat { min(scaledDiameter, 320) }
+    private var ringDiameter: CGFloat { diameter + 16 }
 
     private var cooldownProgress: Double {
         guard cooldownTotal > 0, isCoolingDown else { return 0 }
@@ -41,11 +48,11 @@ struct AttentionButton: View {
                 .animation(haloAnimation, value: pulse)
 
             // Cooldown ring — drains from full to empty as the cooldown elapses.
-            // Sits just outside the button (frame 280 → ring 296).
+            // Sits just outside the button, tracking it as it scales.
             if isCoolingDown {
                 Circle()
                     .stroke(.gray.opacity(0.18), lineWidth: 8)
-                    .frame(width: 296, height: 296)
+                    .frame(width: ringDiameter, height: ringDiameter)
                 Circle()
                     .trim(from: 0, to: cooldownProgress)
                     .stroke(
@@ -60,7 +67,7 @@ struct AttentionButton: View {
                         style: StrokeStyle(lineWidth: 8, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
-                    .frame(width: 296, height: 296)
+                    .frame(width: ringDiameter, height: ringDiameter)
                     .animation(reduceMotion ? nil : .linear(duration: 1), value: cooldownProgress)
                     .transition(reduceMotion ? .identity : .opacity)
             }
@@ -130,7 +137,7 @@ struct AttentionButton: View {
                 onLongPress()
             }
         }
-        .frame(width: 280, height: 280)
+        .frame(width: diameter, height: diameter)
         .onChange(of: isSending) { _, sending in
             pulse = sending && !reduceMotion
         }

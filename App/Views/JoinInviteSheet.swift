@@ -39,6 +39,7 @@ struct JoinInviteSheet: View {
     private var alreadyPaired: some View {
         VStack(spacing: 14) {
             Image(systemName: "link.circle.fill")
+                // Decorative hero art, sized to the layout rather than to text — exempt.
                 .font(.system(size: 48, weight: .light))
                 .foregroundStyle(.secondary)
             Text("Already paired")
@@ -58,6 +59,7 @@ struct JoinInviteSheet: View {
     private var joinForm: some View {
         VStack(spacing: 18) {
             Image(systemName: "person.2.wave.2.fill")
+                // Decorative hero art, sized to the layout rather than to text — exempt.
                 .font(.system(size: 44, weight: .light))
                 .foregroundStyle(.red)
                 .padding(.top, 10)
