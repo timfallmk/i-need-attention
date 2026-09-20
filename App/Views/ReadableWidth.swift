@@ -76,6 +76,17 @@ extension View {
     /// `Spacer`s collapse to nothing and the content bunches against the top, which is
     /// wrong on every phone and in any window with room to spare. Scrolling is the
     /// fallback for the case that would otherwise overflow, not the default.
+    /// Horizontal sibling of `scrollsWhenTight()`. A row with a fixed number of controls
+    /// outgrows the narrowest phone once Dynamic Type scales them, and an HStack clips
+    /// rather than wraps — so the choices at the end become unreachable exactly when
+    /// someone asked for bigger targets. Renders identically while the row still fits.
+    func scrollsSidewaysWhenTight() -> some View {
+        ViewThatFits(in: .horizontal) {
+            self
+            ScrollView(.horizontal, showsIndicators: false) { self }
+        }
+    }
+
     func scrollsWhenTight() -> some View {
         ViewThatFits(in: .vertical) {
             self

@@ -314,6 +314,7 @@ private struct AckSheet: View {
                 }
                 moreButton
             }
+            .scrollsSidewaysWhenTight()
             Button("Just acknowledge") {
                 onPick(nil)
             }

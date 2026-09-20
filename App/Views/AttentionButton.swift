@@ -145,6 +145,12 @@ struct AttentionButton: View {
         .onChange(of: isSending) { _, sending in
             pulse = sending && !reduceMotion
         }
+        // Turning the setting on mid-send leaves isSending untouched, so nothing else
+        // would clear pulse — and with the animation gone the halo freezes at its
+        // pulsed end state, which is scale 1.10 at opacity 0. Invisible, permanently.
+        .onChange(of: reduceMotion) { _, reduced in
+            pulse = isSending && !reduced
+        }
     }
 
     // The one animation the setting exists for, because it repeats forever. Under

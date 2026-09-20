@@ -38,6 +38,7 @@ struct ToneStripSheet: View {
                     button(emoji: EmojiCatalog.toned(base, tone), toneLabel: tone.accessibilityName)
                 }
             }
+            .scrollsSidewaysWhenTight()
             .padding(.horizontal, 12)
             Spacer(minLength: 0)
         }
