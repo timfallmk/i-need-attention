@@ -2,9 +2,11 @@ import Foundation
 
 /// Stable per-install identifier. Persisted in UserDefaults so it survives app restarts
 /// but is regenerated on uninstall — which is the behavior we want for pairing.
+///
+/// Deliberately holds no name. It used to, under `attention.deviceName`, alongside the
+/// one `UserSettings` keeps — see `UserSettings.resolvedName` for why there is now one.
 enum DeviceIdentity {
     private static let idKey = "attention.deviceID"
-    private static let nameKey = "attention.deviceName"
 
     static var id: String {
         if let existing = UserDefaults.standard.string(forKey: idKey) {
@@ -15,21 +17,11 @@ enum DeviceIdentity {
         return new
     }
 
-    /// User-chosen name. Defaults to empty so the UI can prompt for a real one rather
-    /// than falling back to `UIDevice.current.name`, which on iOS 16+ returns a
-    /// generic "iPhone" unless you have the `com.apple.developer.device-information.user-assigned-device-name`
-    /// entitlement — which Apple grants only in narrow cases.
-    static var name: String {
-        get { UserDefaults.standard.string(forKey: nameKey) ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: nameKey) }
-    }
-
     /// Forgets this install's identity, for `DataErasure`. The id is written into every
     /// record this device sends, so it is the one value that still ties an erased phone
     /// to alerts sitting in a partner's zone; the next read mints a fresh one.
     static func reset() {
         UserDefaults.standard.removeObject(forKey: idKey)
-        UserDefaults.standard.removeObject(forKey: nameKey)
     }
 }
 

@@ -139,13 +139,13 @@ final class DataErasureTests: XCTestCase {
 
     /// The device id is written into every record this phone sends, so leaving it in
     /// place would tie an erased phone to alerts still sitting in a partner's zone.
+    /// The name is not checked here — it lives in `UserSettings` now, and
+    /// `testEraseReturnsSettingsToTheirDefaults` covers it.
     func testEraseMintsANewDeviceIdentity() {
         let before = DeviceIdentity.id
-        DeviceIdentity.name = "Alice's iPhone"
 
         DataErasure.eraseLocalData(settings: UserSettings())
 
-        XCTAssertEqual(DeviceIdentity.name, "")
         XCTAssertNotEqual(DeviceIdentity.id, before)
     }
 

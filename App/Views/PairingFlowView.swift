@@ -5,7 +5,6 @@ import UIKit
 struct PairingFlowView: View {
     @Environment(AppState.self) private var appState
     @State private var mode: Mode = .chooser
-    @State private var displayName: String = DeviceIdentity.name
     @State private var showSettings = false
 
     enum Mode: Equatable {
@@ -14,8 +13,18 @@ struct PairingFlowView: View {
         case scanCode
     }
 
+    // The field edits the stored name directly rather than staging a copy that something
+    // has to remember to write back. A local seed is what let this screen and Settings
+    // hold different answers to the same question (#83).
+    private var nameBinding: Binding<String> {
+        Binding(
+            get: { appState.settings.displayName },
+            set: { appState.settings.displayName = $0 }
+        )
+    }
+
     private var trimmedName: String {
-        displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        appState.settings.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var body: some View {
@@ -129,13 +138,12 @@ struct PairingFlowView: View {
                 .padding(.horizontal, 24)
             }
 
-            NameField(displayName: $displayName)
+            NameField(displayName: nameBinding)
                 .padding(.horizontal, 24)
 
             VStack(spacing: 14) {
                 Button {
                     Haptics.select()
-                    DeviceIdentity.name = trimmedName
                     mode = .showCode
                 } label: {
                     Label("Show Code", systemImage: "qrcode")
@@ -149,7 +157,6 @@ struct PairingFlowView: View {
 
                 Button {
                     Haptics.select()
-                    DeviceIdentity.name = trimmedName
                     mode = .scanCode
                 } label: {
                     Label("Scan Code", systemImage: "qrcode.viewfinder")
@@ -161,7 +168,7 @@ struct PairingFlowView: View {
                 .tint(.red)
                 .disabled(trimmedName.isEmpty)
 
-                PasteInviteButton(beforePaste: { DeviceIdentity.name = trimmedName })
+                PasteInviteButton()
                     .padding(.top, 2)
 
                 // Pairing needs a second device and a person willing to install something, so
@@ -196,16 +203,12 @@ struct PairingFlowView: View {
 private struct PasteInviteButton: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Runs before the pasteboard is read. The chooser uses it to commit the typed name.
-    var beforePaste: () -> Void = {}
-
     @State private var failed = false
 
     var body: some View {
         VStack(spacing: 8) {
             Button {
                 Haptics.select()
-                beforePaste()
                 failed = !acceptPastedInvite()
                 if failed { Haptics.error() }
             } label: {
@@ -501,7 +504,6 @@ private struct ShowCodeView: View {
     private func start() async {
         pollingTask?.cancel()
         phase = .starting
-        DeviceIdentity.name = displayName
 
         // Resume a live pending invite instead of minting a new pairKey — the shared
         // link and the on-screen QR must stay interchangeable. Expired invites fall
@@ -682,7 +684,6 @@ private struct ScanCodeView: View {
         guard !working else { return }
         working = true
         defer { working = false }
-        DeviceIdentity.name = displayName
         do {
             let state = try await PairingService.shared.completePairing(payload: payload, myName: displayName)
             Haptics.success()
