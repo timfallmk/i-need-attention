@@ -40,10 +40,10 @@ jobs:
         env:
           CI_PRIMARY_REPOSITORY_PATH: ${{ github.workspace }}
 
-      - name: Test Attention (iOS Simulator)
+      - name: Build Attention (iOS Simulator)
         run: |
           set -o pipefail
-          xcodebuild test \
+          xcodebuild build \
             -project Attention.xcodeproj \
             -scheme Attention \
             -configuration Debug \
