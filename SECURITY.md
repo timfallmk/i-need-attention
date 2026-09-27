@@ -69,7 +69,7 @@ CloudKit, and re-pairing is not a solo recovery — it needs the partner and a f
   through a link. The link also uses the app's own `attention://` scheme, and iOS does not
   reserve a custom scheme for the app that declared it: another installed app can register the
   same one, and which of them opens the link is undefined. That route needs a malicious app on
-  your partner's phone that passed App Review. Universal Links would close it but would put a
+  your partner's device. Universal Links would close it but would put a
   web host in the path of every invite opened in a browser, which is a worse trade for an app
   with no servers.
 
