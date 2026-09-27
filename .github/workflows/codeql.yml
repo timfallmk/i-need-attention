@@ -28,16 +28,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Run shared project setup
+        run: ${{ github.workspace }}/ci_scripts/ci_post_clone.sh
+        env:
+          CI_PRIMARY_REPOSITORY_PATH: ${{ github.workspace }}
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           build-mode: manual
-
-      - name: Run shared project setup
-        run: ${{ github.workspace }}/ci_scripts/ci_post_clone.sh
-        env:
-          CI_PRIMARY_REPOSITORY_PATH: ${{ github.workspace }}
 
       - name: Build Attention (iOS Simulator)
         run: |
