@@ -285,31 +285,23 @@ Two consequences that are easy to miss because nothing in the repo changed when 
 - **No local `xcodegen generate` needed for a release.** `ci_scripts/ci_post_clone.sh` regenerates the project on the build runner from `project.yml` (`*.xcodeproj/` is gitignored). Local `xcodegen` is only for building in Xcode yourself.
 - **Manual fallback only if Xcode Cloud is down:** `SETUP.md` §7 (Archive → Distribute → Upload), where you *do* bump the build number by hand.
 
-## Going public
+## Being public
 
-The repo is private. Several things are deliberately withheld or worded around that,
-and they are listed **here** rather than only at each site, because the failure mode is
-fixing one and missing the others — which has already happened twice on this branch.
+The repo was private through its first App Store releases, and the site was worded around
+that: no Source links, no "verifiable in the source code" claim in the privacy policy, and
+email as the only route for support and for security reports. All of it was restored in one
+change when the repo went public. What still follows from it:
 
-When the repo becomes public:
-
-- **`site/index.html`** — restore the "Source code" list item (MPL-2.0) and the footer
-  Source link.
-- **`site/privacy.html`** — restore the "verifiable in the source code" sentence, the
-  `SECURITY.md` link under Contact, the repository line under Changes, and the footer
-  Source link. Every one of these 404s today, and App Review fetches this page.
-- **`site/support.html`** — offer the issue tracker as the faster route, and restore the
-  footer Source link.
-- **`SECURITY.md`** — enable **private vulnerability reporting** (Settings → Security)
-  and point the file at it. It is public-repository-only, which is why the file still
-  names an email address: while the repo is private there is no other channel, since
-  outsiders cannot open issues either.
-- **`.github/ISSUE_TEMPLATE/config.yml`** — the contact links are absolute URLs into this
-  repo. A fork sends its users here. `contact_links` requires a URL rather than a
-  repo-relative path, so there is no fix beyond a forker editing two lines; worth saying
-  in the fork's own README.
-
-Each site file carries a local comment naming its own items, pointing back at this list.
+- **The site links into this repository, and App Review fetches the privacy policy.** If the
+  repo is ever made private again, every one of those links 404s. `39b1287` is the commit
+  that withheld them the first time — reverse the whole of its `site/` changes rather than
+  only the links you happen to notice, which is how this was missed twice before.
+- **`SECURITY.md` points at private vulnerability reporting**, which GitHub offers on public
+  repositories only. Turning it off, or going private, leaves the file pointing at a form
+  nobody can reach. The email address it also names is the fallback that always works.
+- **`.github/ISSUE_TEMPLATE/config.yml` holds absolute URLs into this repo**, because
+  `contact_links` rejects relative paths. A fork sends its users here until it edits them;
+  README's build steps say so.
 
 ## Things that look weird but are deliberate
 
