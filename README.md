@@ -46,6 +46,8 @@ Then in Xcode:
 4. **Create the App Group.** In Signing & Capabilities → **+ Capability → App Groups** → **+** → name it `group.<your.bundle.id>`. Add it to **both** the `Attention` target and the `AttentionNotificationService` target. Update `Constants.AppGroup.identifier` to match.
 5. **First run.** Build + install on both devices (each signed in to its own Apple ID). The first launch asks for notification permission and shows the pairing screen.
 
+If you publish a fork, also change the two URLs in `.github/ISSUE_TEMPLATE/config.yml`. GitHub requires absolute links there, so they point at this repository, and until you edit them your users' security reports and setup questions arrive here.
+
 ## CloudKit schema
 
 The schema is checked in as `cloudkit-schema.ckdb` — import it rather than creating

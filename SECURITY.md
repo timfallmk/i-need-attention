@@ -62,6 +62,16 @@ CloudKit, and re-pairing is not a solo recovery — it needs the partner and a f
 - **Metadata within the pair.** Your partner's device can see when you asked for attention, how
   often, and whether you answered. That is inherent to the feature.
 - **Apple's infrastructure availability.** Delivery depends on CloudKit and APNs.
+- **Anyone who sees your invite link.** A remote invite carries the pair key and the share
+  that admits your partner to your inbox, so it is exactly as private as the channel you send
+  it through: anyone who reads it can use it to join. Send it somewhere only your partner
+  reads, or pair in person — the in-app scanner reads the QR code directly and never passes it
+  through a link. The link also uses the app's own `attention://` scheme, and iOS does not
+  reserve a custom scheme for the app that declared it: another installed app can register the
+  same one, and which of them opens the link is undefined. That route needs a malicious app on
+  your partner's phone that passed App Review. Universal Links would close it but would put a
+  web host in the path of every invite opened in a browser, which is a worse trade for an app
+  with no servers.
 
 ## Records from before 2.0
 
@@ -82,14 +92,10 @@ governed by that zone's share participants rather than by record-type roles.
 
 Open and tracked rather than undisclosed. Please do not file these as new:
 
-- **Two installs signed into one Apple ID can break each other's pairing** ([#68]). Subscription
-  identifiers are constants in a per-account database, and the pair key is one synchronizable
-  Keychain item. Both failures are silent. Code reading; no confirmed occurrence.
 - **A watch press queued while the phone is unreachable has no expiry** ([#69]). It is delivered
   whenever the phone next wakes, against whatever pairing exists then.
 - **Acknowledging an already-acknowledged alert re-pushes a banner for it** ([#70]).
 
-[#68]: https://github.com/timfallmk/i-need-attention/issues/68
 [#69]: https://github.com/timfallmk/i-need-attention/issues/69
 [#70]: https://github.com/timfallmk/i-need-attention/issues/70
 
@@ -100,8 +106,13 @@ use the public-database design described above and should not be used.
 
 ## Reporting a vulnerability
 
-**Please don't open a public GitHub issue.** Email the maintainer at
-`timfall+github@gmail.com`.
+**Please don't open a public GitHub issue.** Report it privately instead:
+**[report a vulnerability](https://github.com/timfallmk/i-need-attention/security/advisories/new)** from this repository's Security
+tab. Only the maintainer sees it, and a fix can be prepared in private before anything is
+disclosed.
+
+If you'd rather not use GitHub, email `timfall+github@gmail.com` with "security" in the
+subject line.
 
 I aim to acknowledge within a few days, and to ship a fix within two weeks for anything that
 exposes user data or widens access beyond what this document describes. This is a personal
