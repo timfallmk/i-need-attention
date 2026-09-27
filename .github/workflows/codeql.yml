@@ -4,8 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-  schedule:
-    - cron: "0 0 * * 0"
   workflow_dispatch:
 
 concurrency:
@@ -37,11 +35,10 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: manual
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Generate Xcode project
-        run: xcodegen generate
+      - name: Run shared project setup
+        run: ${{ github.workspace }}/ci_scripts/ci_post_clone.sh
+        env:
+          CI_PRIMARY_REPOSITORY_PATH: ${{ github.workspace }}
 
       - name: Test Attention (iOS Simulator)
         run: |
