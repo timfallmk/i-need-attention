@@ -355,6 +355,18 @@ final class CloudKitService: @unchecked Sendable {
         try await newestAlert(in: Self.inboxZoneID, pair: pair)
     }
 
+    /// The last few alerts the partner sent us, newest first. For the banner ack path,
+    /// which has to know whether a *later* alert has already been answered — and the
+    /// newest alone cannot say, since the answered one may sit beneath a newer request.
+    func fetchRecentIncoming(pair: PairState, limit: Int = 10) async throws -> [AlertRecord] {
+        let zoneID = Self.inboxZoneID
+        let query = CKQuery(recordType: Constants.RecordType.alert, predicate: NSPredicate(value: true))
+        query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        let records = try await allRecords(matching: query, in: zoneID,
+                                           from: database(for: zoneID), limit: limit)
+        return records.compactMap { AlertRecord(record: $0, pairKey: pair.pairKey) }
+    }
+
     /// Newest alert we sent, read back out of the partner's zone so their seen/ack
     /// updates to it are visible.
     func fetchMostRecentOutgoing(pair: PairState) async throws -> AlertRecord? {

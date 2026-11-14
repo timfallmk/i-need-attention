@@ -125,11 +125,33 @@ struct LegacyHistoryCaptureState: Codable, Equatable {
         return isExhausted
     }
 
+    /// Whether this install ran a capture of its own to an end, which is what entitles
+    /// it to tell the partner on launch that the claim is finished.
+    ///
+    /// An install with nothing to capture is deliberately not included. Its stamp is
+    /// written when it pairs, and nowhere else: a fresh install that *adopts* a pairing
+    /// shares one profile record with every device on the account, so stamping it from
+    /// here would release the partner's purge while another of this person's devices
+    /// was still fetching the history that purge deletes.
+    ///
+    /// A state written before outcomes were recorded can only be told apart by its
+    /// attempt count: giving up is the one way to reach `.done` with the budget spent.
+    var hasSettledItsOwnCapture: Bool {
+        guard phase == .done else { return false }
+        switch outcome {
+        case .archived?, .gaveUp?: return true
+        case .nothingToCapture?: return false
+        case nil: return isExhausted
+        }
+    }
+
     /// One line for the diagnostics export. Built only from this app's own state names,
     /// so there is nothing in it to redact.
     ///
     /// `partnerZoneName` is the current pairing's; nil when unpaired, where "released"
-    /// has nobody to be about.
+    /// has nobody to be about. Release is reported only where this install tracks it —
+    /// one with nothing to capture stamps at pairing and keeps no record, so a line
+    /// there would accuse every fresh install of something it has already done.
     func diagnosticSummary(partnerZoneName: String?) -> String {
         let progress: String
         switch (phase, outcome) {
@@ -140,7 +162,7 @@ struct LegacyHistoryCaptureState: Codable, Equatable {
         case (.done, .nothingToCapture?): progress = "none to capture"
         case (.done, nil): progress = "done"
         }
-        guard let partnerZoneName else { return progress }
+        guard let partnerZoneName, phase == .purging || hasSettledItsOwnCapture else { return progress }
         let released = stampedZoneName == partnerZoneName
         return "\(progress); partner \(released ? "released" : "NOT YET RELEASED")"
     }

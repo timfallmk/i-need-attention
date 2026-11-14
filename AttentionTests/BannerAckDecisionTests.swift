@@ -22,25 +22,35 @@ final class BannerAckDecisionTests: XCTestCase {
 
     func testAnUnansweredAlertThatIsTheNewestIsAcknowledged() {
         let tapped = alert(.sent)
-        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, newestIncoming: tapped), .acknowledge)
+        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, recentIncoming: [tapped]), .acknowledge)
     }
 
     func testASeenAlertIsStillAcknowledged() {
         let tapped = alert(.seen)
-        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, newestIncoming: tapped), .acknowledge)
+        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, recentIncoming: [tapped]), .acknowledge)
     }
 
     /// #70: the banner outlived the answer.
     func testAnAlreadyAcknowledgedAlertIsNotAcknowledgedAgain() {
         let tapped = alert(.acknowledged)
-        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, newestIncoming: tapped), .alreadyAcknowledged)
-        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, newestIncoming: nil), .alreadyAcknowledged)
+        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, recentIncoming: [tapped]), .alreadyAcknowledged)
+        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, recentIncoming: []), .alreadyAcknowledged)
     }
 
     func testAnOlderAlertIsDroppedOnceALaterOneHasBeenAnswered() {
         let tapped = alert(.sent)
         let newest = alert(.acknowledged, at: 600)
-        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, newestIncoming: newest),
+        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, recentIncoming: [newest, tapped]),
+                       .supersededByAnAnsweredAlert)
+    }
+
+    /// The answered alert need not be the newest. A third request waiting on top of it
+    /// does not make the first one current again.
+    func testAnOlderAlertIsDroppedWhenTheAnsweredOneSitsBeneathANewerRequest() {
+        let tapped = alert(.sent)
+        let answered = alert(.acknowledged, at: 600)
+        let newest = alert(.sent, at: 1200)
+        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, recentIncoming: [newest, answered, tapped]),
                        .supersededByAnAnsweredAlert)
     }
 
@@ -48,20 +58,20 @@ final class BannerAckDecisionTests: XCTestCase {
     func testAnOlderAlertIsAcknowledgedWhileTheLaterOneIsStillWaiting() {
         let tapped = alert(.sent)
         let newest = alert(.seen, at: 600)
-        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, newestIncoming: newest), .acknowledge)
+        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, recentIncoming: [newest, tapped]), .acknowledge)
     }
 
     /// A query that failed says nothing, and must not cost the partner their reply.
     func testAFailedQueryNeverBlocksAnAcknowledgement() {
-        XCTAssertEqual(BannerAckDecision.decide(tapped: alert(.sent), newestIncoming: nil), .acknowledge)
+        XCTAssertEqual(BannerAckDecision.decide(tapped: alert(.sent), recentIncoming: []), .acknowledge)
     }
 
-    /// A query can lag a record written a moment ago, and then names an *older* alert
-    /// as the newest. An answered one there is not evidence against the one just tapped.
+    /// A query can lag a record written a moment ago, and then lists only *older*
+    /// alerts. An answered one there is not evidence against the one just tapped.
     func testALaggingQueryNeverBlocksAnAcknowledgement() {
         let tapped = alert(.sent, at: 600)
         let stale = alert(.acknowledged)
-        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, newestIncoming: stale), .acknowledge)
+        XCTAssertEqual(BannerAckDecision.decide(tapped: tapped, recentIncoming: [stale]), .acknowledge)
     }
 
     // MARK: - Whether a pending snooze survives the ack
@@ -69,45 +79,40 @@ final class BannerAckDecisionTests: XCTestCase {
     func testASnoozeOnTheAcknowledgedAlertIsCancelled() {
         let tapped = alert(.sent)
         XCTAssertTrue(BannerAckDecision.shouldCancelSnooze(on: tapped.id.recordName,
-                                                           afterAcknowledging: tapped,
-                                                           newestIncoming: tapped))
+                                                           snoozedAlert: tapped,
+                                                           afterAcknowledging: tapped))
         XCTAssertTrue(BannerAckDecision.shouldCancelSnooze(on: tapped.id.recordName,
-                                                           afterAcknowledging: tapped,
-                                                           newestIncoming: nil))
+                                                           snoozedAlert: nil,
+                                                           afterAcknowledging: tapped))
     }
 
     /// #78: snooze the first alert, answer the second from its banner, never open the
     /// app. The first one's reminder must not fire.
-    func testASnoozeOnAnEarlierAlertIsCancelledWhenTheNewestIsAnswered() {
+    func testASnoozeOnAnEarlierAlertIsCancelledWhenALaterOneIsAnswered() {
         let snoozed = alert(.sent)
         let tapped = alert(.sent, at: 600)
         XCTAssertTrue(BannerAckDecision.shouldCancelSnooze(on: snoozed.id.recordName,
-                                                           afterAcknowledging: tapped,
-                                                           newestIncoming: tapped))
+                                                           snoozedAlert: snoozed,
+                                                           afterAcknowledging: tapped))
     }
 
-    /// The same, when the query has not caught up with the alert just answered and
-    /// still names the snoozed one as newest.
-    func testASnoozeOnAnEarlierAlertIsCancelledEvenWhenTheQueryLags() {
-        let snoozed = alert(.sent)
-        let tapped = alert(.sent, at: 600)
-        XCTAssertTrue(BannerAckDecision.shouldCancelSnooze(on: snoozed.id.recordName,
-                                                           afterAcknowledging: tapped,
-                                                           newestIncoming: snoozed))
-    }
-
+    /// Answering an older alert must leave a newer one's reminder alone — whatever a
+    /// query would have said about which is newest, since the ordering is read off the
+    /// two records themselves.
     func testASnoozeOnANewerAlertSurvivesAnsweringAnOlderOne() {
         let tapped = alert(.sent)
         let snoozed = alert(.sent, at: 600)
         XCTAssertFalse(BannerAckDecision.shouldCancelSnooze(on: snoozed.id.recordName,
-                                                            afterAcknowledging: tapped,
-                                                            newestIncoming: snoozed))
+                                                            snoozedAlert: snoozed,
+                                                            afterAcknowledging: tapped))
     }
 
-    func testASnoozeOnAnotherAlertIsLeftAloneWhenNothingIsKnown() {
+    /// Unreadable is unknown, and unknown keeps the reminder: losing one for an alert
+    /// that is still waiting is worse than a stale one firing.
+    func testASnoozeOnAnotherAlertIsKeptWhenThatAlertCannotBeRead() {
         let tapped = alert(.sent)
         XCTAssertFalse(BannerAckDecision.shouldCancelSnooze(on: "some-other-alert",
-                                                            afterAcknowledging: tapped,
-                                                            newestIncoming: nil))
+                                                            snoozedAlert: nil,
+                                                            afterAcknowledging: tapped))
     }
 }
