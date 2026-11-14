@@ -268,6 +268,7 @@ targets:
       - path: App/Models/PendingInvite.swift
       - path: App/Models/SnoozeState.swift
       - path: App/Models/AlertRecord.swift
+      - path: App/Models/BannerAckDecision.swift
       - path: App/Models/ArchivedAlert.swift
       - path: App/Models/LegacyHistoryArchive.swift
       - path: App/Models/PairingArchive.swift

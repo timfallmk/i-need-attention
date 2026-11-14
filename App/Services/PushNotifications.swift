@@ -285,6 +285,11 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
             let minutes = Constants.NotificationAction.defaultSnoozeMinutes
             let until = Date().addingTimeInterval(TimeInterval(minutes * 60))
             let content = response.notification.request.content
+            // `SnoozeState` holds one alert. Overwriting it below without this leaves the
+            // previous alert's reminder scheduled with nothing left that knows to cancel it.
+            if let previous = SnoozeState.load(), previous.recordName != recordName {
+                LocalNotifications.cancelSnooze(recordName: previous.recordName)
+            }
             LocalNotifications.scheduleSnooze(
                 recordName: recordName,
                 // Carried through from the banner being snoozed, so the reminder's own
@@ -335,11 +340,38 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
             if Constants.NotificationAction.allAckActionIdentifiers.contains(actionID) {
                 let emoji = Constants.NotificationAction.emoji(for: actionID)
                 do {
+                    // The alert itself by ID, which is consistent, and the newest by
+                    // query, which is not — hence `try?`. See `BannerAckDecision` for why
+                    // a query that fails or lags never counts against the ack.
+                    let tapped = try await CloudKitService.shared.fetchAlert(recordID: recordID, pair: pair)
+                    let newest = try? await CloudKitService.shared.fetchMostRecentIncoming(pair: pair)
+
+                    let decision = BannerAckDecision.decide(tapped: tapped, newestIncoming: newest)
+                    guard decision == .acknowledge else {
+                        // Logged because a refusal is otherwise invisible: the banner
+                        // goes away either way, and nothing reaches the partner.
+                        self.log.notice("Ack action for \(recordName, privacy: .public) dropped: \(String(describing: decision), privacy: .public)")
+                        LocalNotifications.endSnooze(recordName: recordName)
+                        await LocalNotifications.removeDelivered(matchingRecordName: recordName)
+                        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [notificationID])
+                        return
+                    }
+
                     _ = try await CloudKitService.shared.acknowledgeAlert(recordID: recordID, emoji: emoji, pair: pair)
                     // Mirrors AppState.acknowledgeIncoming: the NSE-set badge persists until ack,
                     // and inline ack from the banner is still an ack.
                     try? await UNUserNotificationCenter.current().setBadgeCount(0)
                     UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [notificationID])
+                    // The rest of what `AppState.acknowledgeIncoming` does, which this
+                    // path skipped: someone who answers from banners never opens the
+                    // app, so nothing else was ever going to cancel the reminder.
+                    await LocalNotifications.removeDelivered(matchingRecordName: recordName)
+                    if let snoozed = SnoozeState.load()?.recordName,
+                       BannerAckDecision.shouldCancelSnooze(on: snoozed,
+                                                            afterAcknowledging: tapped,
+                                                            newestIncoming: newest) {
+                        LocalNotifications.endSnooze(recordName: snoozed)
+                    }
                 } catch {
                     self.log.error("Failed to acknowledge alert \(recordName, privacy: .public): \(String(describing: error), privacy: .public)")
                 }

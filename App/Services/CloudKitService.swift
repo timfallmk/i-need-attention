@@ -213,27 +213,36 @@ final class CloudKitService: @unchecked Sendable {
         return model
     }
 
+    /// Forward only: an alert already seen keeps its first `seenAt`, and one already
+    /// acknowledged is left alone entirely. The caller that matters is a tap on the body
+    /// of a notification, which can sit in Notification Center long after the alert was
+    /// answered — an unconditional write there turned an acknowledged alert back into a
+    /// seen one, with `acknowledgedAt` still set and the in-app ack row live again.
     func markAlertSeen(recordID: CKRecord.ID, pair: PairState) async throws -> AlertRecord {
         let db = database(for: recordID.zoneID)
         let record = try await db.record(for: recordID)
-        record[Constants.AlertField.state] = Constants.AlertState.seen.rawValue as CKRecordValue
-        record[Constants.AlertField.seenAt] = Date() as CKRecordValue
-        let saved = try await db.save(record)
+        let current = (record[Constants.AlertField.state] as? String)
+            .flatMap(Constants.AlertState.init(rawValue:))
+
+        let saved: CKRecord
+        if current?.precedes(.seen) ?? true {
+            record[Constants.AlertField.state] = Constants.AlertState.seen.rawValue as CKRecordValue
+            record[Constants.AlertField.seenAt] = Date() as CKRecordValue
+            saved = try await db.save(record)
+        } else {
+            saved = record
+        }
         guard let model = AlertRecord(record: saved, pairKey: pair.pairKey) else {
             throw AttentionError.malformedRecord
         }
-        await postStatusNotice(pair: pair, alert: recordID, state: .seen, emoji: nil)
+        if model.state == .seen {
+            await postStatusNotice(pair: pair, alert: recordID, state: .seen, emoji: nil)
+        }
         return model
     }
 
-    /// Idempotent: a second call on an already-acked Alert leaves the record alone.
-    ///
-    /// The companion `Ack` record is gone. It existed only because the *public*
-    /// database rejects a visible push on `firesOnRecordUpdate`, so the sender's banner
-    /// had to be triggered by a creation instead. Private-database subscriptions carry
-    /// no such restriction — the spike confirmed a visible push on update, rendered with
-    /// the app force-quit — so the Alert update now does both jobs and acknowledging
-    /// costs one write instead of two.
+    /// Idempotent: a second call on an already-acked Alert leaves the record alone, and
+    /// re-posts the status notice only if the sender never got one.
     func acknowledgeAlert(recordID: CKRecord.ID, emoji: String?, pair: PairState) async throws -> AlertRecord {
         let db = database(for: recordID.zoneID)
         let record = try await db.record(for: recordID)
@@ -257,8 +266,14 @@ final class CloudKitService: @unchecked Sendable {
         }
         // Deliberately after the update and deliberately not gated on `alreadyAcked`:
         // a previous call that saved the Alert but failed to post the notice would
-        // otherwise leave the sender with no banner and no way to get one.
-        await postStatusNotice(pair: pair, alert: recordID, state: .acknowledged, emoji: emoji)
+        // otherwise leave the sender with no banner and no way to get one. What stops a
+        // repeat from pushing a second banner is `postStatusNotice` refusing to rewrite
+        // a notice that already says this.
+        //
+        // The emoji is the record's own on a repeat, not the one just tapped: the Alert
+        // kept its first answer, and a recovered notice has to carry the same one.
+        await postStatusNotice(pair: pair, alert: recordID, state: .acknowledged,
+                               emoji: alreadyAcked ? model.ackEmoji : emoji)
         return model
     }
 
@@ -269,6 +284,12 @@ final class CloudKitService: @unchecked Sendable {
     ///
     /// No-ops for a record that isn't in our own zone, which means it isn't an incoming
     /// alert and has no sender to notify.
+    ///
+    /// Also a no-op when the notice already says this state or a later one. The notice
+    /// is one record per alert, so a repeat is an *update*, and the sender's ack
+    /// subscription fires on updates with a visible push: rewriting `acknowledged` over
+    /// `acknowledged` is a fresh "Got back to you" banner for an alert answered days
+    /// ago, and writing `seen` over it re-arms that banner for the next acknowledgement.
     private func postStatusNotice(pair: PairState,
                                   alert recordID: CKRecord.ID,
                                   state: Constants.AlertState,
@@ -280,7 +301,13 @@ final class CloudKitService: @unchecked Sendable {
             recordName: Constants.AlertStatusField.recordName(for: recordID.recordName),
             zoneID: senderZone.zoneID
         )
-        let notice = (try? await sharedDB.record(for: noticeID))
+        let existing = try? await sharedDB.record(for: noticeID)
+        if let held = (existing?[Constants.AlertStatusField.state] as? String)
+            .flatMap(Constants.AlertState.init(rawValue:)),
+           !held.precedes(state) {
+            return
+        }
+        let notice = existing
             ?? CKRecord(recordType: Constants.RecordType.alertStatus, recordID: noticeID)
         notice[Constants.AlertStatusField.alertRecordName] = recordID.recordName as CKRecordValue
         notice[Constants.AlertStatusField.state] = state.rawValue as CKRecordValue
