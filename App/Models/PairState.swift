@@ -235,6 +235,20 @@ enum PartnerUnpairedNotice {
     }
 }
 
+/// How many other accounts closing the invite link removed from this pairing's inbox, so
+/// the main screen can say so until it is dismissed. See `InviteLinkClosure`.
+///
+/// Persisted rather than shown as a passing banner, because closing usually happens on a
+/// foreground pass or a background push, and the person may not be looking either time.
+enum RemovedThroughInviteLinkNotice {
+    static let storageKey = "attention.removedThroughInviteLink.v1"
+
+    static var count: Int {
+        get { UserDefaults.standard.integer(forKey: storageKey) }
+        set { UserDefaults.standard.set(newValue, forKey: storageKey) }
+    }
+}
+
 /// Who "me" is when deciding whether a record was sent by this person.
 ///
 /// One type rather than the comparison written out at each site, because the fallback is

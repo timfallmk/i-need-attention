@@ -66,7 +66,7 @@ CloudKit, and re-pairing is not a solo recovery — it needs the partner and a f
   key and the share that admits your partner to your inbox, so it is exactly as private as the
   channel you send it through: anyone who reads it can use it to join. From 2.3.1 the inviter's
   app closes that share once the pairing is made and re-invites the partner by name, which
-  also removes anyone else who joined; until then — and for the few days that closing waits
+  also removes anyone else who joined and says so on the main screen; until then — and for the few days that closing waits
   for the partner's devices to update — the link and the QR code still work. Send it somewhere only your partner
   reads, or pair in person — the in-app scanner reads the QR code directly and never passes it
   through a link. The link also uses the app's own `attention://` scheme, and iOS does not

@@ -80,6 +80,9 @@ final class AppState {
     var needsRepairAfterCutover: Bool
     var partnerEndedPairing: Bool
     var pairingEndedOnAnotherDevice: Bool
+    /// Observable mirror of `RemovedThroughInviteLinkNotice.count`, for the same reason
+    /// as the flags above: SwiftUI cannot see a plain `UserDefaults` read change.
+    var accountsRemovedThroughInviteLink: Int
 
     init() {
         // First thing, before any view can render and before anything can re-pair. It is
@@ -91,6 +94,7 @@ final class AppState {
         self.needsRepairAfterCutover = CutoverNotice.needsRepair
         self.partnerEndedPairing = PartnerUnpairedNotice.happened
         self.pairingEndedOnAnotherDevice = UnpairedElsewhereNotice.happened
+        self.accountsRemovedThroughInviteLink = RemovedThroughInviteLinkNotice.count
 
         self.settings = UserSettings()
         self.pair = PairState.load()
@@ -597,6 +601,9 @@ final class AppState {
         partnerEndedPairing = false
         UnpairedElsewhereNotice.happened = false
         pairingEndedOnAnotherDevice = false
+        // About the pairing that just ended, so it goes with it.
+        RemovedThroughInviteLinkNotice.count = 0
+        accountsRemovedThroughInviteLink = 0
         // Optimistic, and cleared by the first successful registration. Every caller now
         // registers immediately after this, and that call sets the flag correctly either
         // way — so this is belt-and-braces: it covers the window before that call
@@ -1233,6 +1240,7 @@ final class AppState {
         // the partner's account saying it can rejoin. Each is a no-op on the other side.
         _ = await PairingService.shared.recoverFromClosedInviteLink(pair)
         await PairingService.shared.closeInviteLinkIfReady(pair)
+        accountsRemovedThroughInviteLink = RemovedThroughInviteLinkNotice.count
 
         guard let updated = await PairingService.shared.refreshFromPartnerProfile(pair),
               stillPaired(as: updated) else {
@@ -1241,6 +1249,11 @@ final class AppState {
         self.pair = updated
         SharedSettings.partnerName = updated.partnerName
         pushWatchSnapshot()
+    }
+
+    func dismissRemovedThroughInviteLinkNotice() {
+        RemovedThroughInviteLinkNotice.count = 0
+        accountsRemovedThroughInviteLink = 0
     }
 
     /// Whether the pairing a suspended task started with is still the one this device
