@@ -272,6 +272,28 @@ final class LegacyHistoryArchiveTests: XCTestCase {
         XCTAssertFalse(state.hasSettledItsOwnCapture)
     }
 
+    /// A snapshot that cannot be read right now is not a snapshot that was never
+    /// written. Recording "nothing to capture" on that would be kept for good and
+    /// would skip the stamp retry on every later launch.
+    func testBackfillWaitsWhenTheDiskCannotSay() {
+        var state = LegacyHistoryCaptureState(phase: .done, failedAttempts: 2)
+        XCTAssertFalse(state.backfillOutcome(archiveExists: nil))
+        XCTAssertNil(state.outcome)
+
+        XCTAssertTrue(state.backfillOutcome(archiveExists: true))
+        XCTAssertEqual(state.outcome, .archived)
+    }
+
+    func testExistsOnDiskFollowsTheSnapshotRatherThanItsContents() throws {
+        XCTAssertEqual(LegacyHistoryArchive.existsOnDisk, false)
+
+        XCTAssertTrue(LegacyHistoryArchive(alerts: [], capturedAt: Date()).save())
+        XCTAssertEqual(LegacyHistoryArchive.existsOnDisk, true)
+
+        LegacyHistoryArchive.clear()
+        XCTAssertEqual(LegacyHistoryArchive.existsOnDisk, false)
+    }
+
     func testBackfillLeavesARecordedOutcomeAndARunningCaptureAlone() {
         var recorded = LegacyHistoryCaptureState(phase: .done, outcome: .gaveUp)
         XCTAssertFalse(recorded.backfillOutcome(archiveExists: true))
