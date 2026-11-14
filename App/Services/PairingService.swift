@@ -580,7 +580,12 @@ final class PairingService {
             if others > 0 {
                 log.error("Closing an invite link that \(others) other account(s) had joined")
             }
-            await closeAndOffer(keeping: keeping, currentURL: share.url, pair: current, zone: zone)
+            // Only once the close has landed: before that they are still in, and a notice
+            // saying they had been removed would be false.
+            if await closeAndOffer(keeping: keeping, currentURL: share.url, pair: current, zone: zone),
+               others > 0 {
+                RemovedThroughInviteLinkNotice.count = others
+            }
         case .alreadyClosed:
             // Repaired only by an account that closed a link before, which it recorded in
             // the partner's zone rather than on this device — so whichever of its devices
@@ -594,10 +599,13 @@ final class PairingService {
         }
     }
 
+    /// Returns whether the share is now private with the partner named, which is the
+    /// point from which anyone else who had joined through the link is out.
+    @discardableResult
     private func closeAndOffer(keeping userID: String,
                                currentURL: URL?,
                                pair: PairState,
-                               zone: ZoneRef) async {
+                               zone: ZoneRef) async -> Bool {
         func offer(_ url: URL) async throws {
             try await cloud.writeProfile(into: zone.zoneID,
                                          deviceID: pair.myDeviceID,
@@ -609,12 +617,12 @@ final class PairingService {
 
         // No offer, no closing: evicting a partner with nothing telling them to come back
         // is the one outcome this has to rule out.
-        guard let currentURL else { return }
+        guard let currentURL else { return false }
         do {
             try await offer(currentURL)
         } catch {
             log.error("rejoin offer: \(error.localizedDescription)")
-            return
+            return false
         }
 
         do {
@@ -625,10 +633,12 @@ final class PairingService {
             // their next foreground. It also carries the URL, should closing have moved it.
             try? await offer(closedURL ?? currentURL)
             log.notice("Invite link closed; partner re-invited by name")
+            return true
         } catch {
             // Either save may have landed. The next pass reads the share again and
             // finishes whichever half is missing.
             log.error("closing invite link: \(error.localizedDescription)")
+            return false
         }
     }
 

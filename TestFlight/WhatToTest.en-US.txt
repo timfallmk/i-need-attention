@@ -14,6 +14,8 @@ WHAT TO TRY
 
 3. Once, around the switch, pressing the button may say "Still finishing setup with your partner. Try again in a moment." Press again and it should go through. Seeing it more than once in a row is worth reporting.
 
+4. If the app ever says another account had joined with your pairing code, please report it, including whether either of you has a second Apple Account. It means an Apple Account other than the one your partner paired with had joined using the code or link, and has now been removed.
+
 ALSO IN THIS BUILD
 
 - The pairing screen fills in your name if the app already knows it, instead of asking again. Renaming yourself in Settings now changes it there too.

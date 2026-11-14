@@ -22,6 +22,10 @@
 "Notifications are off" = "Notifications are off";
 "You won't see incoming alerts until you turn them on." = "You won't see incoming alerts until you turn them on.";
 "Turn On" = "Turn On";
+/* Shown once closing the invite link has removed accounts other than the partner's. %lld = how many, always 2 or more. */
+"Another account had joined with your pairing code" = "Another account had joined with your pairing code";
+"%lld other accounts had joined with your pairing code" = "%lld other accounts had joined with your pairing code";
+"They could see alerts your partner sent you. They've been removed, and the code and link you paired with no longer work. If that was you or your partner on another Apple Account, there's nothing to worry about." = "They could see alerts your partner sent you. They've been removed, and the code and link you paired with no longer work. If that was you or your partner on another Apple Account, there's nothing to worry about.";
 
 /* --- Attention button --- */
 "I need\nattention" = "I need\nattention";

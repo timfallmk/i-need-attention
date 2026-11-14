@@ -136,6 +136,14 @@ struct MainView: View {
                     .transition(bannerTransition(from: .top))
             }
 
+            if appState.accountsRemovedThroughInviteLink > 0 {
+                InviteLinkRemovalBanner(count: appState.accountsRemovedThroughInviteLink) {
+                    appState.dismissRemovedThroughInviteLinkNotice()
+                }
+                .padding(.horizontal, 16)
+                .transition(bannerTransition(from: .top))
+            }
+
             // We can send but they can't reach us yet — the joiner's side of the
             // half-formed state. Sending works, so the button stays; saying nothing
             // would leave them wondering why nothing ever comes back.
@@ -408,6 +416,58 @@ private struct OneWayBanner: View {
 
     private var displayName: String {
         partnerName.isEmpty ? "your partner" : partnerName
+    }
+}
+
+/// Says that closing the invite link removed accounts other than the partner's.
+///
+/// Worded so it does not assume an intruder. The likeliest cause is benign — the partner
+/// scanning once from a device on a different Apple Account, or the person testing with a
+/// second one — and the only fact the app has is that some other account had joined.
+/// What it can say for certain is what that account could reach, and that it no longer can.
+private struct InviteLinkRemovalBanner: View {
+    let count: Int
+    var onDismiss: () -> Void
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "person.crop.circle.badge.xmark")
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Group {
+                    if count == 1 {
+                        Text("Another account had joined with your pairing code")
+                    } else {
+                        Text("\(count) other accounts had joined with your pairing code")
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+                Text("They could see alerts your partner sent you. They've been removed, and the code and link you paired with no longer work. If that was you or your partner on another Apple Account, there's nothing to worry about.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            Spacer(minLength: 8)
+            Button("OK") {
+                Haptics.select()
+                onDismiss()
+            }
+            .font(.footnote.weight(.semibold))
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.orange.opacity(reduceTransparency ? 0.25 : 0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.orange.opacity(reduceTransparency ? 0.55 : 0.25), lineWidth: 1)
+        )
     }
 }
 

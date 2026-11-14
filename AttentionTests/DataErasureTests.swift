@@ -44,6 +44,7 @@ final class DataErasureTests: XCTestCase {
         CutoverNotice.needsRepair = true
         PartnerUnpairedNotice.happened = true
         UnpairedElsewhereNotice.happened = true
+        RemovedThroughInviteLinkNotice.count = 2
         AccountIdentityPublished.done = true
         AccountIdentity.id = "_abc123"
         DismissedOutgoing.recordName = "alert-1"
@@ -80,6 +81,7 @@ final class DataErasureTests: XCTestCase {
         XCTAssertFalse(CutoverNotice.needsRepair)
         XCTAssertFalse(PartnerUnpairedNotice.happened)
         XCTAssertFalse(UnpairedElsewhereNotice.happened)
+        XCTAssertEqual(RemovedThroughInviteLinkNotice.count, 0)
         XCTAssertFalse(AccountIdentityPublished.done)
         XCTAssertNil(AccountIdentity.id)
         XCTAssertNil(DismissedOutgoing.recordName)

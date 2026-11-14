@@ -27,6 +27,7 @@ enum DataErasure {
         CutoverNotice.needsRepair = false
         PartnerUnpairedNotice.happened = false
         UnpairedElsewhereNotice.happened = false
+        RemovedThroughInviteLinkNotice.count = 0
         AccountIdentityPublished.done = false
         DismissedOutgoing.clear()
 
