@@ -347,13 +347,21 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
             if Constants.NotificationAction.allAckActionIdentifiers.contains(actionID) {
                 let emoji = Constants.NotificationAction.emoji(for: actionID)
                 do {
-                    // The alert itself by ID, which is consistent, and the recent ones by
-                    // query, which is not — hence `try?`. See `BannerAckDecision` for why
-                    // a query that fails or lags never counts against the ack.
+                    // The alert itself by ID, which is consistent, and the newest answered
+                    // one by query, which is not. See `BannerAckDecision` for why a query
+                    // that fails or lags never counts against the ack — but a failure is
+                    // logged, because one that failed every time would switch the
+                    // superseded check off with nothing to show for it.
                     let tapped = try await CloudKitService.shared.fetchAlert(recordID: recordID, pair: pair)
-                    let recent = (try? await CloudKitService.shared.fetchRecentIncoming(pair: pair)) ?? []
+                    let newestAnswered: AlertRecord?
+                    do {
+                        newestAnswered = try await CloudKitService.shared.fetchNewestAnsweredIncoming(pair: pair)
+                    } catch {
+                        self.log.notice("Could not read the newest answered alert; acknowledging regardless: \(String(describing: error), privacy: .public)")
+                        newestAnswered = nil
+                    }
 
-                    let decision = BannerAckDecision.decide(tapped: tapped, recentIncoming: recent)
+                    let decision = BannerAckDecision.decide(tapped: tapped, newestAnswered: newestAnswered)
                     guard decision == .acknowledge else {
                         // Logged because a refusal is otherwise invisible: the banner
                         // goes away either way, and nothing reaches the partner.

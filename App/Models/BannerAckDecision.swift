@@ -10,7 +10,7 @@ import Foundation
 /// this is the same judgement for the one path that takes its target from the
 /// notification itself.
 ///
-/// Every refusal needs positive evidence. `recentIncoming` comes from a query, and a
+/// Every refusal needs positive evidence. `newestAnswered` comes from a query, and a
 /// CloudKit query can lag a record that was written a moment ago or fail outright, so
 /// "the query didn't mention it" never counts against an ack: an acknowledgement the
 /// partner never receives is a worse failure than a redundant one.
@@ -23,17 +23,18 @@ enum BannerAckDecision: Equatable {
     /// for the request before it reads as a reply to something they never sent.
     case supersededByAnAnsweredAlert
 
-    /// `recentIncoming` rather than only the newest alert, because the answered one
-    /// need not be the newest: with a third request waiting on top, the newest alert is
-    /// unanswered and says nothing about the one in between.
-    static func decide(tapped: AlertRecord, recentIncoming: [AlertRecord]) -> BannerAckDecision {
+    /// `newestAnswered` is the newest *acknowledged* incoming alert, not the newest
+    /// alert: the answered one need not be on top, and with further requests waiting
+    /// above it the newest alert is unanswered and says nothing about what lies beneath.
+    static func decide(tapped: AlertRecord, newestAnswered: AlertRecord?) -> BannerAckDecision {
         if tapped.state == .acknowledged { return .alreadyAcknowledged }
-        let answeredSince = recentIncoming.contains { other in
-            other.id.recordName != tapped.id.recordName
-                && other.createdAt > tapped.createdAt
-                && other.state == .acknowledged
+        if let answered = newestAnswered,
+           answered.state == .acknowledged,
+           answered.id.recordName != tapped.id.recordName,
+           answered.createdAt > tapped.createdAt {
+            return .supersededByAnAnsweredAlert
         }
-        return answeredSince ? .supersededByAnAnsweredAlert : .acknowledge
+        return .acknowledge
     }
 
     /// Whether a pending snooze should be dropped now that `tapped` has been

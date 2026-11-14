@@ -355,16 +355,17 @@ final class CloudKitService: @unchecked Sendable {
         try await newestAlert(in: Self.inboxZoneID, pair: pair)
     }
 
-    /// The last few alerts the partner sent us, newest first. For the banner ack path,
-    /// which has to know whether a *later* alert has already been answered — and the
-    /// newest alone cannot say, since the answered one may sit beneath a newer request.
-    func fetchRecentIncoming(pair: PairState, limit: Int = 10) async throws -> [AlertRecord] {
-        let zoneID = Self.inboxZoneID
-        let query = CKQuery(recordType: Constants.RecordType.alert, predicate: NSPredicate(value: true))
-        query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        let records = try await allRecords(matching: query, in: zoneID,
-                                           from: database(for: zoneID), limit: limit)
-        return records.compactMap { AlertRecord(record: $0, pairKey: pair.pairKey) }
+    /// Newest alert the partner sent us that has been acknowledged. For the banner ack
+    /// path, which has to know whether a *later* alert has already been answered — and
+    /// the newest alert alone cannot say, since the answered one may sit beneath any
+    /// number of newer requests. Asking for it by state is exact where a window of
+    /// recent alerts is not.
+    ///
+    /// The predicate is the one `incoming-answered-v1` subscribes with, so the index it
+    /// needs is one the app already depends on.
+    func fetchNewestAnsweredIncoming(pair: PairState) async throws -> AlertRecord? {
+        try await newestAlert(in: Self.inboxZoneID, pair: pair,
+                              matching: SubscriptionPredicates.incomingAnswered())
     }
 
     /// Newest alert we sent, read back out of the partner's zone so their seen/ack
@@ -374,8 +375,10 @@ final class CloudKitService: @unchecked Sendable {
         return try await newestAlert(in: zone.zoneID, pair: pair)
     }
 
-    private func newestAlert(in zoneID: CKRecordZone.ID, pair: PairState) async throws -> AlertRecord? {
-        let query = CKQuery(recordType: Constants.RecordType.alert, predicate: NSPredicate(value: true))
+    private func newestAlert(in zoneID: CKRecordZone.ID,
+                             pair: PairState,
+                             matching predicate: NSPredicate = NSPredicate(value: true)) async throws -> AlertRecord? {
+        let query = CKQuery(recordType: Constants.RecordType.alert, predicate: predicate)
         query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let (results, _) = try await database(for: zoneID)
             .records(matching: query, inZoneWith: zoneID, resultsLimit: 1)
