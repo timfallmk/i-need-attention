@@ -10,7 +10,7 @@ import Foundation
 /// this is the same judgement for the one path that takes its target from the
 /// notification itself.
 ///
-/// Every refusal needs positive evidence. `newestIncoming` comes from a query, and a
+/// Every refusal needs positive evidence. `recentIncoming` comes from a query, and a
 /// CloudKit query can lag a record that was written a moment ago or fail outright, so
 /// "the query didn't mention it" never counts against an ack: an acknowledgement the
 /// partner never receives is a worse failure than a redundant one.
@@ -23,32 +23,34 @@ enum BannerAckDecision: Equatable {
     /// for the request before it reads as a reply to something they never sent.
     case supersededByAnAnsweredAlert
 
-    static func decide(tapped: AlertRecord, newestIncoming: AlertRecord?) -> BannerAckDecision {
+    /// `recentIncoming` rather than only the newest alert, because the answered one
+    /// need not be the newest: with a third request waiting on top, the newest alert is
+    /// unanswered and says nothing about the one in between.
+    static func decide(tapped: AlertRecord, recentIncoming: [AlertRecord]) -> BannerAckDecision {
         if tapped.state == .acknowledged { return .alreadyAcknowledged }
-        if let newest = newestIncoming,
-           newest.id.recordName != tapped.id.recordName,
-           newest.createdAt > tapped.createdAt,
-           newest.state == .acknowledged {
-            return .supersededByAnAnsweredAlert
+        let answeredSince = recentIncoming.contains { other in
+            other.id.recordName != tapped.id.recordName
+                && other.createdAt > tapped.createdAt
+                && other.state == .acknowledged
         }
-        return .acknowledge
+        return answeredSince ? .supersededByAnAnsweredAlert : .acknowledge
     }
 
     /// Whether a pending snooze should be dropped now that `tapped` has been
     /// acknowledged from its banner.
     ///
-    /// The app holds one snooze, and only for the newest incoming alert — a newer one
-    /// arriving cancels it in `AppState.handleIncomingChange`. That rule is enforced by
-    /// code a banner-only user never runs, so it is enforced again here: a snooze
-    /// survives an ack only when it belongs to a newer alert than the one just answered.
-    /// Otherwise its reminder fires later as a request for attention nobody made.
+    /// A snooze on an alert no newer than the one just answered is spent: its reminder
+    /// would fire later as a request for attention nobody made. `AppState` enforces the
+    /// same thing when a newer alert arrives, but in code a banner-only user never runs.
+    ///
+    /// `snoozedAlert` is the snoozed record fetched by ID, which is consistent where a
+    /// query is not. Nil means it could not be read, and then the snooze is kept:
+    /// cancelling the reminder for an alert that is still waiting is the worse mistake.
     static func shouldCancelSnooze(on snoozedRecordName: String,
-                                   afterAcknowledging tapped: AlertRecord,
-                                   newestIncoming: AlertRecord?) -> Bool {
+                                   snoozedAlert: AlertRecord?,
+                                   afterAcknowledging tapped: AlertRecord) -> Bool {
         if snoozedRecordName == tapped.id.recordName { return true }
-        guard let newest = newestIncoming else { return false }
-        let snoozedIsNewerThanTapped = newest.id.recordName == snoozedRecordName
-            && newest.createdAt > tapped.createdAt
-        return !snoozedIsNewerThanTapped
+        guard let snoozedAlert else { return false }
+        return snoozedAlert.createdAt <= tapped.createdAt
     }
 }

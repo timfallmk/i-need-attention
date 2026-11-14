@@ -79,8 +79,8 @@ enum LegacyHistoryCapture {
 
     /// Safe to call on every launch. Requires a preceding `prepare`.
     ///
-    /// Once the capture is over — done, exhausted, or never needed — all that is left is
-    /// making sure the partner has been told, which costs nothing after it has landed.
+    /// Once a capture of this install's own is over, all that is left is making sure the
+    /// partner has been told, which costs nothing after it has landed.
     static func run(cloud: CloudKitService = .shared) async {
         guard var state = LegacyHistoryCaptureState.load() else { return }
 
@@ -131,8 +131,14 @@ enum LegacyHistoryCapture {
                 return
             }
             // Ours first, so the partner isn't waiting on us while we wait on them.
-            if try await cloud.markLegacyHistoryCaptured(in: theirZone.zoneID) {
+            if try await cloud.markLegacyHistoryCaptured(in: theirZone.zoneID),
+               state.stampedZoneName != theirZone.zoneName {
                 state.stampedZoneName = theirZone.zoneName
+                // Saved now rather than with whatever comes next, because what comes
+                // next is usually a long wait on the partner — and the diagnostics line
+                // would spend all of it saying they had not been released. Guarded like
+                // `releasePartner`: an erase can land inside the await above.
+                if LegacyHistoryCaptureState.load() != nil { state.save() }
             }
 
             guard let profile = await cloud.fetchPartnerProfile(pairKey: pair.pairKey),
@@ -166,9 +172,13 @@ enum LegacyHistoryCapture {
     ///
     /// It also heals an install already in that state: a `.done` written before the
     /// stamp was tracked has no `stampedZoneName`, so it is stamped once here.
+    ///
+    /// Only for an install that finished a capture of its own — see
+    /// `hasSettledItsOwnCapture` for why one with nothing to capture must not.
     private static func releasePartner(_ state: inout LegacyHistoryCaptureState,
                                        cloud: CloudKitService) async {
-        guard let pair = PairState.load(), let theirZone = pair.outgoingZone,
+        guard state.hasSettledItsOwnCapture,
+              let pair = PairState.load(), let theirZone = pair.outgoingZone,
               state.stampedZoneName != theirZone.zoneName else { return }
         do {
             guard try await cloud.markLegacyHistoryCaptured(in: theirZone.zoneID) else { return }

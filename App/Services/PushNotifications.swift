@@ -287,14 +287,21 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
             let content = response.notification.request.content
             // `SnoozeState` holds one alert. Overwriting it below without this leaves the
             // previous alert's reminder scheduled with nothing left that knows to cancel it.
-            if let previous = SnoozeState.load(), previous.recordName != recordName {
+            //
+            // Only for a banner from the zone this account uses now. This branch runs
+            // before the zone guard below, so a banner left over from a previous pairing
+            // can still be snoozed — and it must not take the current pairing's reminder
+            // down in exchange for one whose ack that guard will refuse.
+            let bannerZone = userInfo[Constants.NotificationUserInfo.zoneName] as? String
+            if let previous = SnoozeState.load(), previous.recordName != recordName,
+               let mine = InboxZone.storedName, bannerZone == mine {
                 LocalNotifications.cancelSnooze(recordName: previous.recordName)
             }
             LocalNotifications.scheduleSnooze(
                 recordName: recordName,
                 // Carried through from the banner being snoozed, so the reminder's own
                 // Acknowledge can still be matched to the zone the alert lives in.
-                zoneName: userInfo[Constants.NotificationUserInfo.zoneName] as? String,
+                zoneName: bannerZone,
                 title: content.title,
                 body: content.body,
                 until: until
@@ -340,13 +347,13 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
             if Constants.NotificationAction.allAckActionIdentifiers.contains(actionID) {
                 let emoji = Constants.NotificationAction.emoji(for: actionID)
                 do {
-                    // The alert itself by ID, which is consistent, and the newest by
+                    // The alert itself by ID, which is consistent, and the recent ones by
                     // query, which is not — hence `try?`. See `BannerAckDecision` for why
                     // a query that fails or lags never counts against the ack.
                     let tapped = try await CloudKitService.shared.fetchAlert(recordID: recordID, pair: pair)
-                    let newest = try? await CloudKitService.shared.fetchMostRecentIncoming(pair: pair)
+                    let recent = (try? await CloudKitService.shared.fetchRecentIncoming(pair: pair)) ?? []
 
-                    let decision = BannerAckDecision.decide(tapped: tapped, newestIncoming: newest)
+                    let decision = BannerAckDecision.decide(tapped: tapped, recentIncoming: recent)
                     guard decision == .acknowledge else {
                         // Logged because a refusal is otherwise invisible: the banner
                         // goes away either way, and nothing reaches the partner.
@@ -366,11 +373,26 @@ extension PushNotifications: UNUserNotificationCenterDelegate {
                     // path skipped: someone who answers from banners never opens the
                     // app, so nothing else was ever going to cancel the reminder.
                     await LocalNotifications.removeDelivered(matchingRecordName: recordName)
-                    if let snoozed = SnoozeState.load()?.recordName,
-                       BannerAckDecision.shouldCancelSnooze(on: snoozed,
-                                                            afterAcknowledging: tapped,
-                                                            newestIncoming: newest) {
-                        LocalNotifications.endSnooze(recordName: snoozed)
+                    //
+                    // Read after the ack rather than before, so a snooze taken while it
+                    // was in flight is the one judged. The snoozed alert is fetched by ID
+                    // because which of the two is newer is the whole question, and a
+                    // query that has not caught up would answer it wrongly.
+                    if let snoozed = SnoozeState.load()?.recordName {
+                        let snoozedAlert: AlertRecord?
+                        if snoozed == recordName {
+                            snoozedAlert = tapped
+                        } else {
+                            snoozedAlert = try? await CloudKitService.shared.fetchAlert(
+                                recordID: CKRecord.ID(recordName: snoozed, zoneID: recordID.zoneID),
+                                pair: pair
+                            )
+                        }
+                        if BannerAckDecision.shouldCancelSnooze(on: snoozed,
+                                                                snoozedAlert: snoozedAlert,
+                                                                afterAcknowledging: tapped) {
+                            LocalNotifications.endSnooze(recordName: snoozed)
+                        }
                     }
                 } catch {
                     self.log.error("Failed to acknowledge alert \(recordName, privacy: .public): \(String(describing: error), privacy: .public)")

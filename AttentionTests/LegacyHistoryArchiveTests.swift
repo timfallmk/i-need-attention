@@ -214,6 +214,39 @@ final class LegacyHistoryArchiveTests: XCTestCase {
                        "archived; partner NOT YET RELEASED")
     }
 
+    /// A fresh install that adopts a pairing shares one profile with the account's
+    /// other devices. Stamping it on launch would release the partner's purge while
+    /// one of them was still fetching.
+    func testOnlyAnInstallThatRanItsOwnCaptureReleasesOnLaunch() {
+        XCTAssertTrue(LegacyHistoryCaptureState(phase: .done, outcome: .archived).hasSettledItsOwnCapture)
+        XCTAssertTrue(LegacyHistoryCaptureState(phase: .done, outcome: .gaveUp).hasSettledItsOwnCapture)
+        XCTAssertFalse(LegacyHistoryCaptureState(phase: .done, outcome: .nothingToCapture).hasSettledItsOwnCapture)
+        XCTAssertFalse(LegacyHistoryCaptureState(phase: .pending).hasSettledItsOwnCapture)
+        XCTAssertFalse(LegacyHistoryCaptureState(phase: .purging).hasSettledItsOwnCapture)
+    }
+
+    /// Before outcomes were recorded, a spent budget is the only trace a give-up left —
+    /// and the same blob with attempts to spare is a fresh install's.
+    func testAnUnrecordedOutcomeIsReadFromTheAttemptCount() {
+        let gaveUp = LegacyHistoryCaptureState(phase: .done,
+                                               failedAttempts: LegacyHistoryCaptureState.maxAttempts)
+        XCTAssertTrue(gaveUp.hasSettledItsOwnCapture)
+        XCTAssertFalse(LegacyHistoryCaptureState(phase: .done).hasSettledItsOwnCapture)
+    }
+
+    func testSummaryDoesNotAccuseAnInstallThatKeepsNoRecordOfItsStamp() {
+        let fresh = LegacyHistoryCaptureState(phase: .done, outcome: .nothingToCapture)
+        XCTAssertEqual(fresh.diagnosticSummary(partnerZoneName: "inbox-1"), "none to capture")
+        XCTAssertEqual(LegacyHistoryCaptureState(phase: .done).diagnosticSummary(partnerZoneName: "inbox-1"),
+                       "done")
+    }
+
+    func testSummaryReportsReleaseWhileThePurgeWaits() {
+        let waiting = LegacyHistoryCaptureState(phase: .purging, stampedZoneName: "inbox-1")
+        XCTAssertEqual(waiting.diagnosticSummary(partnerZoneName: "inbox-1"),
+                       "archived, purging (0 failed); partner released")
+    }
+
     func testSummaryCoversARunningCaptureAndAnUnrecordedOutcome() {
         XCTAssertEqual(LegacyHistoryCaptureState(phase: .pending, failedAttempts: 2)
                         .diagnosticSummary(partnerZoneName: nil), "capturing (2 failed)")
