@@ -280,7 +280,7 @@ final class AppState {
             // A send always targets the partner's zone, so a missing one here needs no
             // further attribution — but it is still confirmed before acting, because the
             // consequence is ending the pairing.
-            if await endPairingIfPartnerZoneIsGone(error, pair: pair) { return }
+            if await endPairingIfPartnerZoneIsGone(error, pair: pair, userInitiated: true) { return }
             log.error("sendAttention: \(error.localizedDescription)")
             bannerMessage = error.localizedDescription
             Haptics.warning()
@@ -669,11 +669,31 @@ final class AppState {
     /// reads our own zone and the partner's together, and our own briefly not existing is
     /// an ordinary startup state rather than the end of a relationship.
     ///
+    /// A zone that vanished is no longer proof on its own, though. The partner closing
+    /// their invite link evicts us from it too, until we accept their offer to rejoin —
+    /// so that is tried before anything is torn down, and a fresh offer we could not yet
+    /// take up holds the teardown off. See `PartnerZoneLoss`.
+    ///
     /// Returns true when it took over, so callers skip their own error handling.
+    /// `userInitiated` is for the one caller a person is waiting on: a press that lands
+    /// while we are rejoining gets told to try again rather than nothing at all.
     @discardableResult
-    private func endPairingIfPartnerZoneIsGone(_ error: Error, pair: PairState) async -> Bool {
+    private func endPairingIfPartnerZoneIsGone(_ error: Error,
+                                               pair: PairState,
+                                               userInitiated: Bool = false) async -> Bool {
         guard error.isMissingCloudKitZone, let zone = pair.outgoingZone else { return false }
         guard await CloudKitService.shared.zoneIsMissing(zone.zoneID) else { return false }
+
+        switch await PairingService.shared.recoverFromClosedInviteLink(pair) {
+        case .rejoined, .waiting:
+            if userInitiated {
+                bannerMessage = AttentionError.pairIncomplete.errorDescription
+                Haptics.warning()
+            }
+            return true
+        case .notApplicable:
+            break
+        }
 
         log.notice("Partner's inbox zone is gone; ending the pairing on this device too")
         PartnerUnpairedNotice.happened = true
@@ -1206,6 +1226,13 @@ final class AppState {
             if pair.save() { self.pair = pair }
         }
         await PairingService.shared.publishAccountIdentity(pair)
+
+        // Both halves of closing the invite link ride the pass that already reads the
+        // partner's profile, which is also what the profile push wakes: rejoining is how
+        // the partner answers the inviter's offer, and closing is how the inviter answers
+        // the partner's account saying it can rejoin. Each is a no-op on the other side.
+        _ = await PairingService.shared.recoverFromClosedInviteLink(pair)
+        await PairingService.shared.closeInviteLinkIfReady(pair)
 
         guard let updated = await PairingService.shared.refreshFromPartnerProfile(pair),
               stillPaired(as: updated) else {

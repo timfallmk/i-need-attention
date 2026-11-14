@@ -93,6 +93,8 @@ Go to <https://icloud.developer.apple.com/dashboard> → select your container �
 > This is a hard prerequisite rather than a nice-to-have, and it is worth being exact about why. Development infers a missing field from the first record that carries one; **Production does not — its schema is locked, and a save naming a field it does not know is rejected.** From 2.2.0 the app writes `senderUserID` on every alert and `userID` on every profile, so against an undeployed Production container the failure is not "multi-device doesn't work": it is sending and pairing failing outright, with a CloudKit error the user sees as the alert not going through.
 >
 > Additive is still true in the direction that matters once the fields exist: records written before them simply lack the field, readers fall back to the per-install `senderDeviceID`, and an old build and a new one interoperate in both directions. Nothing filters on either field, so no index is needed and none should be added — the zone is the filter, which is what 2.0 made it.
+>
+> **Again for 2.3.1**, same rule and same reason: two `PairProfile` fields, `canRejoinSince` and `rejoinOfferedAt`, both `Timestamp`, neither indexed. 2.3.1 writes `canRejoinSince` on every profile, and a profile write is part of pairing, of renaming and of a one-time publish every device runs after updating — so an undeployed Production container breaks all three. Deploy before the build reaches TestFlight, not before the App Store release. They exist so the inviter can close the invite link once the pairing is made; see `InviteLinkClosure` for the handshake and why it waits.
 
 ### What 2.0 changed here, and what it means for this page
 

@@ -352,6 +352,12 @@ struct PartnerProfile {
     let shareURL: URL?
     /// When they finished archiving their pre-2.0 history, or nil if they haven't.
     let legacyHistoryCapturedAt: Date?
+    /// When their account first ran a build that can rejoin a share made private under
+    /// it, or nil if none has. Gates closing our invite link — see `InviteLinkClosure`.
+    let canRejoinSince: Date?
+    /// When they last offered us a rejoin, or nil if they never closed their link.
+    /// Read only when their zone has gone missing — see `PartnerZoneLoss`.
+    let rejoinOfferedAt: Date?
 }
 
 // MARK: - Profile records
@@ -362,14 +368,19 @@ extension CloudKitService {
     /// accepted share participant can write there, which is why the inviter can treat the
     /// first one that appears as proof its own share was accepted.
     ///
-    /// `shareURL` is set only on the joiner's first write, where it carries the share of
-    /// their zone back. A rename later is the same record with the same record name, so
-    /// it replaces rather than accumulates.
+    /// `shareURL` is set on the joiner's first write, where it carries the share of their
+    /// zone back, and by an inviter offering a rejoin after closing its invite link. A
+    /// rename later is the same record with the same record name, so it replaces rather
+    /// than accumulates — and a nil `shareURL` leaves whichever one is there.
+    ///
+    /// `offeringRejoin` dates the offer, which is what lets the partner hold off reading
+    /// an eviction as an unpairing until they have accepted again.
     func writeProfile(into zoneID: CKRecordZone.ID,
                       deviceID: String,
                       name: String,
                       shareURL: URL?,
-                      pairKey: String) async throws {
+                      pairKey: String,
+                      offeringRejoin: Bool = false) async throws {
         let userID = await currentUserID()
         let db = database(for: zoneID)
         let recordID = CKRecord.ID(recordName: Constants.Profile.recordName, zoneID: zoneID)
@@ -392,6 +403,15 @@ extension CloudKitService {
             record[Constants.Profile.shareURLSealed] =
                 try PairCrypto.seal(shareURL.absoluteString, pairKey: pairKey,
                                     field: Constants.Profile.shareURLSealed) as CKRecordValue
+        }
+        // Every profile this build writes says it can rejoin, so the partner learns it
+        // from whatever write comes first. Set once: the grace period that gates closing
+        // runs from the account's first capable device, not from its latest write.
+        if record[Constants.Profile.canRejoinSince] == nil {
+            record[Constants.Profile.canRejoinSince] = Date() as CKRecordValue
+        }
+        if offeringRejoin {
+            record[Constants.Profile.rejoinOfferedAt] = Date() as CKRecordValue
         }
         _ = try await db.save(record)
     }
@@ -439,7 +459,9 @@ extension CloudKitService {
             userID: record[Constants.Profile.userID] as? String,
             name: name,
             shareURL: shareURL,
-            legacyHistoryCapturedAt: record[Constants.Profile.legacyHistoryCapturedAt] as? Date
+            legacyHistoryCapturedAt: record[Constants.Profile.legacyHistoryCapturedAt] as? Date,
+            canRejoinSince: record[Constants.Profile.canRejoinSince] as? Date,
+            rejoinOfferedAt: record[Constants.Profile.rejoinOfferedAt] as? Date
         )
     }
 
@@ -516,4 +538,79 @@ extension CloudKitService {
                                               savePolicy: .ifServerRecordUnchanged,
                                               atomically: false)
     }
+
+    /// When this account last offered its partner a rejoin, read back from the profile
+    /// it keeps in their zone. Nil for an account that has never closed an invite link —
+    /// which is every joiner, whose share is private from the moment it exists.
+    func ownRejoinOfferDate(in zoneID: CKRecordZone.ID) async -> Date? {
+        let recordID = CKRecord.ID(recordName: Constants.Profile.recordName, zoneID: zoneID)
+        guard let record = try? await database(for: zoneID).record(for: recordID) else { return nil }
+        return record[Constants.Profile.rejoinOfferedAt] as? Date
+    }
+
+    /// This device's inbox share as `InviteLinkClosure` needs to see it, or nil when
+    /// there is none. Fetched directly, for the reason `partnerHasAcceptedInboxShare`
+    /// gives: `inboxShare()` would create a bearer share where none exists.
+    func inboxShareSnapshot() async -> InboxShareSnapshot? {
+        let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: Self.inboxZoneID)
+        guard let share = try? await privateDB.record(for: shareID) as? CKShare else { return nil }
+        let others = share.participants.filter { $0.role != .owner }
+        func ids(_ participants: [CKShare.Participant]) -> Set<String> {
+            Set(participants.compactMap { $0.userIdentity.userRecordID?.recordName })
+        }
+        return InboxShareSnapshot(
+            isPublic: share.publicPermission != .none,
+            acceptedUserIDs: ids(others.filter { $0.acceptanceStatus == .accepted }),
+            url: share.url
+        )
+    }
+
+    /// Makes this device's inbox share private, naming one account as its participant,
+    /// and returns the share's URL for that account to accept again.
+    ///
+    /// Two saves, because CloudKit allows no other order. Making the share private is
+    /// what evicts everyone who joined through the link — the partner included — and a
+    /// participant can only be added by name to a share that is already private.
+    ///
+    /// Each step checks before it acts, so a pass that failed between them is finished
+    /// by the next one rather than repeated: the share is made private only if it is
+    /// not already, and the partner is named only if they are not already.
+    func closeInboxShare(keeping userID: String) async throws -> URL? {
+        let shareID = CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: Self.inboxZoneID)
+        guard var share = try await privateDB.record(for: shareID) as? CKShare else {
+            throw AttentionError.shareUnavailable
+        }
+
+        if share.publicPermission != .none {
+            share.publicPermission = .none
+            share = try await saveShare(share)
+        }
+
+        let named = share.participants.contains {
+            $0.role != .owner && $0.userIdentity.userRecordID?.recordName == userID
+        }
+        if !named {
+            let invitee = try await container.shareParticipant(forUserRecordID: CKRecord.ID(recordName: userID))
+            invitee.permission = .readWrite
+            share.addParticipant(invitee)
+            share = try await saveShare(share)
+        }
+        return share.url
+    }
+
+    private func saveShare(_ share: CKShare) async throws -> CKShare {
+        let (saved, _) = try await privateDB.modifyRecords(saving: [share], deleting: [])
+        guard case .success(let record)? = saved[share.recordID], let stored = record as? CKShare else {
+            throw AttentionError.shareUnavailable
+        }
+        return stored
+    }
+}
+
+/// What `InviteLinkClosure` needs from this device's inbox share, without the share.
+struct InboxShareSnapshot {
+    let isPublic: Bool
+    /// Accounts other than ours that have accepted, by user record name.
+    let acceptedUserIDs: Set<String>
+    let url: URL?
 }
