@@ -382,9 +382,15 @@ final class CloudKitService: @unchecked Sendable {
         query.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         let (results, _) = try await database(for: zoneID)
             .records(matching: query, inZoneWith: zoneID, resultsLimit: 1)
-        for (_, result) in results {
-            if case .success(let record) = result {
+        for (recordID, result) in results {
+            switch result {
+            case .success(let record):
                 return AlertRecord(record: record, pairKey: pair.pairKey)
+            case .failure(let error):
+                // The query succeeded and one record in it did not, which comes back
+                // as nil — the same answer as an empty zone. Callers cannot tell the
+                // two apart, so this line is the only trace that it was a failure.
+                log.error("newest alert: record \(recordID.recordName, privacy: .public) could not be read: \(String(describing: error), privacy: .public)")
             }
         }
         return nil
