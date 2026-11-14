@@ -150,6 +150,22 @@ enum Constants {
         case sent
         case seen
         case acknowledged
+
+        /// The states are a progression, and every writer has to treat them as one. A
+        /// notification outlives the state it was delivered in, so a tap on an old banner
+        /// asks for a transition the alert left behind long ago — and a write that grants
+        /// it turns a settled alert back into an open one.
+        func precedes(_ other: AlertState) -> Bool {
+            order < other.order
+        }
+
+        private var order: Int {
+            switch self {
+            case .sent: return 0
+            case .seen: return 1
+            case .acknowledged: return 2
+            }
+        }
     }
 
     /// **Pre-2.0 only.** The public-database ancestor of `AlertStatusField`, kept

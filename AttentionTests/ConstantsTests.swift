@@ -2,6 +2,28 @@ import XCTest
 
 final class ConstantsTests: XCTestCase {
 
+    // MARK: - AlertState ordering
+
+    func testAlertStatesOnlyRunForward() {
+        XCTAssertTrue(Constants.AlertState.sent.precedes(.seen))
+        XCTAssertTrue(Constants.AlertState.sent.precedes(.acknowledged))
+        XCTAssertTrue(Constants.AlertState.seen.precedes(.acknowledged))
+    }
+
+    /// #80: `seen` written over `acknowledged` reopened a settled alert.
+    func testAnAcknowledgedAlertPrecedesNothing() {
+        XCTAssertFalse(Constants.AlertState.acknowledged.precedes(.seen))
+        XCTAssertFalse(Constants.AlertState.acknowledged.precedes(.sent))
+        XCTAssertFalse(Constants.AlertState.seen.precedes(.sent))
+    }
+
+    /// #70: rewriting a state over itself is an update, and an update is a push.
+    func testAStateDoesNotPrecedeItself() {
+        XCTAssertFalse(Constants.AlertState.sent.precedes(.sent))
+        XCTAssertFalse(Constants.AlertState.seen.precedes(.seen))
+        XCTAssertFalse(Constants.AlertState.acknowledged.precedes(.acknowledged))
+    }
+
     // MARK: - NotificationAction.emoji(for:)
 
     func testEmojiForHeart() {

@@ -58,6 +58,16 @@ enum LocalNotifications {
         center.removeDeliveredNotifications(withIdentifiers: [id])
     }
 
+    /// Cancels the reminder for an alert and forgets the persisted snooze if it is that
+    /// one. For the notification-response paths, which run on a background launch with
+    /// no `AppState` to do it for them.
+    static func endSnooze(recordName: String) {
+        cancelSnooze(recordName: recordName)
+        if SnoozeState.load()?.recordName == recordName {
+            SnoozeState.clear()
+        }
+    }
+
     /// Clears any delivered notification for an alert, matched by its `recordName` in
     /// userInfo — the CloudKit-push banner's identifier is APNs-assigned, not the recordName,
     /// so it can't be removed by a known id.
