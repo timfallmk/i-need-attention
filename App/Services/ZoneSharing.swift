@@ -423,14 +423,19 @@ extension CloudKitService {
     /// Fetch-then-modify so it never clobbers the name or share URL already there, and a
     /// no-op if the profile hasn't been written yet: pairing writes it, and nothing can
     /// be purged before that anyway.
-    func markLegacyHistoryCaptured(in zoneID: CKRecordZone.ID, at date: Date = Date()) async throws {
+    ///
+    /// Returns whether the stamp is known to be there now. False is "couldn't tell or
+    /// couldn't write", which is what lets a caller keep trying instead of assuming.
+    @discardableResult
+    func markLegacyHistoryCaptured(in zoneID: CKRecordZone.ID, at date: Date = Date()) async throws -> Bool {
         let db = database(for: zoneID)
         let recordID = CKRecord.ID(recordName: Constants.Profile.recordName, zoneID: zoneID)
-        guard let record = try? await db.record(for: recordID) else { return }
-        guard record[Constants.Profile.legacyHistoryCapturedAt] == nil else { return }
+        guard let record = try? await db.record(for: recordID) else { return false }
+        guard record[Constants.Profile.legacyHistoryCapturedAt] == nil else { return true }
 
         record[Constants.Profile.legacyHistoryCapturedAt] = date as CKRecordValue
         _ = try await db.save(record)
+        return true
     }
 
     /// The partner's profile, read out of the zone we own. Returns nil while they haven't

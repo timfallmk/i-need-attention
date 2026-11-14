@@ -65,6 +65,8 @@
 "Retry" = "Retry";
 "No history yet" = "No history yet";
 "Alerts you send and receive will show up here." = "Alerts you send and receive will show up here.";
+"History from before version 2.0 couldn't be saved on this device." = "History from before version 2.0 couldn't be saved on this device.";
+"History from before version 2.0 couldn't be saved on this device. Alerts you send and receive from now on will show up here." = "History from before version 2.0 couldn't be saved on this device. Alerts you send and receive from now on will show up here.";
 "You" = "You";
 "Partner" = "Partner";
 "needs attention" = "needs attention";
