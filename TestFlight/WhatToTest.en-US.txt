@@ -1,33 +1,25 @@
-This is the build going to the App Store, so anything wrong here is wrong in public. Over the previous TestFlight build it adds a fix for notifications being slow to start arriving just after pairing, and a pass over the wording in Settings and pairing — including the erase confirmation, which used to promise something it could not deliver. Nothing about how the app works changed.
+2.3.1 is mostly about one thing you will not see: the code or link you paired with stops working once the pairing is made.
 
-2.2 is about one thing: several devices belonging to the same person. Sign in on your iPad as well as your phone and both should work, with no second QR scan and no re-pairing. You do not need to re-pair for this build.
+Until now, the QR code and the invite link you used to pair stayed valid for as long as you were paired. Anyone who had seen either one could use it later. This build closes them. Nothing changes on screen, but underneath, your partner's app briefly loses access to your side of the pairing and immediately gets it back under their own name instead of under the link.
 
-One word changes meaning, and it is the destructive one. UNPAIRING IS NOW ACCOUNT-WIDE. It always was, underneath — the storage it deletes belongs to your Apple Account, not to one phone — but the button used to say "Unpair this phone", which was a lie. Unpair on any device and you are unpaired on all of them. The confirmation now says so.
+That switch waits until BOTH of you have this build, then waits three more days so any other devices on your accounts have time to update too. So for the first few days, nothing at all should happen.
 
 WHAT TO TRY
 
-1. Sign in on a second device. Any device signed in to the same Apple Account: your iPad, an old phone, anything. Install this build and open it. It should come up ALREADY PAIRED, with your partner's name and your history, without asking you to scan anything. If it shows the pairing screen instead, that is the single most important thing you could report.
+1. Update every device, both of you. Phones, iPads, anything signed in to the same Apple Account. A device still on an older build is the one thing that can turn the switch into a real unpairing, and it is why the three-day wait exists.
 
-   Give iCloud Keychain a moment before deciding. The second device needs the pairing key to sync over, and that is not instant. If it shows the pairing screen, wait a minute and reopen the app before reporting it.
+2. Then just use it normally for a week. Send, answer, snooze, as usual.
 
-2. Send and receive from both. Press the button from the iPad, then from the phone. Your partner should get one alert either way, and it should look the same to them. Then have your partner send you one.
+   THE ONE THING TO REPORT: if either of you ever lands on the pairing screen, or sees a message saying your partner unpaired, when nobody unpaired. That is the failure this build is built to avoid. Say which device it was, roughly when, and what build every device on both accounts was running.
 
-   THIS IS THE PART I MOST WANT REPORTED: does the alert arrive on BOTH your devices, or only one? This is the thing that could not be tested before shipping — it needs two real devices on one account, and it is the assumption everything else rests on.
+3. Once, around the switch, pressing the button may say "Still finishing setup with your partner. Try again in a moment." Press again and it should go through. Seeing it more than once in a row is worth reporting.
 
-3. Answer on one, watch the other. With an alert showing on both your devices, answer it on one of them. The banner on the OTHER one should disappear by itself within a few seconds. It should not sit there waiting to be swiped away.
+ALSO IN THIS BUILD
 
-4. Unpair, and watch the other devices. Do this LAST — it ends the pairing for both of you. Unpair from one device. Your other device should return to the pairing screen with a note saying it was unpaired from another device. Your partner's phone should say they were unpaired by you. Nobody should end up on a pairing screen with no explanation.
-
-5. Normal use. Send, acknowledge, snooze, rename yourself. None of it changed, so anything that behaves differently from 2.1 is a bug.
+- The pairing screen fills in your name if the app already knows it, instead of asking again. Renaming yourself in Settings now changes it there too.
+- VoiceOver reads the name field as "Your name" rather than an unlabelled text field.
 
 KNOWN ROUGH EDGES
 
-- Just after you send, the status can briefly read "All quiet" instead of "Sent". The alert was sent and your partner will get it; only the pill is wrong, and it corrects itself. Already logged.
-
-- The pairing screen may show a blank name field even though the app knows your name. Type it again; nothing is lost. Already logged.
-
-- Settings, Diagnostics may show "Inbox zones: 3 (1 in use, rest abandoned)" or similar. As long as it says 1 in use, that is fine and cosmetic. If it ever says EXPECTED 1, RE-PAIR TO FIX, that one is real and worth reporting.
-
-- Detection of your partner unpairing still happens when you next send or open the app, rather than the instant they leave. Unchanged from 2.1.
-
-- Answering from a snoozed reminder was broken during development and is fixed here, but has only been tested in a simulator. If you snooze an alert and then answer it from the reminder that arrives later, check your partner actually sees the answer.
+- The three-day wait is deliberate. There is no way to see whether the switch has happened yet; if nothing has gone wrong, it either has or is still waiting.
+- Just after you send, the status can briefly read "All quiet" instead of "Sent". Only the pill is wrong; your partner gets the alert. Already logged.

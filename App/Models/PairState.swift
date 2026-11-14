@@ -261,8 +261,12 @@ struct SenderIdentity: Equatable {
 ///
 /// Pairing-scoped rather than install-scoped, which is why `PairState.clear()` drops it:
 /// a new pairing is a new partner with a new zone and nothing published into it yet.
+///
+/// v2 re-runs it once on every device, so a profile written before 2.3.1 picks up
+/// `canRejoinSince` without waiting for a rename — the partner's invite link stays open
+/// until it does.
 enum AccountIdentityPublished {
-    static let storageKey = "attention.accountIdentityPublished.v1"
+    static let storageKey = "attention.accountIdentityPublished.v2"
 
     static var done: Bool {
         get { UserDefaults.standard.bool(forKey: storageKey) }

@@ -69,10 +69,11 @@ enum Constants {
         /// beside encrypted alert contents would be a hole in the same wall.
         static let nameSealed = "nameSealed"
 
-        /// Only set on the joiner's first write, where it carries the share of their own
-        /// zone back to the inviter. Sealed too: it is not a bearer token — it names the
-        /// inviter — but the storage provider has no more business reading it than the
-        /// rest.
+        /// Set on the joiner's first write, where it carries the share of their own zone
+        /// back to the inviter, and by the inviter when it closes its invite link, where
+        /// it carries the now-private share back for the partner to rejoin. Sealed too:
+        /// neither is a bearer token — each names the one person it admits — but the
+        /// storage provider has no more business reading it than the rest.
         static let shareURLSealed = "shareURLSealed"
 
         /// When this person finished archiving their pre-2.0 history, or absent if they
@@ -83,6 +84,21 @@ enum Constants {
         /// Plaintext, deliberately. It is a fact about the app's own migration, says
         /// nothing about the people using it, and the partner has to read it.
         static let legacyHistoryCapturedAt = "legacyHistoryCapturedAt"
+
+        /// When this person's account first ran a build that can rejoin a share made
+        /// private under it. The inviter closes its bearer link only some time after
+        /// this — see `InviteLinkClosure` — because closing evicts the partner, and a
+        /// build without the rejoin step takes that for an unpairing.
+        ///
+        /// Set once and never moved: it dates the account's first capable device, which
+        /// is what the grace period after it is measured from.
+        static let canRejoinSince = "canRejoinSince"
+
+        /// When the inviter last offered a rejoin, written beside the share URL just
+        /// before it closes its link and on every pass until the partner is back in.
+        /// The partner reads it to tell an eviction that is about to be undone from an
+        /// unpairing — see `PartnerZoneLoss`.
+        static let rejoinOfferedAt = "rejoinOfferedAt"
     }
 
     enum PairField {

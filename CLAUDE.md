@@ -78,7 +78,10 @@ PairProfile     one, record name "profile" — who your partner is
   deviceID
   userID                per account; how each side learns the other's
   nameSealed            ciphertext
-  shareURLSealed        ciphertext; set only on the joiner's first write
+  shareURLSealed        ciphertext; the joiner's share on their first write, or the
+                        inviter's closed share offered back for the partner to rejoin
+  canRejoinSince        when this account first ran a build that can rejoin (2.3.1+)
+  rejoinOfferedAt       when the inviter last offered a rejoin
 
 AlertStatus     one per alert you sent, record name "status-<alertRecordName>"
   alertRecordName       which alert it answers
@@ -190,6 +193,17 @@ Symmetric, and two shares rather than one — but only the first is user-visible
 ```
 
 By step 3 the devices already have a channel, so the second share travels over it. B knows A's identity from `share_A`'s owner, so `share_B` names A directly with `publicPermission = .none` — **only one bearer token ever exists**, and neither user types the other's Apple ID. The pair key rides in the QR beside the share URL: the share bounds *who* can read the zone, the key bounds *what* they can make of it.
+
+That one bearer token is **retired once it has done its job** (from 2.3.1). Left public, the QR code and the invite link stay a way into A's inbox for the life of the pairing: whoever ever saw either can join, read what B sends with the key they carry, and write alerts that decrypt as genuine. So A later closes `share_A` and names B in it, and B accepts again:
+
+```
+5. A (no UI)   offers a rejoin (share URL + date) in its profile in zone_B
+               makes share_A private — CloudKit evicts every public participant, B too
+               names B as a participant, offers again
+   B (no UI)   finds zone_A gone and an offer in zone_B; accepts share_A again
+```
+
+A waits for B's account to advertise `canRejoinSince`, plus a grace period, because an eviction looks exactly like an unpairing to a build that predates this. See `InviteLinkClosure` and `PartnerZoneLoss`.
 
 Step 2 makes B→A live before A→B, so the pair is genuinely one-directional in between. `PairState` tracks the directions separately (`canSend`, `partnerCanReach`) and the UI never offers a button that would reach nobody — see `FinishingSetupView`. `AppState.reconcileHalfFormedPair` closes the gap on launch and every foreground.
 
@@ -313,6 +327,8 @@ change when the repo went public. What still follows from it:
 - **Records carry two sender identities and both are load-bearing**: `senderDeviceID` is per install, `senderUserID` per account. Everything that asks "was this mine or theirs?" wants the second — a person can hold several devices on one Apple Account, and with only the first, an alert sent from your iPad reads as *incoming* on your iPhone. The first stays because records written before the second exist, so `SenderIdentity` holds the one copy of the fallback: the account identity wins only when **both** ends have one, since a present value compared against an absent one answers "not mine" for every alert that person ever sent. `handleIncomingChange` deliberately does not use it to decide "theirs" — it decides from the zone, because only a share participant can write into the zone you own, which is true whether or not either side has an account identity yet.
 
 - **Cancelling an invite deletes its zone, not just its share**: revoking is what kills the QR code, so deleting looks like extra work on top. It is there for the joiner who already scanned. They have accepted the share, written their profile, and saved a `PairState` pointing at that zone with `canSend` true — and `MainView` deliberately keeps the button in that half-formed state ("Sending works, so the button stays"). Abandon the invite while leaving the zone and they press a working button into a zone nobody reads, forever. Deleting it makes their next write fail with `zoneNotFound`, which `endPairingIfPartnerZoneIsGone` already turns into "your partner unpaired" and a return to the pairing screen. A wrong explanation they can act on beats a dead button. It also keeps `inboxZoneCensus` honest, since pairing starts now mint unconditionally and would otherwise strew orphans.
+
+- **The inviter evicts its own partner, on purpose**: closing the invite link (Pairing, step 5) makes `share_A` private, and CloudKit removes every public participant when that happens — the partner included, since they joined through the link. Apple allows no gentler order: a participant can only be named on a share that is already private, so "add the partner, then close" is not available. The partner is named in a second save and accepts again. Three things make that safe, and each looks like redundancy until you remove it. The rejoin offer is written into the partner's zone **before** the share is closed, so the moment they can no longer see ours, something already says why. `endPairingIfPartnerZoneIsGone` tries the offer **before** it unpairs, because a vanished zone used to prove the partner had left and now does not. And closing waits for the partner's account to say it can rejoin, **plus three days**, because the flag is per account and any of their devices still on an older build would read the eviction as an unpairing — and unpairing is account-wide, so it would end the pairing on every device they own. That last risk is not fully closed: a device that has not auto-updated after three days can still do it.
 
 - **Cooldown is in-memory only**: `AppState.cooldownEnds` is not persisted across launches. The cooldown is a UI guard against fat-finger double-taps, not a rate limit. Killing and relaunching the app intentionally bypasses it.
 - **The watch press sends no noun**: `sendAttention(noun:)` is called with no argument, so the body is the default "needs attention". The watch UI has no long-press affordance; only the phone can choose a noun.

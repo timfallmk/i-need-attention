@@ -2,6 +2,16 @@ import CloudKit
 import Foundation
 import os.log
 
+/// What `PairingService.recoverFromClosedInviteLink` found.
+enum PartnerZoneRecovery {
+    /// The zone is not missing, or nothing says it is coming back: decide as before.
+    case notApplicable
+    /// Accepted again; the zone is back.
+    case rejoined
+    /// Not back yet, but a fresh offer says it is coming. Not an unpairing.
+    case waiting
+}
+
 /// Coordinates the four-step pairing handshake. Reads and writes go through
 /// `CloudKitService`; persistence lives in `PairState` / `PendingInvite`.
 ///
@@ -11,6 +21,7 @@ import os.log
 ///    ──────────────── machine-to-machine from here ────────────────
 /// 3. B (no UI)       creates zone_B + share_B; leaves it as a record in zone_A
 /// 4. A (no UI)       finds that record and accepts share_B
+/// 5. A (no UI)       closes share_A to the link, names B; B accepts it again
 /// ```
 ///
 /// Only the first share is user-visible. By step 3 the devices already have a channel,
@@ -20,6 +31,10 @@ import os.log
 ///
 /// Step 2 makes B→A live before A→B, so the pair is one-directional in between. That
 /// window is real and is tracked, not assumed away: see `PairState.isComplete`.
+///
+/// Step 5 retires the one bearer token. It waits for B's account to say it can rejoin —
+/// closing evicts B, and an older build reads that as an unpairing — so it can run days
+/// after step 4, and on pairings made before it existed. See `InviteLinkClosure`.
 @MainActor
 final class PairingService {
     static let shared = PairingService()
@@ -517,6 +532,136 @@ final class PairingService {
         guard updated.save() else { return nil }
         log.notice("Partner accepted our share; both directions live")
         return updated
+    }
+
+    // MARK: - Closing the invite link
+
+    /// The inviter's half: once the partner is in and their account can rejoin, closes
+    /// the bearer link the invite was made with, so the QR code and the link stop being
+    /// a way into this inbox. See `InviteLinkClosure` for why this is a handshake rather
+    /// than a setting, and why it waits.
+    ///
+    /// The rejoin offer is written *before* the share is closed. Closing evicts the
+    /// partner, and from the moment it does, their next read of our zone finds it gone;
+    /// an offer already sitting in their own zone is what tells them to accept again
+    /// rather than conclude we unpaired. The offer travels over their share, which
+    /// closing ours does not touch.
+    ///
+    /// Also the repair pass. Until the partner is back in, every call re-offers — which
+    /// keeps the offer fresh and pushes them again — and names them if a failure between
+    /// the two saves left the share private with nobody invited.
+    func closeInviteLinkIfReady(_ state: PairState) async {
+        await beginPairingChange()
+        defer { endPairingChange() }
+
+        guard let current = PairState.load(), current.pairKey == state.pairKey,
+              current.isComplete, PendingInvite.load() == nil,
+              let zone = current.outgoingZone,
+              let share = await cloud.inboxShareSnapshot() else { return }
+
+        let profile = await cloud.fetchPartnerProfile(pairKey: current.pairKey)
+        let partnerUserID = current.partnerUserID ?? profile?.userID
+        let decision = InviteLinkClosure.decide(
+            shareIsPublic: share.isPublic,
+            acceptedParticipantUserIDs: share.acceptedUserIDs,
+            partnerUserID: partnerUserID,
+            partnerCanRejoinSince: profile?.canRejoinSince,
+            now: Date()
+        )
+
+        switch decision {
+        case .keepOpen(.partnerCannotRejoinYet):
+            return
+        case .keepOpen(.partnerNotAmongParticipants):
+            log.error("Invite link left open: none of the share's accepted participants is the partner")
+            return
+        case .close(let keeping):
+            let others = share.acceptedUserIDs.subtracting([keeping]).count
+            if others > 0 {
+                log.error("Closing an invite link that \(others) other account(s) had joined")
+            }
+            await closeAndOffer(keeping: keeping, currentURL: share.url, pair: current, zone: zone)
+        case .alreadyClosed:
+            // Repaired only by an account that closed a link before, which it recorded in
+            // the partner's zone rather than on this device — so whichever of its devices
+            // runs next can finish what another started. That record is also what keeps
+            // the joiner out: its share was private from birth, and without the check it
+            // would "repair" one on every foreground whenever CloudKit happened not to
+            // show it the inviter's identity among the participants.
+            guard let partnerUserID, !share.acceptedUserIDs.contains(partnerUserID),
+                  await cloud.ownRejoinOfferDate(in: zone.zoneID) != nil else { return }
+            await closeAndOffer(keeping: partnerUserID, currentURL: share.url, pair: current, zone: zone)
+        }
+    }
+
+    private func closeAndOffer(keeping userID: String,
+                               currentURL: URL?,
+                               pair: PairState,
+                               zone: ZoneRef) async {
+        func offer(_ url: URL) async throws {
+            try await cloud.writeProfile(into: zone.zoneID,
+                                         deviceID: pair.myDeviceID,
+                                         name: pair.myName,
+                                         shareURL: url,
+                                         pairKey: pair.pairKey,
+                                         offeringRejoin: true)
+        }
+
+        // No offer, no closing: evicting a partner with nothing telling them to come back
+        // is the one outcome this has to rule out.
+        guard let currentURL else { return }
+        do {
+            try await offer(currentURL)
+        } catch {
+            log.error("rejoin offer: \(error.localizedDescription)")
+            return
+        }
+
+        do {
+            let closedURL = try await cloud.closeInboxShare(keeping: userID)
+            // Again, now that they are evicted. The first offer's push reached them while
+            // they could still see our zone, so they rightly ignored it; this one arrives
+            // when they cannot, which is when it can make them rejoin without waiting for
+            // their next foreground. It also carries the URL, should closing have moved it.
+            try? await offer(closedURL ?? currentURL)
+            log.notice("Invite link closed; partner re-invited by name")
+        } catch {
+            // Either save may have landed. The next pass reads the share again and
+            // finishes whichever half is missing.
+            log.error("closing invite link: \(error.localizedDescription)")
+        }
+    }
+
+    /// The partner's half: when the inviter's zone has vanished from this account's
+    /// shared database, decides between rejoining it and the old reading, that the
+    /// inviter unpaired. See `PartnerZoneLoss`.
+    ///
+    /// `.rejoined` and `.waiting` both mean "do not unpair". `.notApplicable` hands the
+    /// decision back to the caller unchanged, which is also the answer whenever the zone
+    /// is not missing at all, so a call made speculatively costs one zone listing.
+    func recoverFromClosedInviteLink(_ state: PairState) async -> PartnerZoneRecovery {
+        await beginPairingChange()
+        defer { endPairingChange() }
+
+        guard stillDescribesTheCurrentPairing(state),
+              let zone = state.outgoingZone,
+              await cloud.zoneIsMissing(zone.zoneID),
+              let profile = await cloud.fetchPartnerProfile(pairKey: state.pairKey),
+              let url = profile.shareURL else {
+            return .notApplicable
+        }
+
+        do {
+            let (accepted, _) = try await cloud.acceptShare(at: url)
+            if accepted == zone.zoneID, !(await cloud.zoneIsMissing(zone.zoneID)) {
+                log.notice("Rejoined the partner's inbox after they closed their invite link")
+                return .rejoined
+            }
+            log.error("Rejoin offer named a different zone; ignoring it")
+        } catch {
+            log.error("rejoin: \(error.localizedDescription)")
+        }
+        return PartnerZoneLoss.offerIsFresh(profile.rejoinOfferedAt, now: Date()) ? .waiting : .notApplicable
     }
 
     /// Picks up a partner who renamed themselves. Their profile record lives in the zone

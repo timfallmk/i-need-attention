@@ -28,7 +28,16 @@ DEFINE SCHEMA
         /* When this person finished archiving their pre-2.0 history. Their partner
            reads it before purging the shared public records — those belong to the pair,
            and deleting them on one device would destroy the other's only copy. */
-        legacyHistoryCapturedAt TIMESTAMP
+        legacyHistoryCapturedAt TIMESTAMP,
+
+        /* When this person's account first ran a build that can rejoin a share made
+           private under it. The inviter closes its bearer invite link only after this,
+           plus a grace period, because closing evicts the partner. */
+        canRejoinSince   TIMESTAMP,
+
+        /* When the inviter last offered a rejoin beside the share URL above. The
+           partner reads it to tell an eviction about to be undone from an unpairing. */
+        rejoinOfferedAt  TIMESTAMP
     );
 
     /* AlertStatus is the receiver telling the sender what they did with an alert. It
