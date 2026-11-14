@@ -234,6 +234,54 @@ final class LegacyHistoryArchiveTests: XCTestCase {
         XCTAssertFalse(LegacyHistoryCaptureState(phase: .done).hasSettledItsOwnCapture)
     }
 
+    // MARK: - Backfilling an outcome the previous build did not record
+
+    /// A capture that succeeded before outcomes existed left a snapshot and a budget
+    /// with attempts to spare. It ran its own capture, so a stamp that never landed
+    /// has to be retried — reading it as a fresh install would skip it for good.
+    func testASnapshotOnDiskMeansTheCaptureWasArchived() {
+        var state = LegacyHistoryCaptureState(phase: .done, failedAttempts: 2)
+        XCTAssertTrue(state.backfillOutcome(archiveExists: true))
+        XCTAssertEqual(state.outcome, .archived)
+        XCTAssertTrue(state.hasSettledItsOwnCapture)
+    }
+
+    /// The purge can run out of attempts after the snapshot is safe. That is still
+    /// archived: only the cleanup was abandoned.
+    func testASnapshotOutweighsASpentBudget() {
+        var state = LegacyHistoryCaptureState(phase: .done,
+                                              failedAttempts: LegacyHistoryCaptureState.maxAttempts)
+        state.backfillOutcome(archiveExists: true)
+        XCTAssertEqual(state.outcome, .archived)
+    }
+
+    func testNoSnapshotAndASpentBudgetIsAGiveUp() {
+        var state = LegacyHistoryCaptureState(phase: .done,
+                                              failedAttempts: LegacyHistoryCaptureState.maxAttempts)
+        XCTAssertTrue(state.backfillOutcome(archiveExists: false))
+        XCTAssertEqual(state.outcome, .gaveUp)
+        XCTAssertTrue(state.hasSettledItsOwnCapture)
+    }
+
+    /// The fresh install: nothing was ever fetched, so nothing was written and nothing
+    /// was spent. It must stay out of the launch-time stamp.
+    func testNoSnapshotAndAnUnspentBudgetIsNothingToCapture() {
+        var state = LegacyHistoryCaptureState(phase: .done)
+        XCTAssertTrue(state.backfillOutcome(archiveExists: false))
+        XCTAssertEqual(state.outcome, .nothingToCapture)
+        XCTAssertFalse(state.hasSettledItsOwnCapture)
+    }
+
+    func testBackfillLeavesARecordedOutcomeAndARunningCaptureAlone() {
+        var recorded = LegacyHistoryCaptureState(phase: .done, outcome: .gaveUp)
+        XCTAssertFalse(recorded.backfillOutcome(archiveExists: true))
+        XCTAssertEqual(recorded.outcome, .gaveUp)
+
+        var running = LegacyHistoryCaptureState(phase: .purging)
+        XCTAssertFalse(running.backfillOutcome(archiveExists: true))
+        XCTAssertNil(running.outcome)
+    }
+
     func testSummaryDoesNotAccuseAnInstallThatKeepsNoRecordOfItsStamp() {
         let fresh = LegacyHistoryCaptureState(phase: .done, outcome: .nothingToCapture)
         XCTAssertEqual(fresh.diagnosticSummary(partnerZoneName: "inbox-1"), "none to capture")
