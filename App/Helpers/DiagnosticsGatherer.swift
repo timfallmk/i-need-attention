@@ -38,6 +38,8 @@ enum DiagnosticsGatherer {
             subscriptions: await CloudKitService.shared.subscriptionStates(),
             ownedInboxZones: census?.owned,
             usableInboxZones: census?.usable,
+            legacyHistory: LegacyHistoryCaptureState.load()?
+                .diagnosticSummary(partnerZoneName: pair?.outgoingZone?.zoneName),
             events: await recentEvents(pair: pair)
         )
     }

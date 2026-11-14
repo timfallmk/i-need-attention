@@ -510,9 +510,12 @@ final class PairingService {
     /// none — a fresh install, or somebody pairing with a new partner — would otherwise
     /// never stamp at all, and a partner who *does* have history would wait forever for
     /// a signal that was never coming. Nothing to archive is exactly as good as archived.
+    ///
+    /// Best effort, and no longer the only attempt: `LegacyHistoryCapture.run` repeats
+    /// it on launch until it lands, which is what covers a write that fails here.
     private func stampLegacyCaptureIfSettled(zoneID: CKRecordZone.ID) async {
         guard LegacyHistoryCaptureState.load()?.phase == .done else { return }
-        try? await cloud.markLegacyHistoryCaptured(in: zoneID)
+        _ = try? await cloud.markLegacyHistoryCaptured(in: zoneID)
     }
 
     // MARK: - Reconciling the half-formed state

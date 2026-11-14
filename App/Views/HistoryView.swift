@@ -41,7 +41,11 @@ struct HistoryView: View {
             ContentUnavailableView {
                 Label("No history yet", systemImage: "clock")
             } description: {
-                Text("Alerts you send and receive will show up here.")
+                if legacyHistoryWasLost {
+                    Text("History from before version 2.0 couldn't be saved on this device. Alerts you send and receive from now on will show up here.")
+                } else {
+                    Text("Alerts you send and receive will show up here.")
+                }
             }
         } else {
             List {
@@ -57,10 +61,24 @@ struct HistoryView: View {
                         HistorySectionHeader(section: section)
                     }
                 }
+                if legacyHistoryWasLost {
+                    Section {
+                        Text("History from before version 2.0 couldn't be saved on this device.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .listStyle(.insetGrouped)
             .refreshable { await load() }
         }
+    }
+
+    /// The one place a person is told. Giving up drops the key that could have fetched
+    /// that history, so it is not coming back, and a list that simply starts later than
+    /// they remember reads as a bug rather than as something that happened.
+    private var legacyHistoryWasLost: Bool {
+        LegacyHistoryCaptureState.load()?.outcome == .gaveUp
     }
 
     @MainActor

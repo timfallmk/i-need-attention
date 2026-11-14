@@ -90,6 +90,12 @@ struct DiagnosticsReport: Equatable {
     var ownedInboxZones: Int?
     var usableInboxZones: Int?
 
+    /// Where the pre-2.0 capture ended up and whether the partner's purge has been
+    /// released — `LegacyHistoryCaptureState.diagnosticSummary`. Giving up used to
+    /// reach only `os_log`, which nobody exporting a report can send. Nil on an install
+    /// that has not considered the capture yet.
+    var legacyHistory: String?
+
     var events: [Event]
 
     /// Eight characters of the same SHA-256 that `PairCrypto.lookupHash` produces, so a
@@ -137,6 +143,9 @@ struct DiagnosticsReport: Equatable {
         out.append("This device: \(myDeviceFingerprint ?? "unknown")")
         out.append("Partner device: \(partnerDeviceFingerprint ?? "unknown")")
         out.append("Partner name set: \(hasPartnerName ? "yes" : "no")")
+        if let legacyHistory {
+            out.append("Pre-2.0 history: \(legacyHistory)")
+        }
         out.append("")
 
         out.append("[Notifications]")

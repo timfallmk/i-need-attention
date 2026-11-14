@@ -236,6 +236,16 @@ final class DiagnosticsReportTests: XCTestCase {
         XCTAssertFalse(text.contains("STALE ZONE"))
     }
 
+    // MARK: - Pre-2.0 capture
+
+    func testLegacyHistoryRowAppearsOnlyWhenTheCaptureHasBeenConsidered() {
+        XCTAssertFalse(makeReport().render().contains("Pre-2.0 history"))
+
+        var report = makeReport()
+        report.legacyHistory = "GAVE UP, not archived; partner released"
+        XCTAssertTrue(report.render().contains("Pre-2.0 history: GAVE UP, not archived; partner released"))
+    }
+
     // MARK: - Inbox zone census
 
     private func census(owned: Int?, usable: Int?) -> String {

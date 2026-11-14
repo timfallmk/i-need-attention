@@ -174,4 +174,52 @@ final class LegacyHistoryArchiveTests: XCTestCase {
                                               failedAttempts: LegacyHistoryCaptureState.maxAttempts - 1)
         XCTAssertTrue(state.recordFailure())
     }
+
+    // MARK: - Outcome and release (#76)
+
+    func testOutcomeAndStampRoundTrip() {
+        LegacyHistoryCaptureState(phase: .done, outcome: .gaveUp, stampedZoneName: "inbox-1").save()
+        let loaded = LegacyHistoryCaptureState.load()
+        XCTAssertEqual(loaded?.outcome, .gaveUp)
+        XCTAssertEqual(loaded?.stampedZoneName, "inbox-1")
+    }
+
+    /// Every install already in the field has a blob without the new keys. Failing to
+    /// decode it would read as "never considered" and run the one-shot capture again.
+    func testAStateWrittenBeforeOutcomesStillLoads() throws {
+        let legacy = Data(#"{"phase":"done","failedAttempts":10}"#.utf8)
+        UserDefaults.standard.set(legacy, forKey: LegacyHistoryCaptureState.storageKey)
+
+        let loaded = try XCTUnwrap(LegacyHistoryCaptureState.load())
+        XCTAssertEqual(loaded.phase, .done)
+        XCTAssertEqual(loaded.failedAttempts, 10)
+        XCTAssertNil(loaded.outcome)
+        // Unstamped is what makes the launch pass release the partner once.
+        XCTAssertNil(loaded.stampedZoneName)
+    }
+
+    func testSummaryNamesAGiveUpLoudly() {
+        let state = LegacyHistoryCaptureState(phase: .done, outcome: .gaveUp)
+        XCTAssertEqual(state.diagnosticSummary(partnerZoneName: nil), "GAVE UP, not archived")
+    }
+
+    func testSummarySaysWhetherThisPartnerHasBeenReleased() {
+        var state = LegacyHistoryCaptureState(phase: .done, outcome: .archived, stampedZoneName: "inbox-1")
+        XCTAssertEqual(state.diagnosticSummary(partnerZoneName: "inbox-1"), "archived; partner released")
+        // A stamp belongs to a pairing: a new partner's zone has not been told anything.
+        XCTAssertEqual(state.diagnosticSummary(partnerZoneName: "inbox-2"),
+                       "archived; partner NOT YET RELEASED")
+        state.stampedZoneName = nil
+        XCTAssertEqual(state.diagnosticSummary(partnerZoneName: "inbox-1"),
+                       "archived; partner NOT YET RELEASED")
+    }
+
+    func testSummaryCoversARunningCaptureAndAnUnrecordedOutcome() {
+        XCTAssertEqual(LegacyHistoryCaptureState(phase: .pending, failedAttempts: 2)
+                        .diagnosticSummary(partnerZoneName: nil), "capturing (2 failed)")
+        XCTAssertEqual(LegacyHistoryCaptureState(phase: .purging)
+                        .diagnosticSummary(partnerZoneName: nil), "archived, purging (0 failed)")
+        XCTAssertEqual(LegacyHistoryCaptureState(phase: .done)
+                        .diagnosticSummary(partnerZoneName: nil), "done")
+    }
 }

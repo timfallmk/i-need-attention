@@ -87,8 +87,29 @@ struct LegacyHistoryCaptureState: Codable, Equatable {
         case done
     }
 
+    /// How a capture reached `.done`. The phase alone cannot say, and the difference is
+    /// the one the user is owed: `gaveUp` means their pre-2.0 history is gone for good.
+    enum Outcome: String, Codable {
+        /// The snapshot is on disk. Still this when the purge that follows was abandoned
+        /// — that costs cleanup, not history.
+        case archived
+        /// The retry budget ran out before anything was saved, and the key that could
+        /// have fetched it has been dropped.
+        case gaveUp
+        case nothingToCapture
+    }
+
     var phase: Phase
     var failedAttempts: Int = 0
+
+    /// Nil while the capture is still running, and on a `.done` written before outcomes
+    /// were recorded — where the three are no longer distinguishable.
+    var outcome: Outcome?
+
+    /// The partner's zone whose copy of our profile is known to carry the stamp that
+    /// releases their purge. A zone name rather than a flag because the stamp belongs to
+    /// a pairing: a new partner has a new zone and has been told nothing.
+    var stampedZoneName: String?
 
     /// A capture that keeps failing would otherwise retry on every launch forever,
     /// holding on to the pre-2.0 pair key indefinitely. Ten launches is far more
@@ -102,6 +123,26 @@ struct LegacyHistoryCaptureState: Codable, Equatable {
     mutating func recordFailure() -> Bool {
         failedAttempts += 1
         return isExhausted
+    }
+
+    /// One line for the diagnostics export. Built only from this app's own state names,
+    /// so there is nothing in it to redact.
+    ///
+    /// `partnerZoneName` is the current pairing's; nil when unpaired, where "released"
+    /// has nobody to be about.
+    func diagnosticSummary(partnerZoneName: String?) -> String {
+        let progress: String
+        switch (phase, outcome) {
+        case (.pending, _): progress = "capturing (\(failedAttempts) failed)"
+        case (.purging, _): progress = "archived, purging (\(failedAttempts) failed)"
+        case (.done, .archived?): progress = "archived"
+        case (.done, .gaveUp?): progress = "GAVE UP, not archived"
+        case (.done, .nothingToCapture?): progress = "none to capture"
+        case (.done, nil): progress = "done"
+        }
+        guard let partnerZoneName else { return progress }
+        let released = stampedZoneName == partnerZoneName
+        return "\(progress); partner \(released ? "released" : "NOT YET RELEASED")"
     }
 
     /// Scoped to the CloudKit environment, like the archive itself. The capture is a
