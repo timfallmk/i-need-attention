@@ -84,6 +84,13 @@ enum LegacyHistoryCapture {
     static func run(cloud: CloudKitService = .shared) async {
         guard var state = LegacyHistoryCaptureState.load() else { return }
 
+        // Checked before the snapshot is read, so the file is decoded once on the one
+        // launch that needs it rather than on every launch for good.
+        if state.phase == .done, state.outcome == nil,
+           state.backfillOutcome(archiveExists: LegacyHistoryArchive.load() != nil) {
+            state.save()
+        }
+
         if state.phase != .done {
             guard let pairKey = PairSecrets.store.secret(for: Constants.Keychain.legacyHistoryKeyAccount) else {
                 // Same pre-unlock window as prepare(), and it must not count as an attempt:

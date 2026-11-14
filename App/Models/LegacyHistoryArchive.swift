@@ -134,8 +134,9 @@ struct LegacyHistoryCaptureState: Codable, Equatable {
     /// here would release the partner's purge while another of this person's devices
     /// was still fetching the history that purge deletes.
     ///
-    /// A state written before outcomes were recorded can only be told apart by its
-    /// attempt count: giving up is the one way to reach `.done` with the budget spent.
+    /// A state written before outcomes were recorded says nothing here by itself, which
+    /// is what `backfillOutcome` is for. The attempt count is the fallback for one that
+    /// has not been backfilled yet: a spent budget is the one trace a give-up left.
     var hasSettledItsOwnCapture: Bool {
         guard phase == .done else { return false }
         switch outcome {
@@ -143,6 +144,29 @@ struct LegacyHistoryCaptureState: Codable, Equatable {
         case .nothingToCapture?: return false
         case nil: return isExhausted
         }
+    }
+
+    /// Works out how a `.done` written before outcomes were recorded got there, from
+    /// what that build left behind. Returns whether it changed anything.
+    ///
+    /// The snapshot on disk is the recorded result: a capture that succeeded wrote one,
+    /// even an empty one, and an install with nothing to capture never did. Without it
+    /// the two are the same blob, and treating both alike is wrong in both directions —
+    /// call them settled and a fresh install releases a sibling device's claim, call
+    /// them unsettled and a finished capture whose stamp never landed is never retried.
+    /// No snapshot and a spent budget is a give-up, which was otherwise invisible to
+    /// History on exactly the installs that already had one.
+    @discardableResult
+    mutating func backfillOutcome(archiveExists: Bool) -> Bool {
+        guard phase == .done, outcome == nil else { return false }
+        if archiveExists {
+            outcome = .archived
+        } else if isExhausted {
+            outcome = .gaveUp
+        } else {
+            outcome = .nothingToCapture
+        }
+        return true
     }
 
     /// One line for the diagnostics export. Built only from this app's own state names,
