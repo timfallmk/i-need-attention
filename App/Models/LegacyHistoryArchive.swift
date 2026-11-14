@@ -48,6 +48,24 @@ struct LegacyHistoryArchive: Codable, Equatable {
         return try? JSONDecoder().decode(LegacyHistoryArchive.self, from: data)
     }
 
+    /// Whether a snapshot is on disk: true, false when it is confirmed absent, and nil
+    /// when that could not be established.
+    ///
+    /// Not `load() != nil`, which is nil for a file that is there but cannot be read
+    /// or decoded right now — before the first unlock after a reboot, say. Whoever
+    /// asks this is about to record the answer for good, and "unreadable today" is not
+    /// "never written".
+    static var existsOnDisk: Bool? {
+        guard let url = fileURL else { return nil }
+        do {
+            return try url.checkResourceIsReachable()
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return false
+        } catch {
+            return nil
+        }
+    }
+
     @discardableResult
     func save() -> Bool {
         guard let url = Self.fileURL, let data = try? JSONEncoder().encode(self) else { return false }
@@ -156,9 +174,12 @@ struct LegacyHistoryCaptureState: Codable, Equatable {
     /// them unsettled and a finished capture whose stamp never landed is never retried.
     /// No snapshot and a spent budget is a give-up, which was otherwise invisible to
     /// History on exactly the installs that already had one.
+    ///
+    /// `archiveExists` is nil when the disk could not say, and then nothing is recorded
+    /// so the next launch asks again. The answer is kept for good, so it has to be one.
     @discardableResult
-    mutating func backfillOutcome(archiveExists: Bool) -> Bool {
-        guard phase == .done, outcome == nil else { return false }
+    mutating func backfillOutcome(archiveExists: Bool?) -> Bool {
+        guard phase == .done, outcome == nil, let archiveExists else { return false }
         if archiveExists {
             outcome = .archived
         } else if isExhausted {
