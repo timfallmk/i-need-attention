@@ -1,27 +1,41 @@
-2.3.1 is mostly about one thing you will not see: the code or link you paired with stops working once the pairing is made.
+2.3.1 changes two things you mostly will not see.
 
-Until now, the QR code and the invite link you used to pair stayed valid for as long as you were paired. Anyone who had seen either one could use it later. This build closes them. Nothing changes on screen, but underneath, your partner's app briefly loses access to your side of the pairing and immediately gets it back under their own name instead of under the link.
+THE CODE YOU PAIRED WITH STOPS WORKING
 
-That switch waits until BOTH of you have this build, then waits three more days so any other devices on your accounts have time to update too. So for the first few days, nothing at all should happen.
+Until now the QR code and invite link you paired with stayed valid for as long as you were paired, so anyone who had seen one could use it later. This build closes them. Nothing changes on screen, but underneath your partner's app briefly loses access to your side of the pairing and gets it straight back under their own name instead of under the link.
 
-WHAT TO TRY
+That switch waits until BOTH of you have this build, then three more days so your other devices can update. For the first few days nothing should happen.
 
 1. Update every device, both of you. Phones, iPads, anything signed in to the same Apple Account. A device still on an older build is the one thing that can turn the switch into a real unpairing, and it is why the three-day wait exists.
 
-2. Then just use it normally for a week. Send, answer, snooze, as usual.
+2. Then use it normally for a week.
 
-   THE ONE THING TO REPORT: if either of you ever lands on the pairing screen, or sees a message saying your partner unpaired, when nobody unpaired. That is the failure this build is built to avoid. Say which device it was, roughly when, and what build every device on both accounts was running.
+   REPORT THIS ABOVE ALL: either of you lands on the pairing screen, or is told your partner unpaired, when nobody unpaired. That is the failure this build is built to avoid. Say which device, roughly when, and what build every device on both accounts was running.
 
-3. Once, around the switch, pressing the button may say "Still finishing setup with your partner. Try again in a moment." Press again and it should go through. Seeing it more than once in a row is worth reporting.
+3. Once, around the switch, pressing the button may say "Still finishing setup with your partner. Try again in a moment." Press again. More than once in a row is worth reporting.
 
-4. If the app ever says another account had joined with your pairing code, please report it, including whether either of you has a second Apple Account. It means an Apple Account other than the one your partner paired with had joined using the code or link, and has now been removed.
+4. If the app says another account had joined with your pairing code, report it, and say whether either of you has a second Apple Account. It means an Apple Account other than the one your partner paired with had joined using the code or link, and has now been removed.
+
+ANSWERING FROM A NOTIFICATION
+
+A notification kept working after its alert was answered. An old one could undo your answer, send your partner a second "Got back to you" days later, or leave a snoozed reminder to arrive as a request nobody made.
+
+5. Snooze, then answer a later one. Have your partner send. Pull down the banner and tap "Remind me in 15m". Have them send again, and answer THAT one from its banner without opening the app. The first reminder should never arrive.
+
+6. Answer the newer of two. Have your partner send twice before you answer. Answer the NEWER from its banner, wait a few seconds, then tap an emoji on the banner for the OLDER. Your partner should get one "Got back to you", not two.
+
+7. Answer the older of two. Same setup, but answer the OLDER first. Your partner SHOULD get that reply, and another when you answer the newer.
+
+   ALSO REPORT: you answer from a banner and your partner hears nothing, outside of step 6. This build refuses some answers on purpose, and refusing one wrongly is what matters. Say which banner you tapped and what else was waiting.
 
 ALSO IN THIS BUILD
 
-- The pairing screen fills in your name if the app already knows it, instead of asking again. Renaming yourself in Settings now changes it there too.
-- VoiceOver reads the name field as "Your name" rather than an unlabelled text field.
+- The pairing screen fills in your name if the app already knows it. Renaming yourself in Settings changes it there too.
+- VoiceOver reads the name field as "Your name".
+- If you used the app before 2.0: cleaning up the old records no longer waits forever on a device that could not save its copy. If History says history from before version 2.0 couldn't be saved, please tell me.
 
 KNOWN ROUGH EDGES
 
 - The three-day wait is deliberate. There is no way to see whether the switch has happened yet; if nothing has gone wrong, it either has or is still waiting.
-- Just after you send, the status can briefly read "All quiet" instead of "Sent". Only the pill is wrong; your partner gets the alert. Already logged.
+- A banner for an alert you already answered can still be snoozed. The reminder arrives; answering it does nothing.
+- Just after you send, the status can briefly read "All quiet" instead of "Sent". Only the pill is wrong. Already logged.

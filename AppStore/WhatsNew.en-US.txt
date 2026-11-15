@@ -1,17 +1,19 @@
-Now on iPad
+A pairing code that closes behind you
 
-The app runs on iPad in any orientation, and alongside other apps in Split View and Stage Manager. It is the same app, not a stretched-out phone layout.
+The QR code or invite link you paired with used to keep working for as long as you stayed paired. It now stops working once the pairing is made, so nobody who saw it can use it later. This happens by itself, a few days after both of you have updated.
 
-All your devices, one pairing
+Answers that stay answered
 
-Sign in on a second device and it comes up already paired — your partner's name, your history, no second QR code to scan. A pairing belongs to your Apple Account rather than to one phone, so adding a device is just signing in on it.
+Replying from a notification is more dependable. An old notification can no longer undo an answer you already gave, and your partner no longer gets a second "Got back to you" for something you answered days ago.
 
-Answering also got tidier. Reply to an alert on one of your devices and it clears itself from the others, instead of sitting there waiting to be swiped away.
+Reminders that know when to stop
 
-One word that changed meaning
+Snooze an alert, then answer a later one from its notification, and the earlier reminder is cancelled. It used to arrive anyway, looking like a request nobody had made.
 
-Unpairing has always ended the pairing on every device, because what it deletes belongs to your Apple Account. The button used to say "Unpair this phone", which was not true. It now says what it does, and so does the confirmation.
+Easier to read, hear and follow
+
+The app now responds to Larger Text, Reduce Motion and Reduce Transparency, and says more to VoiceOver on both iPhone and Apple Watch.
 
 Smaller things
 
-Clearer wording in Settings and through pairing, including an honest description of what erasing your data does and does not reach. Fixed a case where notifications could be slow to start arriving just after you paired.
+The pairing screen remembers your name instead of asking for it again. If you used the app before version 2.0, the last of its old unencrypted records are now cleaned up even when one of your devices could not save its own copy of that history first. If that happened to you, History says so.
