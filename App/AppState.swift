@@ -700,8 +700,6 @@ final class AppState {
         }
 
         log.notice("Partner's inbox zone is gone; ending the pairing on this device too")
-        PartnerUnpairedNotice.happened = true
-        partnerEndedPairing = true
         // Archives first, as every unpair does. The sent half is already unreachable —
         // that is what got us here — but the received half is in the zone we own, and
         // `fetchRecentAlerts` tolerates one zone failing without losing the other.
@@ -718,12 +716,24 @@ final class AppState {
         // a snapshot that outlives another device re-pairing under this process. Only a
         // fresh `load()`, which checks the fingerprint against the current key, shows
         // that the pairing about to be torn down is the one the account is in.
+        //
+        // The notice is raised only once the pairing has actually ended, because the
+        // account-wide path can still find the zone back and keep it.
         if PairState.hasKeyFingerprint, PairState.load()?.pairKey == pair.pairKey {
-            await unpair()
+            guard await unpairAfterPartnerLeft(zone.zoneID) else {
+                log.notice("Partner's inbox zone came back before teardown; keeping the pairing")
+                if userInitiated {
+                    bannerMessage = AttentionError.pairIncomplete.errorDescription
+                    Haptics.warning()
+                }
+                return true
+            }
         } else {
             log.notice("Pairing is not provably the account's current one; tearing down locally")
             await endPairingAfterItEndedElsewhere()
         }
+        PartnerUnpairedNotice.happened = true
+        partnerEndedPairing = true
         Haptics.warning()
         return true
     }
@@ -813,6 +823,17 @@ final class AppState {
         await archiveCurrentPairing()
         await PairingService.shared.unpair()
         forgetPairingLocally()
+    }
+
+    /// `unpair()` on the partner-ended path, which can still turn out not to be one; see
+    /// `PairingService.unpairAfterPartnerLeft`. Returns whether the pairing ended.
+    private func unpairAfterPartnerLeft(_ zoneID: CKRecordZone.ID) async -> Bool {
+        unpairInProgress = true
+        defer { unpairInProgress = false }
+        await archiveCurrentPairing()
+        guard await PairingService.shared.unpairAfterPartnerLeft(zoneID) else { return false }
+        forgetPairingLocally()
+        return true
     }
 
     /// Ends a pairing that is already over, touching nothing the account shares.

@@ -22,6 +22,24 @@ extension Error {
     }
 }
 
+extension Error {
+    /// Whether this is CloudKit failing to answer rather than answering no: no network,
+    /// the service busy or down, a rate limit. The caller retries rather than concluding
+    /// anything, so this errs wide — a code missing here is one that ends a pairing over
+    /// a bad connection, while one wrongly included only delays a decision to the next
+    /// pass.
+    var isTransientCloudKitFailure: Bool {
+        guard let error = self as? CKError else { return false }
+        switch error.code {
+        case .networkUnavailable, .networkFailure, .serviceUnavailable,
+             .requestRateLimited, .zoneBusy:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 private extension CKError {
     var isMissingZoneCode: Bool {
         code == .zoneNotFound || code == .userDeletedZone
