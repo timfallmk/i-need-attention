@@ -1,19 +1,7 @@
-A pairing code that closes behind you
+Steadier pairing
 
-The QR code or invite link you paired with used to keep working for as long as you stayed paired. It now stops working once the pairing is made, so nobody who saw it can use it later. This happens by itself, a few days after both of you have updated.
-
-Answers that stay answered
-
-Replying from a notification is more dependable. An old notification can no longer undo an answer you already gave, and your partner no longer gets a second "Got back to you" for something you answered days ago.
-
-Reminders that know when to stop
-
-Snooze an alert, then answer a later one from its notification, and the earlier reminder is cancelled. It used to arrive anyway, looking like a request nobody had made.
-
-Easier to read, hear and follow
-
-The app now responds to Larger Text, Reduce Motion and Reduce Transparency, and says more to VoiceOver on both iPhone and Apple Watch.
+Last update, the code you paired with started closing itself a few days after you both update. This makes that switch more careful: a dropped connection at the wrong moment can no longer make the app think your partner unpaired.
 
 Smaller things
 
-The pairing screen remembers your name instead of asking for it again. If you used the app before version 2.0, the last of its old unencrypted records are now cleaned up even when one of your devices could not save its own copy of that history first. If that happened to you, History says so.
+If the app told you another account had joined with your pairing code, erasing your data now clears that notice straight away.
