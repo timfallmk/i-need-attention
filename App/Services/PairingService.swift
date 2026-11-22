@@ -681,6 +681,10 @@ final class PairingService {
                 return .rejoined
             }
             log.error("Rejoin offer named a different zone; ignoring it")
+        } catch let error where error.isTransientCloudKitFailure {
+            // Could not ask, which says nothing about whether the offer still holds.
+            log.error("rejoin: could not reach CloudKit, not unpairing: \(error.localizedDescription)")
+            return .undetermined
         } catch {
             log.error("rejoin: \(error.localizedDescription)")
         }
@@ -802,6 +806,25 @@ final class PairingService {
 
         await tearDownInboxZone()
         PairState.clear()
+    }
+
+    /// `unpair()` for a pairing that ended because the partner's zone vanished, and only
+    /// if it still has: checked again here, under the gate the teardown holds.
+    ///
+    /// The caller's evidence is a recovery that returned and released the gate, and the
+    /// archive sweep it then awaits takes no gate at all — so a recovery queued behind
+    /// the first, by a profile push or a foreground, can rejoin in between. Tearing down
+    /// after that would end the pairing the partner had just restored, and deleting our
+    /// own zone would then make *them* read it as our unpairing. An unreadable zone list
+    /// also aborts: nothing account-wide happens on a guess, and the next pass decides.
+    func unpairAfterPartnerLeft(_ zoneID: CKRecordZone.ID) async -> Bool {
+        await beginPairingChange()
+        defer { endPairingChange() }
+
+        guard await cloud.zoneIsMissing(zoneID) else { return false }
+        await tearDownInboxZone()
+        PairState.clear()
+        return true
     }
 
     /// The remote half of "Erase all my data": the zone this device owns, its share and

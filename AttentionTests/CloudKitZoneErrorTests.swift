@@ -108,4 +108,23 @@ final class PartnerUnpairedNoticeTests: XCTestCase {
     func testUsesItsOwnStorageKey() {
         XCTAssertNotEqual(PartnerUnpairedNotice.storageKey, CutoverNotice.storageKey)
     }
+
+    // MARK: - Transient
+
+    /// A rejoin that fails for one of these says nothing about the offer, so the pairing
+    /// has to survive it. Each is CloudKit failing to answer, not answering no.
+    func testUnreachableCloudKitIsTransient() {
+        for code: CKError.Code in [.networkUnavailable, .networkFailure, .serviceUnavailable,
+                                   .requestRateLimited, .zoneBusy] {
+            XCTAssertTrue(cloudKitError(code).isTransientCloudKitFailure, "\(code)")
+        }
+    }
+
+    /// A share that is gone, or that no longer lists us, is an answer. Reading it as a
+    /// passing failure would keep a pairing the inviter really ended looking alive.
+    func testDefiniteAnswersAreNotTransient() {
+        for code: CKError.Code in [.unknownItem, .zoneNotFound, .userDeletedZone, .permissionFailure] {
+            XCTAssertFalse(cloudKitError(code).isTransientCloudKitFailure, "\(code)")
+        }
+    }
 }
