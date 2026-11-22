@@ -109,4 +109,17 @@ final class InviteLinkClosureTests: XCTestCase {
     func testAnOfferFromAClockRunningAheadIsFresh() {
         XCTAssertTrue(PartnerZoneLoss.offerIsFresh(now.addingTimeInterval(300), now: now))
     }
+
+    // MARK: - What recovery lets through to an unpairing
+
+    /// Only a confirmed absence of any offer may end the pairing. A zone that turned out
+    /// to be there — typically restored by a recovery that held the gate first — and a
+    /// profile that could not be read both have to keep it, or a passing network error
+    /// or a lost race ends a pairing nobody ended.
+    func testOnlyNotApplicableReleasesThePairing() {
+        XCTAssertFalse(PartnerZoneRecovery.notApplicable.keepsPairing)
+        for kept: PartnerZoneRecovery in [.zonePresent, .rejoined, .waiting, .undetermined] {
+            XCTAssertTrue(kept.keepsPairing, "\(kept) must keep the pairing")
+        }
+    }
 }

@@ -691,15 +691,12 @@ final class AppState {
         guard error.isMissingCloudKitZone, let zone = pair.outgoingZone else { return false }
         guard await CloudKitService.shared.zoneIsMissing(zone.zoneID) else { return false }
 
-        switch await PairingService.shared.recoverFromClosedInviteLink(pair) {
-        case .rejoined, .waiting:
+        if await PairingService.shared.recoverFromClosedInviteLink(pair).keepsPairing {
             if userInitiated {
                 bannerMessage = AttentionError.pairIncomplete.errorDescription
                 Haptics.warning()
             }
             return true
-        case .notApplicable:
-            break
         }
 
         log.notice("Partner's inbox zone is gone; ending the pairing on this device too")
@@ -921,6 +918,7 @@ final class AppState {
         needsRepairAfterCutover = false
         partnerEndedPairing = false
         pairingEndedOnAnotherDevice = false
+        accountsRemovedThroughInviteLink = 0
         cooldownEnds = nil
         bannerMessage = nil
         outgoingAckSubscriptionUnavailable = false

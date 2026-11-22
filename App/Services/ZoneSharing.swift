@@ -439,14 +439,26 @@ extension CloudKitService {
     }
 
     /// The partner's profile, read out of the zone we own. Returns nil while they haven't
-    /// written one — which for the inviter is the whole time an invite is outstanding.
+    /// written one — which for the inviter is the whole time an invite is outstanding —
+    /// and equally when it could not be read. Where those two must not be confused, use
+    /// `readPartnerProfile`.
     func fetchPartnerProfile(pairKey: String) async -> PartnerProfile? {
+        try? await readPartnerProfile(pairKey: pairKey)
+    }
+
+    /// As `fetchPartnerProfile`, but nil only when CloudKit says there is no profile.
+    /// Anything else — offline, throttled, signed out — throws, because a caller deciding
+    /// whether to end a pairing must not read "could not look" as "nothing there".
+    func readPartnerProfile(pairKey: String) async throws -> PartnerProfile? {
         let zoneID = Self.inboxZoneID
         let recordID = CKRecord.ID(recordName: Constants.Profile.recordName, zoneID: zoneID)
-        guard let record = try? await privateDB.record(for: recordID),
-              let deviceID = record[Constants.Profile.deviceID] as? String else {
+        let record: CKRecord
+        do {
+            record = try await privateDB.record(for: recordID)
+        } catch let error as CKError where error.code == .unknownItem || error.isMissingCloudKitZone {
             return nil
         }
+        guard let deviceID = record[Constants.Profile.deviceID] as? String else { return nil }
 
         // Written by the partner, so it gets the same bounds as any other name off the
         // wire — decryption proves they held the pair key, not that they were sensible.
@@ -586,19 +598,25 @@ extension CloudKitService {
             throw AttentionError.shareUnavailable
         }
 
+        var madePrivate = false
         if share.publicPermission != .none {
             share.publicPermission = .none
             share = try await saveShare(share)
+            madePrivate = true
         }
 
         let named = share.participants.contains {
             $0.role != .owner && $0.userIdentity.userRecordID?.recordName == userID
         }
         if !named {
-            let invitee = try await container.shareParticipant(forUserRecordID: CKRecord.ID(recordName: userID))
-            invitee.permission = .readWrite
-            share.addParticipant(invitee)
-            share = try await saveShare(share)
+            do {
+                let invitee = try await container.shareParticipant(forUserRecordID: CKRecord.ID(recordName: userID))
+                invitee.permission = .readWrite
+                share.addParticipant(invitee)
+                share = try await saveShare(share)
+            } catch let error where madePrivate {
+                throw InviteLinkCloseError.partnerNotNamed(underlying: error)
+            }
         }
         return share.url
     }
@@ -610,6 +628,12 @@ extension CloudKitService {
         }
         return stored
     }
+}
+
+/// A close that got halfway. The share is private, so everyone who joined through the
+/// link is already out; only naming the partner failed, which the next pass retries.
+enum InviteLinkCloseError: Error {
+    case partnerNotNamed(underlying: Error)
 }
 
 /// What `InviteLinkClosure` needs from this device's inbox share, without the share.

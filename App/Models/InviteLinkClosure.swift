@@ -85,3 +85,22 @@ enum PartnerZoneLoss {
         return now.timeIntervalSince(offeredAt) < offerFreshness
     }
 }
+
+/// What `PairingService.recoverFromClosedInviteLink` found.
+enum PartnerZoneRecovery {
+    /// The zone is missing and nothing says it is coming back: decide as before.
+    case notApplicable
+    /// The zone is there after all. Usually another recovery got there first, having
+    /// waited on the same gate; the caller's evidence of loss is stale.
+    case zonePresent
+    /// Accepted again; the zone is back.
+    case rejoined
+    /// Not back yet, but a fresh offer says it is coming. Not an unpairing.
+    case waiting
+    /// The partner's profile could not be read, so whether an offer is waiting is
+    /// unknown. Not an unpairing either: the next pass asks again.
+    case undetermined
+
+    /// Whether the caller must keep the pairing. Only `.notApplicable` hands it back.
+    var keepsPairing: Bool { self != .notApplicable }
+}
