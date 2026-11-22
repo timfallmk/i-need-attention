@@ -2,16 +2,6 @@ import CloudKit
 import Foundation
 import os.log
 
-/// What `PairingService.recoverFromClosedInviteLink` found.
-enum PartnerZoneRecovery {
-    /// The zone is not missing, or nothing says it is coming back: decide as before.
-    case notApplicable
-    /// Accepted again; the zone is back.
-    case rejoined
-    /// Not back yet, but a fresh offer says it is coming. Not an unpairing.
-    case waiting
-}
-
 /// Coordinates the four-step pairing handshake. Reads and writes go through
 /// `CloudKitService`; persistence lives in `PairState` / `PendingInvite`.
 ///
@@ -585,8 +575,11 @@ final class PairingService {
             if others > 0 {
                 log.error("Closing an invite link that \(others) other account(s) had joined")
             }
-            // Only once the close has landed: before that they are still in, and a notice
-            // saying they had been removed would be false.
+            // Only once the share is private: before that they are still in, and a notice
+            // saying they had been removed would be false. Not only once the whole close
+            // has landed, though — they are out from the first save, and if naming the
+            // partner fails after it, the pass that finishes the job sees a private share
+            // and has no way left to count them.
             if await closeAndOffer(keeping: keeping, currentURL: share.url, pair: current, zone: zone),
                others > 0 {
                 RemovedThroughInviteLinkNotice.count = others
@@ -604,8 +597,9 @@ final class PairingService {
         }
     }
 
-    /// Returns whether the share is now private with the partner named, which is the
-    /// point from which anyone else who had joined through the link is out.
+    /// Returns whether the share is now private, which is the point from which anyone
+    /// else who had joined through the link is out — whether or not the partner has been
+    /// named in it yet.
     @discardableResult
     private func closeAndOffer(keeping userID: String,
                                currentURL: URL?,
@@ -639,6 +633,11 @@ final class PairingService {
             try? await offer(closedURL ?? currentURL)
             log.notice("Invite link closed; partner re-invited by name")
             return true
+        } catch InviteLinkCloseError.partnerNotNamed(let underlying) {
+            // Their offer is already waiting in their zone, so they hold off unpairing
+            // while the next pass names them; see `PartnerZoneLoss`.
+            log.error("Invite link closed but partner not yet re-invited: \(underlying.localizedDescription)")
+            return true
         } catch {
             // Either save may have landed. The next pass reads the share again and
             // finishes whichever half is missing.
@@ -651,20 +650,29 @@ final class PairingService {
     /// shared database, decides between rejoining it and the old reading, that the
     /// inviter unpaired. See `PartnerZoneLoss`.
     ///
-    /// `.rejoined` and `.waiting` both mean "do not unpair". `.notApplicable` hands the
-    /// decision back to the caller unchanged, which is also the answer whenever the zone
-    /// is not missing at all, so a call made speculatively costs one zone listing.
+    /// Every answer but `.notApplicable` means "do not unpair"; see `keepsPairing`. A
+    /// call made speculatively, with the zone present, costs one zone listing.
+    ///
+    /// The zone is checked again here, under the gate, even though the caller has just
+    /// checked it: a recovery holding the gate can rejoin while this one waits, and the
+    /// caller's "missing" is then out of date. Reading that as "nothing to recover"
+    /// would tear down the pairing the other recovery had just restored.
     func recoverFromClosedInviteLink(_ state: PairState) async -> PartnerZoneRecovery {
         await beginPairingChange()
         defer { endPairingChange() }
 
         guard stillDescribesTheCurrentPairing(state),
-              let zone = state.outgoingZone,
-              await cloud.zoneIsMissing(zone.zoneID),
-              let profile = await cloud.fetchPartnerProfile(pairKey: state.pairKey),
-              let url = profile.shareURL else {
-            return .notApplicable
+              let zone = state.outgoingZone else { return .notApplicable }
+        guard await cloud.zoneIsMissing(zone.zoneID) else { return .zonePresent }
+
+        let profile: PartnerProfile?
+        do {
+            profile = try await cloud.readPartnerProfile(pairKey: state.pairKey)
+        } catch {
+            log.error("rejoin: partner profile unreadable, not unpairing: \(error.localizedDescription)")
+            return .undetermined
         }
+        guard let profile, let url = profile.shareURL else { return .notApplicable }
 
         do {
             let (accepted, _) = try await cloud.acceptShare(at: url)
